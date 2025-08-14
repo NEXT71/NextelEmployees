@@ -1,11 +1,30 @@
-import express from 'express'
-const authRouter = express.Router();
-import { register, login, getMe, logout} from '../controllers/auth.controller.js';
+import express from 'express';
+const router = express.Router();
+import { 
+  register,
+  registerEmployee, 
+  login, 
+  getMe, 
+  logout,
+  verifyEmployeeAccount,
+  sendOTPForVerification,
+  forgotPassword,
+  resetPassword
+} from '../controllers/auth.controller.js';
 import auth from '../middlewares/auth.js';
+import admin from '../middlewares/admin.js';
 
-authRouter.post('/register', register);
-authRouter.post('/login', login);
-authRouter.get('/me', auth, getMe);
-authRouter.post('/logout', auth, logout);
+// Public routes
+router.post('/register', register);
+router.post('/login', login);
+router.post('/verify/otp', sendOTPForVerification);
+router.post('/verify/employee', verifyEmployeeAccount);
+router.post('/forgot-password', forgotPassword);
+router.patch('/reset-password/:token', resetPassword);
 
-export default authRouter
+// Protected routes
+router.post('/register/employee', auth, admin, registerEmployee);
+router.get('/me', auth, getMe);
+router.post('/logout', auth, logout);
+
+export default router;

@@ -17,6 +17,7 @@ const app = express();
 // Database connection
 import './config/db.js';
 import connectDB from './config/db.js';
+import salaryRouter from './routes/salary.routes.js';
 
 connectDB();
 // Middlewares
@@ -32,6 +33,8 @@ app.use('/api/auth', authRouter);
 app.use('/api/employees', employeeRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/fines', fineRouter);
+app.use('/api/salaries', salaryRouter);
+
 
 
 // Error handling

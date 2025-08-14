@@ -14,6 +14,10 @@ const employeeSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  fatherName: {
+    type: String,
+    default: ''
+  },
   email: {
     type: String,
     required: true,
@@ -30,29 +34,37 @@ const employeeSchema = new mongoose.Schema({
   },
   hireDate: {
     type: Date,
-    required: true
+    default: Date.now
   },
   salary: {
-    baseSalary: Number,
-    bonuses: Number,
-    deductions: Number
+    baseSalary: { type: Number, default: 0 },
+    bonuses: { type: Number, default: 0 },
+    deductions: { type: Number, default: 0 },
+    history: [{
+      date: { type: Date, default: Date.now },
+      baseSalary: Number,
+      bonuses: Number,
+      deductions: Number,
+      notes: String
+    }]
   },
   status: {
     type: String,
     enum: ['Active', 'Inactive', 'On Leave'],
     default: 'Active'
   },
-  fines: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Fine'
-  }],
-  totalFines: {
-    type: Number,
-    default: 0
-  },
   contact: {
-    phone: String,
-    address: String
+    phone: { type: String, default: '' },
+    emergencyContact: { type: String, default: '' },
+    address: { type: String, default: '' }
+  },  
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    unique: true
+  },
+  lastSeen: {
+    type: Date
   }
 }, { timestamps: true });
 

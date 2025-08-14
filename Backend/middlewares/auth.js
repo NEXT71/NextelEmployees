@@ -1,22 +1,41 @@
-import { verifyToken } from "../config/jwt.js";
+import jwt from 'jsonwebtoken';
 
+// auth.js
 const auth = async (req, res, next) => {
   try {
-    // Get token from header or cookie
-    let token = req.header('Authorization')?.replace('Bearer ', '') || req.cookies.token;
-
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
     if (!token) {
-      return res.status(401).json({ message: 'Not authorized, no token' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'No token provided'
+      });
     }
 
-    // Verify token
-    const decoded = verifyToken(token);
-    req.user = decoded;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Ensure we have a valid employeeId
+    if (!decoded.employeeId && !decoded.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token payload',
+        error: 'MISSING_EMPLOYEE_ID'
+      });
+    }
 
+    req.user = {
+      userId: decoded.userId,
+      employeeId: decoded.employeeId || decoded.userId, // Fallback to userId
+      role: decoded.role
+    };
+    
     next();
   } catch (err) {
-    res.status(401).json({ message: 'Not authorized, token failed' });
+    return res.status(401).json({ 
+      success: false,
+      message: 'Invalid token'
+    });
   }
 };
 
-export default auth
+export default auth;

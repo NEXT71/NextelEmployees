@@ -5,6 +5,7 @@ const validateEmployee = (data, isUpdate = false) => {
     employeeId: isUpdate ? Joi.string().optional() : Joi.string().required(),
     firstName: Joi.string().required(),
     lastName: Joi.string().required(),
+    fatherName: Joi.string().optional(),
     email: Joi.string().email().required(),
     department: Joi.string().valid(
       'Customer Service', 
@@ -19,11 +20,12 @@ const validateEmployee = (data, isUpdate = false) => {
       baseSalary: Joi.number().required(),
       bonuses: Joi.number().default(0),
       deductions: Joi.number().default(0)
-    }).required(),
+    }).optional(), // Changed to optional
     status: Joi.string().valid('Active', 'Inactive', 'On Leave').default('Active'),
     contact: Joi.object({
       phone: Joi.string(),
-      address: Joi.string()
+      address: Joi.string(),
+      emergencyContact: Joi.string()
     }).optional()
   });
 

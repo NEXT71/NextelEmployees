@@ -1,13 +1,29 @@
-import express from 'express'
-const employeeRouter = express.Router();
-import { createEmployee, deleteEmployee, getAllEmployees, getEmployee, updateEmployee } from '../controllers/employee.controller.js';
+import express from 'express';
+import {
+  createEmployee,
+  deleteEmployee,
+  getAllEmployees,
+  getEmployee,
+  updateEmployee,
+  getEmployeeFines,
+  getEmployeeSalaries,
+  getEmployeeByUserId
+} from '../controllers/employee.controller.js';
 import auth from '../middlewares/auth.js';
 import roles from '../middlewares/roles.js';
 
-employeeRouter.get('/', auth, getAllEmployees);
-employeeRouter.get('/:id', auth, getEmployee);
-employeeRouter.post('/', auth, roles('admin'), createEmployee);
-employeeRouter.put('/:id', auth, updateEmployee);
-employeeRouter.delete('/:id', auth, roles('admin'), deleteEmployee);
+const employeeRouter = express.Router();
 
-export default employeeRouter
+employeeRouter.get('/', auth, getAllEmployees);
+employeeRouter.post('/', auth, roles('admin'), createEmployee);
+employeeRouter.get('/:id', auth, getEmployee);
+employeeRouter.put('/:id', auth, roles('admin'), updateEmployee);
+employeeRouter.delete('/:id', auth, roles('admin'), deleteEmployee);
+employeeRouter.get('/user/:userId', auth, getEmployeeByUserId); // Add this route
+
+
+// New endpoints for employee fines and salaries
+employeeRouter.get('/:id/fines', auth, getEmployeeFines);
+employeeRouter.get('/:id/salaries', auth, getEmployeeSalaries);
+
+export default employeeRouter;

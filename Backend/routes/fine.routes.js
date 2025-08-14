@@ -4,26 +4,19 @@ import {
   approveFine,
   getEmployeeFines,
   getAllFines,
-  getFineSummary
+  getFineSummary,
+  getEmployeeSummary
 } from '../controllers/fine.controller.js';
 import auth from '../middlewares/auth.js';
 import roles from '../middlewares/roles.js';
 
 const fineRouter = express.Router();
 
-// Apply fine (supervisor or admin)
-fineRouter.post('/', applyFine);
-
-// Approve fine (admin only)
+fineRouter.post('/', auth, applyFine);
 fineRouter.patch('/:id/approve', auth, roles('admin'), approveFine);
-
-// Get fines for specific employee
-fineRouter.get('/employee/:employeeId', auth, getEmployeeFines);
-
-// Get all fines (admin only)
+fineRouter.get('/employee', auth, getEmployeeFines); // Changed route to not require employeeId
 fineRouter.get('/', auth, roles('admin'), getAllFines);
-
-// Get fine summary (admin dashboard)
 fineRouter.get('/summary', auth, roles('admin'), getFineSummary);
+fineRouter.get('/employeesSummary', auth, roles('admin'), getEmployeeSummary);
 
 export default fineRouter;

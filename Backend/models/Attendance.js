@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
+
 const attendanceSchema = new mongoose.Schema({
   employee: {
     type: mongoose.Schema.Types.ObjectId,
@@ -14,17 +15,18 @@ const attendanceSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
-  clockOut: Date,
+  clockOut: {
+    type: Date
+  },
   status: {
     type: String,
-    enum: ['Present', 'Absent', 'Late', 'On Leave'],
+    enum: ['Present', 'Absent', 'Late', 'Half-day'],
     default: 'Present'
-  },
-  notes: String
-}, { timestamps: true });
-
-// Index for faster queries
-attendanceSchema.index({ employee: 1, date: 1 }, { unique: true });
+  }
+}, {
+  timestamps: true
+});
 
 const Attendance = mongoose.model('Attendance', attendanceSchema);
+
 export default Attendance;

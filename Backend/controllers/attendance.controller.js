@@ -1,11 +1,9 @@
 import Attendance from '../models/Attendance.js';
+import Employee from '../models/Employee.js';
 import User from '../models/User.js';
 import mongoose from 'mongoose';
-import Employee from '../models/Employee.js'
 
-// Updated helper function to handle timezones properly
 const getTodayRange = () => {
-  // Get current date in UTC
   const now = new Date();
   const todayUTC = new Date(Date.UTC(
     now.getUTCFullYear(), 
@@ -23,72 +21,116 @@ const getTodayRange = () => {
   };
 };
 
-// Updated clockIn controller
 export const clockIn = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user?._id || req.user?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+
     const employee = await Employee.findOne({ user: userId })
-      .select('_id firstName lastName employeeId department')
+      .select('_id firstName lastName employeeId status')
       .lean();
 
     if (!employee) {
       return res.status(404).json({
         success: false,
-        message: 'Employee record not found for this user'
+        message: 'Employee record not found'
       });
     }
 
-    // Get current date in UTC
-    const currentDate = new Date();
-    const utcDate = new Date(Date.UTC(
-      currentDate.getUTCFullYear(),
-      currentDate.getUTCMonth(),
-      currentDate.getUTCDate()
-    ));
+    if (employee.status !== 'Active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only active employees can clock in'
+      });
+    }
 
-    // Check existing attendance
-    const existingAttendance = await Attendance.findOne({
-      employee: employee._id,
-      date: { 
-        $gte: utcDate,
-        $lt: new Date(utcDate.getTime() + 24 * 60 * 60 * 1000) 
-      }
-    });
+    // Get today's date at midnight UTC (matches your schema's getter)
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
 
-    if (existingAttendance) {
+    // Use employee field to match your schema
+    const [existingAttendance, newAttendance] = await Promise.all([
+      Attendance.findOne({
+        employee: employee._id,
+        date: today
+      }),
+      Attendance.findOneAndUpdate(
+        {
+          employee: employee._id,  // Matches your schema
+          date: today,
+          clockOut: { $exists: false }
+        },
+        { 
+          $setOnInsert: {
+            clockIn: new Date(),
+            status: 'Present'
+          }
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true
+        }
+      )
+    ]);
+
+    if (existingAttendance && existingAttendance._id.toString() !== newAttendance._id.toString()) {
       return res.status(400).json({
         success: false,
         message: existingAttendance.clockOut 
-          ? 'Already clocked out today' 
-          : 'Already clocked in today'
+          ? 'You have already completed attendance for today'
+          : 'You are already clocked in',
+        existingRecord: {
+          clockIn: existingAttendance.clockIn,
+          clockOut: existingAttendance.clockOut,
+          status: existingAttendance.status
+        }
       });
     }
 
-    // Create new attendance record with UTC date
-    const newAttendance = await Attendance.create({
-      employee: employee._id,
-      date: utcDate,  // Store date in UTC
-      clockIn: new Date(),  // Current timestamp
-      status: 'Present'
-    });
-
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Successfully clocked in',
       data: {
         id: newAttendance._id,
         clockIn: newAttendance.clockIn,
         employee: {
-          _id: employee._id,
-          firstName: employee.firstName,
-          lastName: employee.lastName,
+          id: employee._id,
           employeeId: employee.employeeId,
-          department: employee.department
+          name: `${employee.firstName} ${employee.lastName}`
         }
       }
     });
+
   } catch (error) {
     console.error('ClockIn Error:', error);
+    
+    if (error.code === 11000) {
+      const userId = req.user?._id || req.user?.userId;
+      const employee = await Employee.findOne({ user: userId });
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      
+      const existing = await Attendance.findOne({
+        employee: employee._id,
+        date: today
+      });
+      
+      return res.status(400).json({
+        success: false,
+        message: existing?.clockOut 
+          ? 'Attendance already completed today' 
+          : 'Already clocked in today',
+        existingRecord: existing || null
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Server error during clock in'
@@ -96,10 +138,14 @@ export const clockIn = async (req, res) => {
   }
 };
 
+// Similarly update clockOut
 export const clockOut = async (req, res) => {
   try {
-    const userId = req.user._id;
+const userId = req.user?._id || req.user?.userId;
+    
+    // Find employee by user reference
     const employee = await Employee.findOne({ user: userId });
+
     if (!employee) {
       return res.status(404).json({
         success: false,
@@ -149,11 +195,13 @@ export const clockOut = async (req, res) => {
   }
 };
 
+// Update getAttendance to match registration flow
 export const getAttendance = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const employee = await Employee.findOne({ user: userId });
+const userId = req.user?._id || req.user?.userId;
     
+    // Find employee by user reference
+    const employee = await Employee.findOne({ user: userId });
     if (!employee) {
       return res.status(404).json({
         success: false,
@@ -166,7 +214,7 @@ export const getAttendance = async (req, res) => {
 
     res.json({
       success: true,
-      data: attendance  // Remove the .data wrapper
+      data: attendance
     });
   } catch (error) {
     console.error('GetAttendance Error:', error);
@@ -177,12 +225,13 @@ export const getAttendance = async (req, res) => {
   }
 };
 
+// Update getAttendanceStatus
 export const getAttendanceStatus = async (req, res) => {
   try {
-    const userId = req.user._id;
+const userId = req.user?._id || req.user?.userId;
     const { today, tomorrow } = getTodayRange();
 
-    // Find employee using the user ID from the token
+    // Find employee by user reference
     const employee = await Employee.findOne({ user: userId });
     if (!employee) {
       return res.status(404).json({
@@ -199,12 +248,11 @@ export const getAttendanceStatus = async (req, res) => {
     res.json({
       success: true,
       data: {
-        isClockedIn: !!attendance,
+        isClockedIn: !!attendance && !attendance.clockOut,
         isClockedOut: !!attendance?.clockOut,
         record: attendance
       }
     });
-
   } catch (error) {
     console.error('AttendanceStatus Error:', error);
     res.status(500).json({
@@ -213,13 +261,11 @@ export const getAttendanceStatus = async (req, res) => {
     });
   }
 };
-// Admin - Get attendance data
 export const getAdminAttendance = async (req, res) => {
   try {
     const { date, startDate, endDate, department, status } = req.query;
     const query = {};
 
-    // Date filtering
     if (date) {
       const selectedDate = new Date(date);
       selectedDate.setHours(0, 0, 0, 0);
@@ -233,18 +279,15 @@ export const getAdminAttendance = async (req, res) => {
       };
     }
 
-    // Status filtering
     if (status) {
       query.status = status;
     }
 
-    // Department filtering
     if (department) {
       const employeesInDept = await Employee.find({ department }, '_id');
       query.employee = { $in: employeesInDept.map(e => e._id) };
     }
 
-    // Get attendance with employee details
     const attendance = await Attendance.find(query)
       .populate({
         path: 'employee',
@@ -267,7 +310,6 @@ export const getAdminAttendance = async (req, res) => {
   }
 };
 
-// Admin - Update single attendance record
 export const updateAdminAttendance = async (req, res) => {
   try {
     const { id } = req.params;
@@ -316,7 +358,6 @@ export const updateAdminAttendance = async (req, res) => {
   }
 };
 
-// Admin - Bulk update attendance
 export const bulkUpdateAdminAttendance = async (req, res) => {
   try {
     const { updates } = req.body;
@@ -360,13 +401,11 @@ export const bulkUpdateAdminAttendance = async (req, res) => {
   }
 };
 
-// Admin - Get attendance summary
 export const getAdminAttendanceSummary = async (req, res) => {
   try {
     const { date, startDate, endDate, department } = req.query;
     const matchQuery = {};
 
-    // Date filtering
     if (date) {
       const selectedDate = new Date(date);
       selectedDate.setHours(0, 0, 0, 0);
@@ -380,7 +419,6 @@ export const getAdminAttendanceSummary = async (req, res) => {
       };
     }
 
-    // Department filtering
     if (department) {
       const employees = await Employee.find({ department }, '_id');
       matchQuery.employee = { $in: employees.map(e => e._id) };
@@ -403,12 +441,10 @@ export const getAdminAttendanceSummary = async (req, res) => {
       }
     ]);
 
-    // Get total employee count for percentage calculations
     const totalEmployees = await Employee.countDocuments(
       department ? { department } : {}
     );
 
-    // Convert to object format for easier frontend use
     const summaryObj = {
       Present: 0,
       Absent: 0,
@@ -421,7 +457,6 @@ export const getAdminAttendanceSummary = async (req, res) => {
       summaryObj[item.status] = item.count;
     });
 
-    // Calculate absent count (total employees - present employees)
     summaryObj.Absent = totalEmployees - 
       (summaryObj.Present + summaryObj.Late + summaryObj['Half-day']);
 

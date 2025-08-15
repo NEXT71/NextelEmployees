@@ -77,6 +77,21 @@ const LoginPage = () => {
       {/* Grid pattern overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
       
+      {/* ERP Header */}
+      <div className="relative z-10 w-full max-w-2xl mb-6">
+        <div className="text-center">
+          <h1 className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent mb-4 tracking-wide">
+            ERP
+          </h1>
+          <p className="text-xl md:text-2xl text-blue-200/90 font-light tracking-wider mb-2">
+            Enterprise Resource Planning
+          </p>
+          <p className="text-sm text-blue-300/70 font-medium">
+            Integrated Business Management Solution
+          </p>
+        </div>
+      </div>
+
       {/* Main content */}
       <div className="relative z-10 w-full max-w-md">
         {/* Glassmorphism container */}
@@ -99,10 +114,10 @@ const LoginPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent mb-2">
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent mb-2">
                 NEXTEL PRIVATE
-              </h1>
-              <p className="text-blue-200/80 text-sm font-light">Welcome to the future of business operations</p>
+              </h2>
+              <p className="text-blue-200/80 text-sm font-dark">ELEVATE TO THE NEXT</p>
             </div>
 
             {/* Login Form */}
@@ -113,36 +128,80 @@ const LoginPage = () => {
                 {
                   name: 'email',
                   type: 'email',
-                  label: 'Email',
-                  placeholder: 'Enter your email',
+                  label: 'Email Address',
+                  placeholder: 'your.email@nextel.com',
                   required: true
                 },
                 {
                   name: 'password',
                   type: 'password',
-                  label: 'Password',
-                  placeholder: 'Enter your password',
+                  label: 'Access Key',
+                  placeholder: 'Enter secure access key',
                   required: true
                 }
               ]}
             />
 
-            {/* Additional links */}
-            <div className="mt-6 text-center space-y-2">
-              <button 
-                onClick={() => navigate('/forgot-password')}
-                className="text-purple-300 hover:text-purple-200 text-sm font-medium transition-colors duration-200"
-              >
-                Forgot your password?
-              </button>
+            {/* Additional links with futuristic styling */}
+            <div className="mt-8 text-center space-y-4">
+              
+              <div className="flex items-center justify-center space-x-2 text-xs text-gray-400">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span>Quantum Encryption Active</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Decorative elements */}
-        <div className="absolute -top-4 -right-4 w-20 h-20 bg-gradient-to-br from-blue-400/20 to-purple-500/20 rounded-full blur-xl"></div>
-        <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-gradient-to-br from-purple-400/20 to-indigo-500/20 rounded-full blur-xl"></div>
+        {/* Floating decorative elements */}
+        <div className="absolute -top-8 -right-8 w-24 h-24 bg-gradient-to-br from-cyan-400/30 to-purple-500/30 rounded-full blur-2xl animate-float"></div>
+        <div className="absolute -bottom-8 -left-8 w-20 h-20 bg-gradient-to-br from-purple-400/30 to-blue-500/30 rounded-full blur-2xl animate-float-delayed"></div>
+        
+        {/* Side accent lines */}
+        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 w-1 h-32 bg-gradient-to-b from-transparent via-cyan-400 to-transparent opacity-60"></div>
+        <div className="absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 w-1 h-32 bg-gradient-to-b from-transparent via-purple-400 to-transparent opacity-60"></div>
       </div>
+
+      <style jsx>{`
+        @keyframes grid-move {
+          0% { transform: translate(0, 0); }
+          100% { transform: translate(60px, 60px); }
+        }
+        
+        @keyframes scan {
+          0% { transform: translateY(-100px); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateY(400px); opacity: 0; }
+          animation-duration: 3s;
+          animation-iteration-count: infinite;
+        }
+        
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-10px) rotate(5deg); }
+        }
+        
+        @keyframes float-delayed {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-8px) rotate(-3deg); }
+        }
+        
+        .animate-scan {
+          animation: scan 4s ease-in-out infinite;
+        }
+        
+        .animate-float {
+          animation: float 6s ease-in-out infinite;
+        }
+        
+        .animate-float-delayed {
+          animation: float-delayed 8s ease-in-out infinite 2s;
+        }
+        
+        .glow-cyan:hover {
+          text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        }
+      `}</style>
     </div>
   );
 };

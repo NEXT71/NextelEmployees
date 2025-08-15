@@ -38,16 +38,7 @@ const Header = ({
                 <span>Register Employee</span>
               </button>
             )}
-            
-            {showProfileButton && (
-              <button
-                onClick={onProfileClick}
-                className="flex items-center space-x-2 px-3 py-1.5 text-sm text-slate-300 hover:text-white transition-colors"
-              >
-                <UserCog className="w-4 h-4" />
-                <span>Profile</span>
-              </button>
-            )}
+          
 
             <div className="flex items-center space-x-2">
               <User className="w-4 h-4 text-slate-300" />

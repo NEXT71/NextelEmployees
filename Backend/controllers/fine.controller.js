@@ -1,12 +1,23 @@
 import Fine from '../models/Fine.js';
 import Employee from '../models/Employee.js';
 
-// Apply fine to employee
+const FINE_TYPES = [
+  { name: 'Clothing', amount: 300 },
+  { name: 'Late', amount: 300 },
+  { name: 'Absent', amount: 500 },
+  { name: 'Performance', amount: 500 },
+  { name: 'Late After Break', amount: 300 },
+  { name: 'MisBehave', amount: 1000 },
+  { name: 'Vape-Pod', amount: 300 },
+  { name: 'Saturday Off', amount: 500 },
+  { name: 'Mobile Usage/Wifi', amount: 300 },
+  { name: 'Sleeping', amount: 300 }
+];
+
 const applyFine = async (req, res, next) => {
   try {
     const { employeeId, type, amount, description } = req.body;
 
-    // Verify employee exists
     const employee = await Employee.findById(employeeId);
     if (!employee) {
       return res.status(404).json({
@@ -15,11 +26,10 @@ const applyFine = async (req, res, next) => {
       });
     }
 
-    // Create fine
     const fine = await Fine.create({
       employee: employeeId,
       type,
-      amount: amount || getDefaultAmountForType(type),
+      amount: amount || FINE_TYPES.find(t => t.name === type)?.amount || 0,
       description,
       date: new Date(),
       approved: req.user.role === 'admin',
@@ -35,26 +45,6 @@ const applyFine = async (req, res, next) => {
   }
 };
 
-// Helper function to get default amount for fine type
-const getDefaultAmountForType = (type) => {
-  const FINE_TYPES = [
-    { name: 'Clothing', amount: 300 },
-    { name: 'Late', amount: 300 },
-    { name: 'Absent', amount: 500 },
-    { name: 'Performance', amount: 500 },
-    { name: 'Late After Break', amount: 300 },
-    { name: 'MisBehave', amount: 1000 },
-    { name: 'Vape-Pod', amount: 300 },
-    { name: 'Saturday Off', amount: 500 },
-    { name: 'Mobile Usage/Wifi', amount: 300 },
-    { name: 'Sleeping', amount: 300 }
-  ];
-  
-  const fineType = FINE_TYPES.find(t => t.name === type);
-  return fineType ? fineType.amount : 0;
-};
-
-// Approve fine (admin only)
 const approveFine = async (req, res, next) => {
   try {
     const fine = await Fine.findByIdAndUpdate(
@@ -83,11 +73,13 @@ const approveFine = async (req, res, next) => {
   }
 };
 
+// Update getEmployeeFines to match registration flow
 const getEmployeeFines = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-    const employee = await Employee.findOne({ user: userId });
+const userId = req.user?._id || req.user?.userId;
     
+    // Find employee by user reference
+    const employee = await Employee.findOne({ user: userId });
     if (!employee) {
       return res.status(404).json({
         success: false,
@@ -96,19 +88,19 @@ const getEmployeeFines = async (req, res, next) => {
     }
 
     const fines = await Fine.find({ employee: employee._id })
-      .sort('-date');
+      .sort('-date')
+      .populate('approvedBy', 'username');
 
     res.json({
       success: true,
-      data: fines  // Remove the .data wrapper
+      count: fines.length,
+      data: fines
     });
   } catch (err) {
     next(err);
   }
 };
 
-
-// Get all fines (admin only)
 const getAllFines = async (req, res, next) => {
   try {
     const { startDate, endDate, status, department } = req.query;
@@ -145,7 +137,6 @@ const getAllFines = async (req, res, next) => {
   }
 };
 
-// Get fine summary (admin dashboard)
 const getFineSummary = async (req, res, next) => {
   try {
     const { period } = req.query;
@@ -207,19 +198,18 @@ const getFineSummary = async (req, res, next) => {
   }
 };
 
-// Get employee summary for admin dashboard
 const getEmployeeSummary = async (req, res, next) => {
   try {
-    // Total number of employees
     const totalEmployees = await Employee.countDocuments();
-
-    // Active employees
     const activeEmployees = await Employee.countDocuments({ status: 'Active' });
 
-    // Total fines amount across all employees
     const finesAgg = await Fine.aggregate([
       { $match: { approved: true } },
-      { $group: { _id: null, totalAmount: { $sum: '$amount' }, totalCount: { $sum: 1 } } }
+      { $group: { 
+          _id: null, 
+          totalAmount: { $sum: '$amount' }, 
+          totalCount: { $sum: 1 } 
+      } }
     ]);
 
     const totalFineAmount = finesAgg.length > 0 ? finesAgg[0].totalAmount : 0;
@@ -239,7 +229,6 @@ const getEmployeeSummary = async (req, res, next) => {
   }
 };
 
-// Helper function to create date filter based on period
 const getDateFilter = (period) => {
   const now = new Date();
   const filter = {};

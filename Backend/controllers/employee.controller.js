@@ -7,7 +7,11 @@ import { validateEmployee } from '../validations/employee.validation.js';
 // Get all employees
 const getAllEmployees = async (req, res, next) => {
   try {
-    const employees = await Employee.find().select('-__v');
+    const employees = await Employee.find()
+      .select('-__v')
+      .populate('user', 'username email role')
+      .populate('department', 'name');
+
     res.json({
       success: true,
       count: employees.length,
@@ -22,7 +26,9 @@ const getAllEmployees = async (req, res, next) => {
 const getEmployee = async (req, res, next) => {
   try {
     const employee = await Employee.findById(req.params.id)
-      .select('-__v');
+      .select('-__v')
+      .populate('user', 'username email role')
+      .populate('department', 'name');
 
     if (!employee) {
       return res.status(404).json({
@@ -64,15 +70,24 @@ const createEmployee = async (req, res, next) => {
     }
 
     // Check if employee ID already exists
-    const existingEmployee = await Employee.findOne({ employeeId: req.body.employeeId });
+    const existingEmployee = await Employee.findOne({ 
+      $or: [
+        { employeeId: req.body.employeeId },
+        { email: req.body.email }
+      ]
+    });
+
     if (existingEmployee) {
       return res.status(400).json({
         success: false,
-        message: `Employee with ID ${req.body.employeeId} already exists`
+        message: `Employee with ID ${req.body.employeeId} or email ${req.body.email} already exists`
       });
     }
 
-    const employee = await Employee.create(req.body);
+    const employee = await Employee.create({
+      ...req.body,
+      registeredBy: req.user._id
+    });
 
     res.status(201).json({
       success: true,
@@ -100,7 +115,6 @@ const updateEmployee = async (req, res, next) => {
       });
     }
 
-    // Prepare update data without salary
     const updateData = {
       ...req.body,
       contact: {
@@ -110,7 +124,6 @@ const updateEmployee = async (req, res, next) => {
       }
     };
 
-    // Remove salary from update if present
     delete updateData.salary;
 
     const employee = await Employee.findByIdAndUpdate(
@@ -120,7 +133,9 @@ const updateEmployee = async (req, res, next) => {
         new: true,
         runValidators: true
       }
-    ).select('-__v');
+    )
+    .select('-__v')
+    .populate('user', 'username email role');
 
     if (!employee) {
       return res.status(404).json({
@@ -151,7 +166,9 @@ const deleteEmployee = async (req, res, next) => {
     }
 
     // Delete associated user account if exists
-    await User.findOneAndDelete({ employeeRef: employee._id });
+    if (employee.user) {
+      await User.findByIdAndDelete(employee.user);
+    }
 
     // Delete associated fines
     await Fine.deleteMany({ employee: employee._id });
@@ -172,7 +189,8 @@ const deleteEmployee = async (req, res, next) => {
 const getEmployeeFines = async (req, res, next) => {
   try {
     const fines = await Fine.find({ employee: req.params.id })
-      .sort('-date');
+      .sort('-date')
+      .populate('approvedBy', 'username');
 
     res.json({
       success: true,
@@ -199,53 +217,43 @@ const getEmployeeSalaries = async (req, res, next) => {
     next(err);
   }
 };
-// Get employee data by user ID (directly from User model)
-const getEmployeeByUserId = async (req, res, next) => {
+
+// Update getEmployeeByUserId to match registration structure
+const getEmployeeByUserId = async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId)
-      .select('username email role employeeId')
-      .populate({
-        path: 'employeeId',
-        select: 'firstName lastName email contact.phone position department',
-        populate: {
-          path: 'department',
-          select: 'name'
-        }
-      })
+    const { userId } = req.params;
+    
+    // Find employee by user reference (as created in registerEmployee)
+    const employee = await Employee.findOne({ user: userId })
+      .populate('user', 'username email role')
       .lean();
 
-    if (!user) {
+    if (!employee) {
       return res.status(404).json({
         success: false,
-        message: `User not found with id ${req.params.userId}`
+        message: 'Employee not found for this user'
       });
     }
 
-    if (!user.employeeId) {
-      return res.status(404).json({
-        success: false,
-        message: 'No employee record associated with this user'
-      });
-    }
-
-    // Format the response
+    // Format response to match registration structure
     const responseData = {
-      name: `${user.employeeId.firstName} ${user.employeeId.lastName}`,
-      email: user.employeeId.email || user.email,
-      phone: user.employeeId.contact?.phone || '',
-      position: user.employeeId.position || '',
-      department: user.employeeId.department?.name || ''
+      ...employee,
+      name: `${employee.firstName} ${employee.lastName}`,
+      contact: employee.contact || {}
     };
 
     res.json({
       success: true,
       data: responseData
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    console.error('GetEmployeeByUserId Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching employee data'
+    });
   }
 };
-
 
 export {
   getAllEmployees,

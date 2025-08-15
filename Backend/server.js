@@ -7,7 +7,6 @@ import authRouter from './routes/auth.routes.js';
 import employeeRouter from './routes/employee.routes.js';
 import attendanceRouter from './routes/attendance.routes.js';
 import fineRouter from './routes/fine.routes.js';
-
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -34,8 +33,6 @@ app.use('/api/employees', employeeRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/fines', fineRouter);
 app.use('/api/salaries', salaryRouter);
-
-
 
 // Error handling
 app.use(errorHandler);

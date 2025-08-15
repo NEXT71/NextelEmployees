@@ -28,7 +28,16 @@ const userSchema = new mongoose.Schema({
   },
   employeeId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employee'
+    ref: 'Employee',
+    validate: {
+      validator: async function(v) {
+        // Only validate if the field exists and user is employee
+        if (!v || this.role !== 'employee') return true;
+        const employee = await mongoose.model('Employee').findById(v);
+        return !!employee;
+      },
+      message: props => `Employee reference ${props.value} is invalid`
+    }
   },
   isActive: {
     type: Boolean,

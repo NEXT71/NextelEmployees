@@ -143,14 +143,17 @@ const AdminDashboard = () => {
       const token = localStorage.getItem('token');
       
       // Get employee fines
-      const finesResponse = await axios.get(`http://localhost:5000/api/fines/employee`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const finesResponse = await axios.get(
+  `http://localhost:5000/api/employees/${employee._id}/fines`,  // Matches employeeRouter.get('/:id/fines')
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+
       
       // Get employee salaries
-      const salariesResponse = await axios.get(`http://localhost:5000/api/salaries/employee/${employee._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const salariesResponse = await axios.get(
+  `http://localhost:5000/api/employees/${employee._id}/salaries`,  // Matches employeeRouter.get('/:id/salaries')
+  { headers: { Authorization: `Bearer ${token}` } }
+);
       
       setSelectedEmployee(employee);
       setEmployeeFines(finesResponse.data.data);

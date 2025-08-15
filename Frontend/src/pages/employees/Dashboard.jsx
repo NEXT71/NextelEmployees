@@ -7,14 +7,14 @@ import {
 } from 'lucide-react';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
-import ProfileManagement from './ManageProfile';
 
 const EmployeeDashboard = () => {
   const [user, setUser] = useState(null);
   const [employee, setEmployee] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
-    phone: '',
+    contact: { phone: '' },
     position: '',
     employeeId: '',
     salary: { baseSalary: 0 }
@@ -28,7 +28,6 @@ const EmployeeDashboard = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showAttendanceDetails, setShowAttendanceDetails] = useState(false);
   const [showFinesDetails, setShowFinesDetails] = useState(false);
-  const [showProfileManagement, setShowProfileManagement] = useState(false);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [loadingFines, setLoadingFines] = useState(false);
   const [attendanceError, setAttendanceError] = useState(null);
@@ -43,123 +42,173 @@ const EmployeeDashboard = () => {
     return `${year}-${month}-${day}`;
   };
 
-  const fetchEmployeeData = async (token, userId) => {
+const fetchEmployeeData = async (token, userId) => {
+  try {
+    const response = await axios.get(
+      `http://localhost:5000/api/employees/user/${userId}`,
+      { 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (response.data?.success && response.data.data) {
+      const employeeData = response.data.data;
+      return {
+        ...employeeData,
+        name: `${employeeData.firstName} ${employeeData.lastName}`,
+        salary: employeeData.salary || { baseSalary: 0 },
+        phone: employeeData.contact?.phone || 'N/A',
+        // Ensure all required fields are set
+        position: employeeData.position || 'Not specified',
+        employeeId: employeeData.employeeId || 'N/A'
+      };
+    } else {
+      throw new Error('Invalid employee data structure');
+    }
+  } catch (err) {
+    console.error("Error fetching employee data:", err);
+    throw err; // Re-throw to handle in the calling function
+  }
+};
+
+const fetchAttendanceData = async (token, employeeId) => {
+  setLoadingAttendance(true);
+  setAttendanceError(null);
+  try {
+    const response = await axios.get('http://localhost:5000/api/attendance', {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { employeeId }
+    });
+    
+    // Handle different response structures
+    const attendanceData = response.data?.data || response.data || [];
+    setAttendance(Array.isArray(attendanceData) ? attendanceData : []);
+  } catch (err) {
+    console.error("Attendance fetch error:", err);
+    setAttendanceError(err.response?.data?.message || "Failed to load attendance records");
+    setAttendance([]); // Reset to empty array on error
+  } finally {
+    setLoadingAttendance(false);
+  }
+};
+
+const fetchFinesData = async (token) => {
+  setLoadingFines(true);
+  setFinesError(null);
+  try {
+    const response = await axios.get('http://localhost:5000/api/fines/employee', {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Handle response based on your backend structure
+    const finesData = response.data?.data || response.data;
+    if (Array.isArray(finesData)) {
+      setFines(finesData);
+    } else {
+      setFines([]);
+      setFinesError("Unexpected fines data format");
+    }
+  } catch (err) {
+    console.error("Fines fetch error:", err);
+    setFinesError(err.response?.data?.message || "Failed to load fines records");
+    setFines([]);
+  } finally {
+    setLoadingFines(false);
+  }
+};
+
+const checkClockInStatus = async (token, employeeId) => {
+  try {
+    const response = await axios.get(
+      'http://localhost:5000/api/attendance/status',
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { employeeId }
+      }
+    );
+    
+    // Update based on the backend response
+    if (response.data?.data?.isClockedIn) {
+      setClockedIn(true);
+      setClockInTime(new Date(response.data.data.record.clockIn).toLocaleTimeString());
+    } else {
+      setClockedIn(false);
+      setClockInTime(null);
+    }
+  } catch (err) {
+    console.error("Error checking clock-in status:", err);
+    setClockedIn(false);
+    setClockInTime(null);
+  }
+};
+
+  useEffect(() => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/employees/user/${userId}`, {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      // Get user data first
+      const userResponse = await axios.get('http://localhost:5000/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setEmployee({
-        ...response.data.data,
-        position: response.data.data.position || '',
-        employeeId: response.data.data.employeeId || '',
-        salary: { baseSalary: response.data.data.salary?.baseSalary || 0 }
-      });
-    } catch (err) {
-      console.error("Error fetching employee data:", err);
-      setError(err.response?.data?.message || 'Failed to load employee data');
-    }
-  };
-
-  const fetchAttendanceData = async (token) => {
-    setLoadingAttendance(true);
-    setAttendanceError(null);
-    try {
-      const attendanceResponse = await axios.get('http://localhost:5000/api/attendance', {
-        headers: { Authorization: `Bearer ${token}` },
-        params: {
-          // Send dates in local timezone format
-          date: formatLocalDate(new Date())
-        }
-      });
-      setAttendance(attendanceResponse.data.data || []);
-    } catch (attendanceErr) {
-      console.error("Attendance fetch error:", attendanceErr);
-      setAttendanceError(attendanceErr.response?.data?.message || "Failed to load attendance records");
-      setAttendance([]);
-    } finally {
-      setLoadingAttendance(false);
-    }
-  };
-
-  const fetchFinesData = async (token) => {
-    setLoadingFines(true);
-    setFinesError(null);
-    try {
-      const finesResponse = await axios.get('http://localhost:5000/api/fines/employee', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const finesData = finesResponse.data.data || finesResponse.data || [];
-      setFines(Array.isArray(finesData) ? finesData : []);
-    } catch (finesErr) {
-      console.error("Fines fetch error:", finesErr);
-      setFinesError(finesErr.response?.data?.message || "Failed to load fines records");
-      setFines([]);
-    } finally {
-      setLoadingFines(false);
-    }
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-          navigate('/login');
-          return;
-        }
-
-        const userResponse = await axios.get('http://localhost:5000/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setUser(userResponse.data.data);
-
-        await fetchEmployeeData(token, userResponse.data.data._id);
-
-        const statusResponse = await axios.get('http://localhost:5000/api/attendance/status', {
-          headers: { Authorization: `Bearer ${token}` },
-          params: {
-            date: formatLocalDate(new Date()) // Use local date for status check
-          }
-        });
-        
-        if (statusResponse.data.data?.isClockedIn && !statusResponse.data.data?.isClockedOut) {
-          setClockedIn(true);
-          // Display clock-in time in local timezone
-          setClockInTime(new Date(statusResponse.data.data.record.clockIn).toLocaleTimeString());
-        }
-
-        await fetchAttendanceData(token);
-        await fetchFinesData(token);
-        
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        if (err.response?.status === 401) {
-          localStorage.removeItem('token');
-          navigate('/login');
-        } else {
-          setError(err.response?.data?.message || 'Failed to load dashboard data');
-        }
-      } finally {
-        setLoading(false);
+      if (!userResponse.data?.data?._id) {
+        throw new Error('Invalid user data received');
       }
-    };
 
-    fetchData();
+      setUser(userResponse.data.data);
+      const userId = userResponse.data.data._id;
 
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
+      // Fetch employee data
+      const employee = await fetchEmployeeData(token, userId);
+      setEmployee(employee);
 
-    return () => clearInterval(timer);
-  }, [navigate]);
+      // Fetch other data in parallel
+      await Promise.all([
+        fetchAttendanceData(token, employee._id),
+        fetchFinesData(token)
+      ]);
+
+      // Check clock-in status
+      await checkClockInStatus(token, employee._id);
+
+    } catch (err) {
+      console.error("Data fetch error:", err);
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token');
+        navigate('/login');
+      }
+      setError(err.response?.data?.message || err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchData();
+
+  const timer = setInterval(() => {
+    setCurrentTime(new Date());
+  }, 60000);
+
+  return () => clearInterval(timer);
+}, [navigate]);
 
   const refreshAttendanceData = async () => {
     const token = localStorage.getItem('token');
-    if (token) {
-      await fetchAttendanceData(token);
+    if (token && employee._id) {
+      await fetchAttendanceData(token, employee._id);
     }
   };
 
@@ -182,103 +231,113 @@ const EmployeeDashboard = () => {
     }
   };
 
-  const handleClockIn = async () => {
-    try {
-      setError('');
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        'http://localhost:5000/api/attendance/clock-in',
-        {},
-        { 
-          headers: { Authorization: `Bearer ${token}` },
-          params: {
-            date: formatLocalDate(new Date()) // Send current local date
-          }
-        }
-      );
+const handleClockIn = async () => {
+  try {
+    setError('');
+    const token = localStorage.getItem('token');
+    
+    const response = await axios.post(
+      'http://localhost:5000/api/attendance/clock-in',
+      {}, // No body needed - backend gets user ID from token
+      { 
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000
+      }
+    );
 
-      if (response.data.success) {
+    if (response.data.success) {
+      setClockedIn(true);
+      setClockInTime(new Date(response.data.data.clockIn).toLocaleTimeString());
+      await fetchAttendanceData(token);
+    }
+  } catch (err) {
+    console.error('ClockIn Error:', err);
+    
+    if (err.response?.data?.message) {
+      setError(err.response.data.message);
+      if (err.response.data.existingRecord) {
         setClockedIn(true);
-        // Display clock-in time in local timezone
-        setClockInTime(new Date(response.data.data.clockIn).toLocaleTimeString());
-        await fetchAttendanceData(token);
+        setClockInTime(new Date(err.response.data.existingRecord.clockIn).toLocaleTimeString());
       }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to clock in');
     }
-  };
-
-  const handleClockOut = async () => {
-    try {
-      setError('');
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        'http://localhost:5000/api/attendance/clock-out',
-        {},
-        { 
-          headers: { Authorization: `Bearer ${token}` },
-          params: {
-            date: formatLocalDate(new Date()) // Send current local date
-          }
-        }
-      );
-
-      if (response.data.success) {
-        setClockedIn(false);
-        setClockInTime(null);
-        await fetchAttendanceData(token);
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to clock out');
+    else if (err.message.includes('timeout')) {
+      setError('Request timed out - please try again');
     }
+    else {
+      setError('Failed to complete clock in. Please try again.');
+    }
+  }
+};
+
+const handleClockOut = async () => {
+  try {
+    setError('');
+    const token = localStorage.getItem('token');
+
+    const response = await axios.post(
+      'http://localhost:5000/api/attendance/clock-out',
+      {}, // No body needed - backend gets user ID from token
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (response.data.success) {
+      setClockedIn(false);
+      setClockInTime(null);
+      await fetchAttendanceData(token);
+    }
+  } catch (err) {
+    setError(err.response?.data?.message || 'Failed to clock out');
+  }
+};
+
+const calculateSummary = () => {
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+  
+  // Ensure attendance is an array
+  const monthlyRecords = Array.isArray(attendance) 
+    ? attendance.filter(record => {
+        if (!record || !record.date) return false;
+        const recordDate = new Date(record.date);
+        return (
+          recordDate.getMonth() === currentMonth &&
+          recordDate.getFullYear() === currentYear
+        );
+      })
+    : [];
+
+  const presentDays = monthlyRecords.filter(record => record.status === 'Present').length;
+  const absentDays = monthlyRecords.filter(record => record.status === 'Absent').length;
+  
+  const totalHours = monthlyRecords.reduce((total, record) => {
+    if (record.clockIn && record.clockOut) {
+      const clockIn = new Date(record.clockIn);
+      const clockOut = new Date(record.clockOut);
+      const hours = (clockOut - clockIn) / (1000 * 60 * 60);
+      return total + hours;
+    }
+    return total;
+  }, 0);
+
+  const baseSalary = employee?.salary?.baseSalary || 0;
+  const dailyRate = baseSalary / 30;
+  const netSalary = baseSalary - (absentDays * dailyRate);
+
+  // Ensure fines is an array before using reduce
+  const totalFines = Array.isArray(fines) 
+    ? fines.reduce((total, fine) => total + (fine.approved ? fine.amount : 0), 0)
+    : 0;
+
+  return {
+    presentDays,
+    absentDays,
+    monthlySalary: baseSalary,
+    netSalary: netSalary - totalFines,
+    totalHours: Math.round(totalHours),
+    totalFines
   };
-
-  const handleProfileUpdate = (updatedEmployee) => {
-    setEmployee(updatedEmployee);
-    setShowProfileManagement(false);
-  };
-
-  const calculateSummary = () => {
-    const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    
-    const monthlyRecords = attendance.filter(record => {
-      const recordDate = new Date(record.date);
-      return (
-        recordDate.getMonth() === currentMonth &&
-        recordDate.getFullYear() === currentYear
-      );
-    });
-
-    const presentDays = monthlyRecords.filter(record => record.status === 'Present').length;
-    const absentDays = monthlyRecords.filter(record => record.status === 'Absent').length;
-    
-    const totalHours = monthlyRecords.reduce((total, record) => {
-      if (record.clockIn && record.clockOut) {
-        const clockIn = new Date(record.clockIn);
-        const clockOut = new Date(record.clockOut);
-        const hours = (clockOut - clockIn) / (1000 * 60 * 60);
-        return total + hours;
-      }
-      return total;
-    }, 0);
-
-    const baseSalary = employee?.salary?.baseSalary || 0;
-    const dailyRate = baseSalary / 30;
-    const netSalary = baseSalary - (absentDays * dailyRate);
-
-    const totalFines = fines.reduce((total, fine) => total + (fine.approved ? fine.amount : 0), 0);
-
-    return {
-      presentDays,
-      absentDays,
-      monthlySalary: baseSalary,
-      netSalary: netSalary - totalFines,
-      totalHours: Math.round(totalHours),
-      totalFines
-    };
-  };
+};
 
   const summaryData = calculateSummary();
 
@@ -302,10 +361,6 @@ const EmployeeDashboard = () => {
         <div className="flex items-center space-x-3">
           <Mail className="w-5 h-5 text-blue-300/80" />
           <span className="text-sm text-blue-200">{employee?.email || 'No email'}</span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <User className="w-5 h-5 text-blue-300/80" />
-          <span className="text-sm text-blue-200">Phone: {employee?.phone || 'N/A'}</span>
         </div>
       </div>
     </div>
@@ -362,11 +417,11 @@ const EmployeeDashboard = () => {
     </div>
   );
 
-   const AttendanceTable = ({ data, title, loading: isLoading, error: hasError, onRefresh }) => {
+  const AttendanceTable = ({ data, title, loading: isLoading, error: hasError, onRefresh }) => {
     const formatDate = (dateString) => {
       const date = new Date(dateString);
       return date.toLocaleDateString('en-US', {
-        timeZone: 'UTC', // Display dates consistently
+        timeZone: 'UTC',
         month: 'short',
         day: 'numeric',
         year: 'numeric'
@@ -379,10 +434,9 @@ const EmployeeDashboard = () => {
       return date.toLocaleTimeString([], { 
         hour: '2-digit', 
         minute: '2-digit',
-        timeZone: 'UTC' // Display times consistently
+        timeZone: 'UTC'
       });
     };
-
 
     const calculateHours = (clockIn, clockOut) => {
       if (!clockIn || !clockOut) return '0h';
@@ -508,7 +562,7 @@ const EmployeeDashboard = () => {
     const formatCurrency = (amount) => {
       return new Intl.NumberFormat('en-IN', {
         style: 'currency',
-        currency: 'INR',
+        currency: 'PKR',
         minimumFractionDigits: 0
       }).format(amount);
     };
@@ -642,8 +696,7 @@ const EmployeeDashboard = () => {
       <Header
         userName={user?.username}
         onLogout={handleLogout}
-        onProfileClick={() => setShowProfileManagement(!showProfileManagement)}
-        showProfileButton={true}
+        showProfileButton={false}
       />
 
       <div className="container mx-auto p-6 space-y-8 relative z-10">
@@ -656,72 +709,56 @@ const EmployeeDashboard = () => {
           </div>
         )}
 
-        {showProfileManagement ? (
-          <ProfileManagement 
-            employee={employee} 
-            onUpdate={handleProfileUpdate}
-            onCancel={() => setShowProfileManagement(false)}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <ProfileCard employee={employee} />
+          <div className="lg:col-span-2">
+            <ClockInOut
+              clockedIn={clockedIn}
+              clockInTime={clockInTime}
+              currentTime={currentTime}
+              onClockIn={handleClockIn}
+              onClockOut={handleClockOut}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatsCard
+            title="Present Days"
+            value={summaryData.presentDays || 0}
+            icon={<CheckCircle className="w-6 h-6" />}
+            color="green"
           />
-        ) : (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <ProfileCard employee={employee} />
-              <div className="lg:col-span-2">
-                <ClockInOut
-                  clockedIn={clockedIn}
-                  clockInTime={clockInTime}
-                  currentTime={currentTime}
-                  onClockIn={handleClockIn}
-                  onClockOut={handleClockOut}
-                />
-              </div>
-            </div>
+          <StatsCard
+            title="Absent Days"
+            value={summaryData.absentDays || 0}
+            icon={<XCircle className="w-6 h-6" />}
+            color="red"
+          />
+          <StatsCard
+            title="Fines"
+            value={`PKR ${summaryData.netSalary?.toLocaleString() || '0'}`}
+            icon={<DollarSign className="w-6 h-6" />}
+            color="purple"
+            tooltip={`After ${summaryData.totalFines > 0 ? `PKR ${summaryData.totalFines} in fines` : 'no fines'}`}
+          />
+        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatsCard
-                title="Present Days"
-                value={summaryData.presentDays || 0}
-                icon={<CheckCircle className="w-6 h-6" />}
-                color="green"
-              />
-              <StatsCard
-                title="Absent Days"
-                value={summaryData.absentDays || 0}
-                icon={<XCircle className="w-6 h-6" />}
-                color="red"
-              />
-              <StatsCard
-                title="Monthly Salary"
-                value={`₹${summaryData.monthlySalary?.toLocaleString() || '0'}`}
-                icon={<DollarSign className="w-6 h-6" />}
-                color="blue"
-              />
-              <StatsCard
-                title="Net Salary"
-                value={`₹${summaryData.netSalary?.toLocaleString() || '0'}`}
-                icon={<DollarSign className="w-6 h-6" />}
-                color="purple"
-                tooltip={`After ${summaryData.totalFines > 0 ? `₹${summaryData.totalFines} in fines` : 'no fines'}`}
-              />
-            </div>
+        <AttendanceTable 
+          data={Array.isArray(attendance) ? attendance.slice(0, 10) : []}
+          title="Recent Attendance Records"
+          loading={loadingAttendance}
+          error={attendanceError}
+          onRefresh={refreshAttendanceData}
+        />
 
-            <AttendanceTable 
-              data={attendance.slice(0, 10)}
-              title="Recent Attendance Records"
-              loading={loadingAttendance}
-              error={attendanceError}
-              onRefresh={refreshAttendanceData}
-            />
-
-            <FinesTable 
-              data={fines.slice(0, 10)}
-              title="Your Fines"
-              loading={loadingFines}
-              error={finesError}
-              onRefresh={refreshFinesData}
-            />
-          </>
-        )}
+        <FinesTable 
+          data={fines.slice(0, 10)}
+          title="Your Fines"
+          loading={loadingFines}
+          error={finesError}
+          onRefresh={refreshFinesData}
+        />
       </div>
     </div>
   );

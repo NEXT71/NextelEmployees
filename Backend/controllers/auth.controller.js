@@ -69,6 +69,9 @@ const register = async (req, res, next) => {
 };
 
 const registerEmployee = async (req, res, next) => {
+  console.log("📥 Incoming request body:", req.body);
+  console.log("👤 Authenticated user:", req.user);
+
   try {
     // Verify admin role
     if (req.user.role !== 'admin') {
@@ -81,10 +84,14 @@ const registerEmployee = async (req, res, next) => {
     const { 
       firstName, 
       lastName, 
+      fatherName,
       email, 
       department, 
       position, 
-      employeeId 
+      employeeId,
+      hireDate,
+      status,
+      contact
     } = req.body;
 
     // Basic validation
@@ -101,38 +108,78 @@ const registerEmployee = async (req, res, next) => {
     });
 
     if (existingEmployee) {
+      if (existingEmployee.status === 'Inactive') {
+        const updatedEmployee = await Employee.findByIdAndUpdate(
+          existingEmployee._id,
+          {
+            firstName,
+            lastName,
+            fatherName,
+            department,
+            position,
+            hireDate,
+            status: 'Active',
+            contact
+          },
+          { new: true }
+        );
+        return res.status(200).json({
+          success: true,
+          message: 'Previously inactive employee reactivated',
+          data: updatedEmployee
+        });
+      }
       return res.status(400).json({
         success: false,
         message: 'Employee with this email or ID already exists'
       });
     }
 
-    // Create employee (other fields will use defaults)
+    // Create new employee without the user field initially
     const newEmployee = await Employee.create({
       firstName,
       lastName,
+      fatherName,
       email,
       department,
       position,
       employeeId,
+      hireDate: hireDate || Date.now(),
+      status: status || 'Active',
+      contact: contact || {},
       registeredBy: req.user._id
+      // Explicitly omitting the user field here
     });
 
-    // Generate username for user account
-    const username = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
-    
-    // Generate password as firstName + lastName + "123" (lowercase, no spaces)
-    const password = `${firstName.toLowerCase()}${lastName.toLowerCase()}123`;
+    // Handle user account creation/linking
+    let existingUser = await User.findOne({ email });
+    let temporaryPassword = null;
 
-    // Create corresponding user account
-    const newUser = await User.create({
-      username,
-      email,
-      password, // Using the generated password
-      role: 'employee',
-      employeeId: newEmployee._id,
-      isActive: true
-    });
+    if (!existingUser) {
+      const username = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+      temporaryPassword = `${firstName.toLowerCase()}${lastName.toLowerCase()}123`;
+      
+      existingUser = await User.create({
+        username,
+        email,
+        password: temporaryPassword,
+        role: 'employee',
+        employeeId: newEmployee._id,
+        isActive: true,
+        verified: true
+      });
+    } else {
+      existingUser.employeeId = newEmployee._id;
+      existingUser.role = 'employee';
+      await existingUser.save();
+    }
+
+    // Only update the employee's user field if we have a user
+    if (existingUser) {
+      await Employee.findByIdAndUpdate(newEmployee._id, {
+        user: existingUser._id
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -144,17 +191,23 @@ const registerEmployee = async (req, res, next) => {
         email,
         department,
         position,
-        temporaryPassword: password // Send the generated password in response
+        temporaryPassword: temporaryPassword || 'Use existing password'
       }
     });
 
   } catch (err) {
+    console.error("Employee registration error:", err);
+
     if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern)[0];
       return res.status(400).json({
         success: false,
-        message: 'Duplicate employee data detected'
+        message: `Employee with this ${field} already exists`,
+        field,
+        details: err
       });
     }
+
     next(err);
   }
 };

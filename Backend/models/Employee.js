@@ -58,11 +58,20 @@ const employeeSchema = new mongoose.Schema({
     emergencyContact: { type: String, default: '' },
     address: { type: String, default: '' }
   },  
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    unique: true
-  },
+  // In Employee model
+user: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'User',
+  unique: true,
+  validate: {
+    validator: async function(v) {
+      if (!v) return true; // Allow null/undefined
+      const user = await mongoose.model('User').findById(v);
+      return !!user;
+    },
+    message: 'User reference is invalid'
+  }
+},
   lastSeen: {
     type: Date
   }

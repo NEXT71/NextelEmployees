@@ -4,7 +4,6 @@ import RegisterPage from './pages/auth/RegisterPage.jsx';
 import EmployeeDashboard from './pages/employees/Dashboard.jsx';
 import AdminDashboard from './pages/admin/Dashboard.jsx';
 import ProtectedRoute from './components/common/ProtectedRoute.jsx'; // Adjust path if needed
-import ForgotPasswordPage from './pages/auth/ForgotPassword.jsx';
 import AdminAttendance from './pages/admin/AdminAttendance.jsx';
 
 const App = () => {
@@ -14,8 +13,6 @@ const App = () => {
         {/* Public routes */}
         <Route path="/" element={<LoginPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         
         <Route
           path="/employeedashboard"

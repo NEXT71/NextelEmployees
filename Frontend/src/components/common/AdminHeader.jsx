@@ -1,9 +1,12 @@
-import { User, LogOut, UserPlus, Clock } from 'lucide-react';
+import { User, LogOut, UserPlus, Clock, LayoutDashboard } from 'lucide-react';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 import 'react-lazy-load-image-component/src/effects/blur.css';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 const AdminHeader = ({ userName, onLogout, onRegisterEmployee }) => {
+  const location = useLocation();
+  const isAttendancePage = location.pathname.includes('/attendance');
+
   return (
     <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
       <div className="container mx-auto px-6 py-4">
@@ -27,11 +30,20 @@ const AdminHeader = ({ userName, onLogout, onRegisterEmployee }) => {
           {/* Right section with buttons */}
           <div className="flex items-center space-x-4">
             <Link
-              to="/admindashboard/attendance"
+              to={isAttendancePage ? "/admindashboard" : "/admindashboard/attendance"}
               className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors"
             >
-              <Clock className="w-4 h-4" />
-              <span>Attendance</span>
+              {isAttendancePage ? (
+                <>
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span>Dashboard</span>
+                </>
+              ) : (
+                <>
+                  <Clock className="w-4 h-4" />
+                  <span>Attendance</span>
+                </>
+              )}
             </Link>
             
             {onRegisterEmployee && (

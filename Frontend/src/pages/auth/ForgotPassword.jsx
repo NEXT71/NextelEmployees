@@ -132,12 +132,6 @@ const ForgotPasswordPage = () => {
               >
                 Remember your password? Sign in
               </button>
-              <button 
-                onClick={() => navigate('/register')}
-                className="text-purple-300 hover:text-purple-200 text-sm font-medium transition-colors duration-200"
-              >
-                Need an account? Register here
-              </button>
             </div>
           </div>
         </div>

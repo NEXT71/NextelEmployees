@@ -419,24 +419,23 @@ const calculateSummary = () => {
 
   const AttendanceTable = ({ data, title, loading: isLoading, error: hasError, onRefresh }) => {
     const formatDate = (dateString) => {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        timeZone: 'UTC',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    };
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-PK', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
 
-    const formatTime = (timeString) => {
-      if (!timeString) return '-';
-      const date = new Date(timeString);
-      return date.toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'UTC'
-      });
-    };
+    // In AttendanceTable
+const formatTime = (timeString) => {
+  if (!timeString) return '-';
+  const date = new Date(timeString);
+  return date.toLocaleTimeString('en-PK', { 
+    hour: '2-digit', 
+    minute: '2-digit'
+  });
+};
 
     const calculateHours = (clockIn, clockOut) => {
       if (!clockIn || !clockOut) return '0h';

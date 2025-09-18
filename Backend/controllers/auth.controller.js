@@ -94,13 +94,122 @@ const registerEmployee = async (req, res, next) => {
       contact
     } = req.body;
 
-    // Basic validation
-    if (!firstName || !lastName || !email || !department || !position || !employeeId) {
+    // ======================
+    // Comprehensive Validation (same as before)
+    // ======================
+
+    // 1. Check required fields
+    const requiredFields = ['firstName', 'lastName', 'email', 'department', 'position', 'employeeId'];
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    
+    if (missingFields.length > 0) {
       return res.status(400).json({ 
         success: false,
-        message: 'Missing required fields' 
+        message: `Missing required fields: ${missingFields.join(', ')}`,
+        missingFields
       });
     }
+
+    // 2. Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format',
+        field: 'email'
+      });
+    }
+
+    // 3. Validate employee ID format (alphanumeric, 6-12 characters)
+    if (!/^[a-zA-Z0-9]{6,12}$/.test(employeeId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Employee ID must be 6-12 alphanumeric characters',
+        field: 'employeeId'
+      });
+    }
+
+    // 4. Validate names (letters and spaces only)
+    const nameRegex = /^[a-zA-Z\s]+$/;
+    if (!nameRegex.test(firstName)) {
+      return res.status(400).json({
+        success: false,
+        message: 'First name can only contain letters and spaces',
+        field: 'firstName'
+      });
+    }
+    if (!nameRegex.test(lastName)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Last name can only contain letters and spaces',
+        field: 'lastName'
+      });
+    }
+    if (fatherName && !nameRegex.test(fatherName)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Father name can only contain letters and spaces',
+        field: 'fatherName'
+      });
+    }
+
+    // 5. Validate department and position
+    if (department.length < 2 || department.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Department must be between 2-50 characters',
+        field: 'department'
+      });
+    }
+    if (position.length < 2 || position.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Position must be between 2-50 characters',
+        field: 'position'
+      });
+    }
+
+    // 6. Validate hire date if provided
+    if (hireDate) {
+      const hireDateObj = new Date(hireDate);
+      if (isNaN(hireDateObj.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid hire date format',
+          field: 'hireDate'
+        });
+      }
+      // Check if hire date is in the future
+      if (hireDateObj > new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Hire date cannot be in the future',
+          field: 'hireDate'
+        });
+      }
+    }
+
+    // 7. Validate contact information if provided
+    if (contact) {
+      if (contact.phone && !/^[0-9]{10,15}$/.test(contact.phone)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number must be 10-15 digits',
+          field: 'contact.phone'
+        });
+      }
+      if (contact.address && contact.address.length > 200) {
+        return res.status(400).json({
+          success: false,
+          message: 'Address too long (max 200 characters)',
+          field: 'contact.address'
+        });
+      }
+    }
+
+    // ======================
+    // Business Logic
+    // ======================
 
     // Check for existing employee
     const existingEmployee = await Employee.findOne({ 
@@ -131,7 +240,11 @@ const registerEmployee = async (req, res, next) => {
       }
       return res.status(400).json({
         success: false,
-        message: 'Employee with this email or ID already exists'
+        message: 'Employee with this email or ID already exists',
+        existingFields: {
+          email: existingEmployee.email === email,
+          employeeId: existingEmployee.employeeId === employeeId
+        }
       });
     }
 
@@ -148,7 +261,6 @@ const registerEmployee = async (req, res, next) => {
       status: status || 'Active',
       contact: contact || {},
       registeredBy: req.user._id
-      // Explicitly omitting the user field here
     });
 
     // Handle user account creation/linking
@@ -156,7 +268,18 @@ const registerEmployee = async (req, res, next) => {
     let temporaryPassword = null;
 
     if (!existingUser) {
-      const username = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+      // Generate username (firstname.lastname)
+      let username = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+      
+      // Check if username already exists
+      const usernameExists = await User.findOne({ username });
+      if (usernameExists) {
+        // Add random number if username exists
+        const randomNum = Math.floor(Math.random() * 100);
+        username = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${randomNum}`;
+      }
+
+      // KEEP THE ORIGINAL PASSWORD GENERATION
       temporaryPassword = `${firstName.toLowerCase()}${lastName.toLowerCase()}123`;
       
       existingUser = await User.create({
@@ -169,17 +292,26 @@ const registerEmployee = async (req, res, next) => {
         verified: true
       });
     } else {
+      // If user exists but isn't linked to an employee
+      if (existingUser.employeeId) {
+        return res.status(400).json({
+          success: false,
+          message: 'This email is already associated with another employee'
+        });
+      }
+      
       existingUser.employeeId = newEmployee._id;
       existingUser.role = 'employee';
       await existingUser.save();
     }
 
-    // Only update the employee's user field if we have a user
-    if (existingUser) {
-      await Employee.findByIdAndUpdate(newEmployee._id, {
-        user: existingUser._id
-      });
-    }
+    // Update the employee's user field
+    await Employee.findByIdAndUpdate(newEmployee._id, {
+      user: existingUser._id
+    });
+
+    // Send email with credentials (in production, you would actually send an email)
+    console.log(`New employee credentials - Email: ${email}, Temp Password: ${temporaryPassword || 'Use existing password'}`);
 
     res.status(201).json({
       success: true,

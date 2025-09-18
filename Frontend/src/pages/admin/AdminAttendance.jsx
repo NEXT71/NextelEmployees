@@ -447,57 +447,7 @@ const AdminAttendance = () => {
           </div>
         </div>
 
-        {/* Bulk Actions */}
-        {isBulkEditing ? (
-          <div className="flex flex-col md:flex-row gap-4 items-center bg-white/5 p-4 rounded-lg border border-white/10">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-blue-200">
-                {selectedRecords.length} records selected
-              </span>
-              <button 
-                onClick={() => {
-                  setSelectedRecords([]);
-                  setIsBulkEditing(false);
-                }}
-                className="text-red-300 hover:text-red-500"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <div className="flex-1 flex items-center gap-3">
-              <label className="text-sm text-blue-200">Set status:</label>
-              <select
-                value={bulkStatus}
-                onChange={(e) => setBulkStatus(e.target.value)}
-                className="bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-              >
-                <option value="">Select status</option>
-                {STATUS_OPTIONS.map(status => (
-                  <option key={status.value} value={status.value}>{status.label}</option>
-                ))}
-              </select>
-            </div>
-            
-            <button
-              onClick={handleBulkUpdate}
-              disabled={!bulkStatus}
-              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${bulkStatus ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600/50 text-gray-400 cursor-not-allowed'}`}
-            >
-              <Save className="w-4 h-4" />
-              <span>Apply</span>
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setIsBulkEditing(true)}
-            className="px-4 py-2 bg-purple-600/50 hover:bg-purple-600 text-white rounded-lg flex items-center gap-2"
-          >
-            <Edit className="w-4 h-4" />
-            <span>Bulk Edit</span>
-          </button>
-        )}
-
+       
         {/* Attendance Table */}
         <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
           <div className="p-6 border-b border-white/10">

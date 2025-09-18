@@ -1,6 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LoginPage from './pages/auth/LoginPage.jsx';
-import RegisterPage from './pages/auth/RegisterPage.jsx';
 import EmployeeDashboard from './pages/employees/Dashboard.jsx';
 import AdminDashboard from './pages/admin/Dashboard.jsx';
 import ProtectedRoute from './components/common/ProtectedRoute.jsx'; // Adjust path if needed

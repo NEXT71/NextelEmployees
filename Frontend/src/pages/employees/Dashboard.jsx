@@ -6,7 +6,9 @@ import {
 } from 'lucide-react';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
+import AttendanceTimeStatus from '../../components/common/AttendanceTimeStatus';
 import { authAPI, employeeAPI, attendanceAPI, fineAPI, isAuthenticated, clearAuth } from '../../utils/api';
+import { isWithinAttendanceWindow } from '../../utils/attendanceTimeAccess';
 
 const EmployeeDashboard = () => {
   const [user, setUser] = useState(null);
@@ -33,38 +35,6 @@ const EmployeeDashboard = () => {
   const [attendanceError, setAttendanceError] = useState(null);
   const [finesError, setFinesError] = useState(null);
   const navigate = useNavigate();
-
-  // Helper function to format dates in local timezone
-  const formatLocalDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-const fetchEmployeeData = async (userId) => {
-  try {
-    const response = await employeeAPI.getEmployeeByUserId(userId);
-
-    if (response?.data) {
-      const employeeData = response.data;
-      return {
-        ...employeeData,
-        name: `${employeeData.firstName} ${employeeData.lastName}`,
-        salary: employeeData.salary || { baseSalary: 0 },
-        phone: employeeData.contact?.phone || 'N/A',
-        // Ensure all required fields are set
-        position: employeeData.position || 'Not specified',
-        employeeId: employeeData.employeeId || 'N/A'
-      };
-    } else {
-      throw new Error('Invalid employee data structure');
-    }
-  } catch (err) {
-    console.error("Error fetching employee data:", err);
-    throw err; // Re-throw to handle in the calling function
-  }
-};
 
 const fetchAttendanceData = async (employeeId) => {
   setLoadingAttendance(true);
@@ -221,6 +191,12 @@ const handleClockIn = async () => {
   try {
     setError('');
     
+    // Check if within attendance window before attempting
+    if (!isWithinAttendanceWindow()) {
+      setError('Clock in is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time');
+      return;
+    }
+    
     const response = await attendanceAPI.clockIn();
 
     if (response?.success) {
@@ -231,7 +207,10 @@ const handleClockIn = async () => {
   } catch (err) {
     console.error('ClockIn Error:', err);
     
-    if (err.message) {
+    // Handle specific attendance time restriction error
+    if (err.message && err.message.includes('only allowed between')) {
+      setError(err.message);
+    } else if (err.message) {
       setError(err.message);
       // Check if error indicates existing record
       if (err.message.includes('already clocked in')) {
@@ -249,6 +228,12 @@ const handleClockOut = async () => {
   try {
     setError('');
 
+    // Check if within attendance window before attempting
+    if (!isWithinAttendanceWindow()) {
+      setError('Clock out is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time');
+      return;
+    }
+
     const response = await attendanceAPI.clockOut();
 
     if (response?.success) {
@@ -257,7 +242,14 @@ const handleClockOut = async () => {
       await fetchAttendanceData(employee._id);
     }
   } catch (err) {
-    setError(err.message || 'Failed to clock out');
+    console.error('ClockOut Error:', err);
+    
+    // Handle specific attendance time restriction error
+    if (err.message && err.message.includes('only allowed between')) {
+      setError(err.message);
+    } else {
+      setError(err.message || 'Failed to clock out');
+    }
   }
 };
 
@@ -337,56 +329,74 @@ const calculateSummary = () => {
     </div>
   );
 
-  const ClockInOut = ({ clockedIn, clockInTime, currentTime, onClockIn, onClockOut }) => (
-    <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl p-6">
-      <div className="flex flex-col md:flex-row items-center justify-between">
-        <div className="text-center md:text-left mb-6 md:mb-0">
-          <h2 className="text-xl font-semibold text-white mb-2">
-            {clockedIn ? 'Currently Working' : 'Ready to Start'}
-          </h2>
-          <p className="text-blue-200/80 mb-4">
-            {clockedIn ? `Clocked in at ${clockInTime}` : 'Click the button to clock in'}
-          </p>
-          <div className="flex items-center justify-center md:justify-start space-x-2 text-sm text-blue-300/70">
-            <Calendar className="w-4 h-4" />
-            <span>
-              {currentTime.toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </span>
-          </div>
-        </div>
-        
-        <div className="flex items-center space-x-6">
-          <div className="text-center">
-            <div className="text-3xl font-mono font-bold text-white mb-1">
-              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+  const ClockInOut = ({ clockedIn, clockInTime, currentTime, onClockIn, onClockOut }) => {
+    const isTimeAllowed = isWithinAttendanceWindow();
+    
+    return (
+      <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl p-6">
+        <div className="flex flex-col md:flex-row items-center justify-between">
+          <div className="text-center md:text-left mb-6 md:mb-0">
+            <h2 className="text-xl font-semibold text-white mb-2">
+              {clockedIn ? 'Currently Working' : 'Ready to Start'}
+            </h2>
+            <p className="text-blue-200/80 mb-4">
+              {clockedIn ? `Clocked in at ${clockInTime}` : 'Click the button to clock in'}
+            </p>
+            {!isTimeAllowed && (
+              <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-orange-400" />
+                  <span className="text-sm text-orange-300">
+                    Clock in/out only allowed 6:00 PM - 5:30 AM PKT
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center justify-center md:justify-start space-x-2 text-sm text-blue-300/70">
+              <Calendar className="w-4 h-4" />
+              <span>
+                {currentTime.toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </span>
             </div>
-            <div className="text-sm text-blue-300/70">Current Time</div>
           </div>
           
-          <button
-            onClick={clockedIn ? onClockOut : onClockIn}
-            className={`
-              relative px-6 py-3 rounded-lg font-semibold text-white transition-all duration-300
-              ${clockedIn 
-                ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
-                : 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
-              }
-            `}
-          >
-            <div className="flex items-center space-x-2">
-              <Clock className="w-5 h-5" />
-              <span>{clockedIn ? 'Clock Out' : 'Clock In'}</span>
+          <div className="flex items-center space-x-6">
+            <div className="text-center">
+              <div className="text-3xl font-mono font-bold text-white mb-1">
+                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+              <div className="text-sm text-blue-300/70">Current Time</div>
             </div>
-          </button>
+            
+            <button
+              onClick={clockedIn ? onClockOut : onClockIn}
+              disabled={!isTimeAllowed}
+              className={`
+                relative px-6 py-3 rounded-lg font-semibold text-white transition-all duration-300
+                ${!isTimeAllowed 
+                  ? 'bg-gray-500/50 cursor-not-allowed opacity-50' 
+                  : clockedIn 
+                    ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
+                    : 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+                }
+              `}
+              title={!isTimeAllowed ? 'Clock in/out is only allowed between 6:00 PM - 5:30 AM PKT' : ''}
+            >
+              <div className="flex items-center space-x-2">
+                <Clock className="w-5 h-5" />
+                <span>{clockedIn ? 'Clock Out' : 'Clock In'}</span>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const AttendanceTable = ({ data, title, loading: isLoading, error: hasError, onRefresh }) => {
     const formatDate = (dateString) => {
@@ -691,6 +701,9 @@ const formatTime = (timeString) => {
             />
           </div>
         </div>
+
+        {/* Attendance Time Status */}
+        <AttendanceTimeStatus className="w-full" />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatsCard

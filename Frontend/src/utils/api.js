@@ -44,11 +44,17 @@ const apiRequest = async (endpoint, options = {}) => {
     if (response.status === 403) {
       const data = await response.json().catch(() => ({ message: 'Access forbidden' }));
       
-      // Check if it's a time-based access restriction
-      if (data.error === 'ACCESS_TIME_RESTRICTED') {
-        // Reload the page to trigger the TimeAccessGuard
-        window.location.reload();
-        return { error: true, message: data.message, status: 403, timeRestricted: true };
+      // Check if it's an attendance-specific time restriction
+      if (data.error === 'ATTENDANCE_TIME_RESTRICTED') {
+        return { 
+          error: true, 
+          message: data.message, 
+          status: 403, 
+          attendanceTimeRestricted: true,
+          currentTime: data.currentTime,
+          allowedWindow: data.allowedWindow,
+          nextAvailableTime: data.nextAvailableTime
+        };
       }
       
       return { error: true, message: data.message || 'Access forbidden', status: 403 };
@@ -173,6 +179,10 @@ export const attendanceAPI = {
   // Get attendance status for employee
   getAttendanceStatus: (employeeId) =>
     apiRequest(`/attendance/status?employeeId=${employeeId}`),
+
+  // Get attendance time window status
+  getAttendanceTimeWindow: () =>
+    apiRequest('/attendance/time-window'),
 
   // Clock in
   clockIn: () =>

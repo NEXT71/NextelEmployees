@@ -78,5 +78,12 @@ user: {
   }
 }, { timestamps: true });
 
+// Ensure the user field has a proper sparse unique index
+employeeSchema.index({ user: 1 }, { unique: true, sparse: true });
+
+// Ensure email and employeeId are unique
+employeeSchema.index({ email: 1 }, { unique: true });
+employeeSchema.index({ employeeId: 1 }, { unique: true });
+
 const Employee = mongoose.model('Employee', employeeSchema);
 export default Employee;

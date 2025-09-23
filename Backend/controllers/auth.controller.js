@@ -18,6 +18,16 @@ const registerEmployee = async (req, res, next) => {
       });
     }
 
+    // Optional: Use Joi validation first
+    const { error: validationError } = validateEmployeeRegister(req.body);
+    if (validationError) {
+      return res.status(400).json({
+        success: false,
+        message: validationError.details[0].message,
+        field: validationError.details[0].path[0]
+      });
+    }
+
     const { 
       firstName, 
       lastName, 
@@ -28,7 +38,8 @@ const registerEmployee = async (req, res, next) => {
       employeeId,
       hireDate,
       status,
-      contact
+      contact,
+      password // Add password field for admin to set
     } = req.body;
 
     // ======================
@@ -36,7 +47,7 @@ const registerEmployee = async (req, res, next) => {
     // ======================
 
     // 1. Check required fields
-    const requiredFields = ['firstName', 'lastName', 'email', 'department', 'position', 'employeeId'];
+    const requiredFields = ['firstName', 'lastName', 'email', 'department', 'position', 'employeeId', 'password'];
     const missingFields = requiredFields.filter(field => !req.body[field]);
     
     if (missingFields.length > 0) {
@@ -144,6 +155,33 @@ const registerEmployee = async (req, res, next) => {
       }
     }
 
+    // 8. Validate password
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long',
+        field: 'password'
+      });
+    }
+
+    if (password.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is too long (max 50 characters)',
+        field: 'password'
+      });
+    }
+
+    // Password strength validation (optional but recommended)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{6,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number',
+        field: 'password'
+      });
+    }
+
     // ======================
     // Business Logic
     // ======================
@@ -202,44 +240,50 @@ const registerEmployee = async (req, res, next) => {
 
     // Handle user account creation/linking
     let existingUser = await User.findOne({ email });
-    let temporaryPassword = null;
 
     if (!existingUser) {
       // Generate username (firstname.lastname)
-      let username = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+      let username = `${firstName.toLowerCase().trim()}.${lastName.toLowerCase().trim()}`;
       
       // Check if username already exists
       const usernameExists = await User.findOne({ username });
       if (usernameExists) {
         // Add random number if username exists
         const randomNum = Math.floor(Math.random() * 100);
-        username = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${randomNum}`;
+        username = `${firstName.toLowerCase().trim()}.${lastName.toLowerCase().trim()}${randomNum}`;
       }
 
-      // KEEP THE ORIGINAL PASSWORD GENERATION
-      temporaryPassword = `${firstName.toLowerCase()}${lastName.toLowerCase()}123`;
-      
+      // Use the admin-provided password
       existingUser = await User.create({
         username,
         email,
-        password: temporaryPassword,
+        password: password, // Use admin-provided password
         role: 'employee',
         employeeId: newEmployee._id,
         isActive: true,
         verified: true
       });
+
+      console.log(`✅ New user account created - Username: ${username}, Email: ${email}`);
     } else {
       // If user exists but isn't linked to an employee
       if (existingUser.employeeId) {
+        // Clean up the employee record we just created since we can't use this email
+        await Employee.findByIdAndDelete(newEmployee._id);
         return res.status(400).json({
           success: false,
           message: 'This email is already associated with another employee'
         });
       }
       
+      // Update existing user with new password and link to employee
       existingUser.employeeId = newEmployee._id;
       existingUser.role = 'employee';
+      existingUser.password = password; // This will be hashed by the pre-save middleware
+      existingUser.isActive = true;
       await existingUser.save();
+
+      console.log(`✅ Existing user account updated - Username: ${existingUser.username}, Email: ${email}`);
     }
 
     // Update the employee's user field
@@ -247,8 +291,8 @@ const registerEmployee = async (req, res, next) => {
       user: existingUser._id
     });
 
-    // Send email with credentials (in production, you would actually send an email)
-    console.log(`New employee credentials - Email: ${email}, Temp Password: ${temporaryPassword || 'Use existing password'}`);
+    // Log success (don't log the password for security)
+    console.log(`✅ Employee registered successfully - Name: ${firstName} ${lastName}, Email: ${email}, Username: ${existingUser.username}`);
 
     res.status(201).json({
       success: true,
@@ -258,9 +302,10 @@ const registerEmployee = async (req, res, next) => {
         employeeId: newEmployee.employeeId,
         name: `${firstName} ${lastName}`,
         email,
+        username: existingUser.username,
         department,
         position,
-        temporaryPassword: temporaryPassword || 'Use existing password'
+        message: 'Employee account created with admin-provided password'
       }
     });
 
@@ -269,6 +314,17 @@ const registerEmployee = async (req, res, next) => {
 
     if (err.code === 11000) {
       const field = Object.keys(err.keyPattern)[0];
+      
+      // Handle specific user field duplicate error (usually means database index issue)
+      if (field === 'user') {
+        return res.status(500).json({
+          success: false,
+          message: 'Database index issue detected. Please run the index fix script: npm run fix:index',
+          error: 'DUPLICATE_USER_INDEX_ERROR',
+          solution: 'Run: npm run fix:index'
+        });
+      }
+      
       return res.status(400).json({
         success: false,
         message: `Employee with this ${field} already exists`,

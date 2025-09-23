@@ -2,6 +2,12 @@ import Attendance from '../models/Attendance.js';
 import Employee from '../models/Employee.js';
 import User from '../models/User.js';
 import mongoose from 'mongoose';
+import { 
+  isWithinAttendanceWindow, 
+  getCurrentPKTTime, 
+  getTimeUntilNextAttendanceWindow,
+  formatPKTTime 
+} from '../middlewares/attendanceTimeAccess.js';
 
 const getTodayRange = () => {
   const now = new Date();
@@ -29,6 +35,19 @@ export const clockIn = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'User not authenticated'
+      });
+    }
+
+    // Check if within attendance time window
+    if (!isWithinAttendanceWindow()) {
+      const timeInfo = getTimeUntilNextAttendanceWindow();
+      return res.status(403).json({
+        success: false,
+        message: 'Clock in is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time',
+        currentTime: formatPKTTime(getCurrentPKTTime()),
+        allowedWindow: '6:00 PM - 5:30 AM PKT',
+        nextAvailableTime: timeInfo.nextAccessTime ? formatPKTTime(timeInfo.nextAccessTime) : null,
+        error: 'ATTENDANCE_TIME_RESTRICTED'
       });
     }
 
@@ -141,7 +160,20 @@ export const clockIn = async (req, res) => {
 // Similarly update clockOut
 export const clockOut = async (req, res) => {
   try {
-const userId = req.user?._id || req.user?.userId;
+    const userId = req.user?._id || req.user?.userId;
+    
+    // Check if within attendance time window
+    if (!isWithinAttendanceWindow()) {
+      const timeInfo = getTimeUntilNextAttendanceWindow();
+      return res.status(403).json({
+        success: false,
+        message: 'Clock out is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time',
+        currentTime: formatPKTTime(getCurrentPKTTime()),
+        allowedWindow: '6:00 PM - 5:30 AM PKT',
+        nextAvailableTime: timeInfo.nextAccessTime ? formatPKTTime(timeInfo.nextAccessTime) : null,
+        error: 'ATTENDANCE_TIME_RESTRICTED'
+      });
+    }
     
     // Find employee by user reference
     const employee = await Employee.findOne({ user: userId });
@@ -469,6 +501,30 @@ export const getAdminAttendanceSummary = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error generating attendance summary'
+    });
+  }
+};
+
+export const getAttendanceTimeWindow = async (req, res) => {
+  try {
+    const timeInfo = getTimeUntilNextAttendanceWindow();
+    const currentTime = getCurrentPKTTime();
+    
+    res.json({
+      success: true,
+      data: {
+        isWithinAttendanceWindow: isWithinAttendanceWindow(),
+        currentTime: formatPKTTime(currentTime),
+        allowedWindow: '7:00 PM - 5:30 AM PKT',
+        ...timeInfo
+      }
+    });
+  } catch (error) {
+    console.error('Error checking attendance time window:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking attendance time window',
+      error: error.message
     });
   }
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Eye, EyeOff } from 'lucide-react';
 import { authAPI } from '../../utils/api';
 import { DEPARTMENTS } from '../../utils/constants';
 
@@ -9,15 +9,11 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
     lastName: '',
     fatherName: '',
     email: '',
+    password: '',
     department: 'Customer Service',
     position: '',
     employeeId: '',
     hireDate: new Date().toISOString().split('T')[0],
-    salary: {
-      baseSalary: 0,
-      bonuses: 0,
-      deductions: 0
-    },
     status: 'Active',
     contact: {
       phone: '',
@@ -27,6 +23,29 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Password strength checker
+  const getPasswordStrength = (password) => {
+    if (!password) return { score: 0, label: '', color: '' };
+    
+    let score = 0;
+    const checks = {
+      length: password.length >= 6,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /\d/.test(password),
+      special: /[@$!%*?&]/.test(password)
+    };
+
+    score = Object.values(checks).filter(Boolean).length;
+
+    if (score < 3) return { score, label: 'Weak', color: 'text-red-400' };
+    if (score < 4) return { score, label: 'Medium', color: 'text-yellow-400' };
+    return { score, label: 'Strong', color: 'text-green-400' };
+  };
+
+  const passwordStrength = getPasswordStrength(employeeForm.password);
 
   const handleRegisterEmployee = async (e) => {
     e.preventDefault();
@@ -36,8 +55,23 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
     try {
       // Validate required fields (same as inline modal)
       if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || 
-          !employeeForm.employeeId || !employeeForm.department || !employeeForm.position) {
+          !employeeForm.password || !employeeForm.employeeId || !employeeForm.department || !employeeForm.position) {
         setError('Please fill all required fields');
+        setLoading(false);
+        return;
+      }
+
+      // Validate password strength
+      if (employeeForm.password.length < 6) {
+        setError('Password must be at least 6 characters long');
+        setLoading(false);
+        return;
+      }
+
+      // Basic password strength check
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{6,}$/;
+      if (!passwordRegex.test(employeeForm.password)) {
+        setError('Password must contain at least one uppercase letter, one lowercase letter, and one number');
         setLoading(false);
         return;
       }
@@ -46,7 +80,13 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
 
       if (response.success) {
         setError('');
-        alert('Employee registered successfully!');
+        
+        // Show success message with username info
+        const successMessage = response.data.username 
+          ? `Employee registered successfully!\n\nLogin Credentials:\n• Username: ${response.data.username}\n• Email: ${response.data.email}\n• Password: [As set by admin]\n\nPlease share these credentials with the employee securely.`
+          : 'Employee registered successfully!';
+          
+        alert(successMessage);
         
         // Reset form to default values (same as inline modal)
         setEmployeeForm({
@@ -54,15 +94,11 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
           lastName: '',
           fatherName: '',
           email: '',
+          password: '',
           department: 'Customer Service',
           position: '',
           employeeId: '',
           hireDate: new Date().toISOString().split('T')[0],
-          salary: {
-            baseSalary: 0,
-            bonuses: 0,
-            deductions: 0
-          },
           status: 'Active',
           contact: {
             phone: '',
@@ -180,6 +216,56 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
               className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Password
+              <span className="text-red-400 ml-1">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={employeeForm.password}
+                onChange={handleEmployeeFormChange}
+                placeholder="Create a secure password"
+                className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 pr-12 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">
+              Password must contain at least 6 characters with uppercase, lowercase, and number
+            </p>
+            {employeeForm.password && (
+              <div className="mt-2">
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-slate-400">Strength:</span>
+                  <span className={`text-xs font-medium ${passwordStrength.color}`}>
+                    {passwordStrength.label}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-1.5 mt-1">
+                  <div
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      passwordStrength.score < 3 
+                        ? 'bg-red-500' 
+                        : passwordStrength.score < 4 
+                        ? 'bg-yellow-500' 
+                        : 'bg-green-500'
+                    }`}
+                    style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

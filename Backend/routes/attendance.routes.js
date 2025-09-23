@@ -7,22 +7,23 @@ import {
   getAttendance,
   getAttendanceStatus,
   updateAdminAttendance,
-  getAdminAttendanceSummary
+  getAdminAttendanceSummary,
+  getAttendanceTimeWindow
 } from '../controllers/attendance.controller.js';
 import auth from '../middlewares/auth.js';
 import admin from '../middlewares/admin.js';
-import { timeAccessControl } from '../middlewares/timeAccess.js';
+import { attendanceTimeAccessControl } from '../middlewares/attendanceTimeAccess.js';
 
 const attendanceRouter = express.Router();
 
-// Apply time access control to all attendance routes
-attendanceRouter.use(timeAccessControl);
+// Clock in/out routes with specific attendance time restrictions (6PM - 5:30AM)
+attendanceRouter.post('/clock-in', auth, attendanceTimeAccessControl, clockIn);
+attendanceRouter.post('/clock-out', auth, attendanceTimeAccessControl, clockOut);
 
-// Protected routes
-attendanceRouter.post('/clock-in', auth, clockIn);
-attendanceRouter.post('/clock-out', auth, clockOut);
+// Other attendance routes without the stricter time restriction
 attendanceRouter.get('/', auth, getAttendance);
 attendanceRouter.get('/status', auth, getAttendanceStatus);
+attendanceRouter.get('/time-window', getAttendanceTimeWindow);
 
 attendanceRouter.get('/admin', auth, admin, getAdminAttendance);
 attendanceRouter.put('/admin/:id', auth, admin, updateAdminAttendance);

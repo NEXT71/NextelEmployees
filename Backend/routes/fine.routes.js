@@ -10,12 +10,8 @@ import {
 } from '../controllers/fine.controller.js';
 import auth from '../middlewares/auth.js';
 import roles from '../middlewares/roles.js';
-import { timeAccessControl } from '../middlewares/timeAccess.js';
 
 const fineRouter = express.Router();
-
-// Apply time access control to all fine routes
-fineRouter.use(timeAccessControl);
 
 fineRouter.post('/', auth, applyFine);
 fineRouter.patch('/:id/approve', auth, roles('admin'), approveFine);

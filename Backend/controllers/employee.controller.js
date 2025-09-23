@@ -2,6 +2,7 @@ import Employee from '../models/Employee.js';
 import User from '../models/User.js';
 import Salary from '../models/Salary.js';
 import Fine from '../models/Fine.js';
+import Attendance from '../models/Attendance.js';
 import { validateEmployee } from '../validations/employee.validation.js';
 
 // Get all employees
@@ -156,7 +157,7 @@ const updateEmployee = async (req, res, next) => {
 // Delete employee
 const deleteEmployee = async (req, res, next) => {
   try {
-    const employee = await Employee.findByIdAndDelete(req.params.id);
+    const employee = await Employee.findById(req.params.id);
 
     if (!employee) {
       return res.status(404).json({
@@ -165,22 +166,42 @@ const deleteEmployee = async (req, res, next) => {
       });
     }
 
-    // Delete associated user account if exists
-    if (employee.user) {
-      await User.findByIdAndDelete(employee.user);
+    // Find and delete associated user account by employeeId reference
+    // This handles both directions of the relationship
+    const associatedUser = await User.findOne({ 
+      $or: [
+        { employeeId: employee._id },  // User references this employee
+        { _id: employee.user }         // Employee references this user
+      ]
+    });
+
+    if (associatedUser) {
+      await User.findByIdAndDelete(associatedUser._id);
+      console.log(`✅ Deleted associated user account: ${associatedUser.username}`);
     }
 
-    // Delete associated fines
-    await Fine.deleteMany({ employee: employee._id });
+    // Delete the employee record
+    await Employee.findByIdAndDelete(req.params.id);
 
-    // Delete associated salaries
-    await Salary.deleteMany({ employee: employee._id });
+    // Delete associated records
+    const [deletedFines, deletedSalaries, deletedAttendance] = await Promise.all([
+      Fine.deleteMany({ employee: employee._id }),
+      Salary.deleteMany({ employee: employee._id }),
+      Attendance.deleteMany({ employee: employee._id })
+    ]);
+
+    console.log(`✅ Deleted employee and all associated records: ${employee.firstName} ${employee.lastName}`);
+    console.log(`   - Fines deleted: ${deletedFines.deletedCount}`);
+    console.log(`   - Salaries deleted: ${deletedSalaries.deletedCount}`);
+    console.log(`   - Attendance records deleted: ${deletedAttendance.deletedCount}`);
 
     res.json({
       success: true,
+      message: 'Employee and associated user account deleted successfully',
       data: {}
     });
   } catch (err) {
+    console.error('Error deleting employee:', err);
     next(err);
   }
 };

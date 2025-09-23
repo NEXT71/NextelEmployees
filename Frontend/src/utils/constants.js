@@ -15,11 +15,9 @@ export const FINE_TYPES = [
 ];
 
 export const DEPARTMENTS = [
-  'Customer Service',
-  'Technical Support',
   'Sales',
   'Quality Assurance',
-  'Human Resources'
+  'HR'
 ];
 
 export const EMPLOYEE_STATUS = [

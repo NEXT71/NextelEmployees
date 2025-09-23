@@ -2,7 +2,6 @@ import { User, LogOut, Clock, LayoutDashboard, Users } from 'lucide-react';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 import 'react-lazy-load-image-component/src/effects/blur.css';
 import { Link, useLocation } from 'react-router-dom';
-import TimeAccessControl from './TimeAccessControl';
 
 const AdminHeader = ({ userName, onLogout }) => {
   const location = useLocation();
@@ -27,11 +26,6 @@ const AdminHeader = ({ userName, onLogout }) => {
               />
             </div>
             <h1 className="text-xl font-semibold text-white">Nextel Employees</h1>
-          </div>
-          
-          {/* Center section with time access status */}
-          <div className="hidden md:block">
-            <TimeAccessControl />
           </div>
           
           {/* Right section with buttons */}
@@ -94,11 +88,6 @@ const AdminHeader = ({ userName, onLogout }) => {
               </button>
             </div>
           </div>
-        </div>
-        
-        {/* Mobile time access status */}
-        <div className="md:hidden mt-3">
-          <TimeAccessControl />
         </div>
       </div>
     </header>

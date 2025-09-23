@@ -12,8 +12,6 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
 const DEPARTMENTS = [
-  'Customer Service',
-  'Technical Support',
   'Sales',
   'Quality Assurance',
   'HR'

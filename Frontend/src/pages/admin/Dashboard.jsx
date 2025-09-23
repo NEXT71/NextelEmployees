@@ -73,21 +73,52 @@ const AdminDashboard = () => {
         const userResponse = await authAPI.getCurrentUser();
         setUser(userResponse.data);
 
-        // Get all employees
+        // Get all employees (backend should filter out admins, but add frontend backup)
         const employeesResponse = await employeeAPI.getAllEmployees();
-        setEmployees(employeesResponse.data);
+        const allEmployees = employeesResponse.data || [];
+        
+        // Additional frontend filtering as backup to ensure admin doesn't see themselves
+        const filteredEmployees = allEmployees.filter(employee => {
+          const currentUser = userResponse.data;
+          
+          // Filter out by multiple criteria to be safe
+          return (
+            // Different email
+            employee.email !== currentUser.email &&
+            // Different user ID if linked
+            employee.user?._id !== currentUser._id &&
+            // Not admin role if populated
+            employee.user?.role !== 'admin' &&
+            // Different username if available
+            employee.user?.username !== currentUser.username
+          );
+        });
+        
+        console.log('Current user:', userResponse.data);
+        console.log('All employees from backend:', allEmployees.length);
+        console.log('Filtered employees:', filteredEmployees.length);
+        
+        setEmployees(filteredEmployees);
 
         // Get all salaries
         const salariesResponse = await salaryAPI.getAllSalaries();
         setSalaries(salariesResponse.data);
 
-        // Get summary stats (fallback if endpoint doesn't exist)
+        // Get summary stats from proper endpoint
         try {
-          const summaryResponse = await fineAPI.getAllFines(); // Using fines API as fallback
+          const summaryResponse = await fineAPI.getEmployeeSummary();
           setSummary(summaryResponse.data || {});
         } catch (summaryErr) {
           console.warn('Summary endpoint not available:', summaryErr);
-          setSummary({});
+          // Fallback: calculate basic stats from filtered employees data
+          const employeesCount = filteredEmployees.length;
+          const activeCount = filteredEmployees.filter(emp => emp.status === 'Active').length;
+          setSummary({
+            totalEmployees: employeesCount,
+            activeEmployees: activeCount,
+            totalFinesCount: 0,
+            totalFineAmount: 0
+          });
         }
 
       } catch (err) {
@@ -325,13 +356,13 @@ const AdminDashboard = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <StatsCard
             title="Total Employees"
-            value={summary.totalEmployees || 0}
+            value={summary.totalEmployees || employees.length || 0}
             icon={<Users className="w-6 h-6 sm:w-8 sm:h-8" />}
             color="blue"
           />
           <StatsCard
             title="Active Employees"
-            value={summary.activeEmployees || 0}
+            value={summary.activeEmployees || employees.filter(emp => emp.status === 'Active').length || 0}
             icon={<CheckCircle className="w-6 h-6 sm:w-8 sm:h-8" />}
             color="green"
           />

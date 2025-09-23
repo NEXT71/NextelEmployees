@@ -13,10 +13,26 @@ const getAllEmployees = async (req, res, next) => {
       .populate('user', 'username email role')
       .populate('department', 'name');
 
+    console.log('Total employees found:', employees.length);
+    console.log('Employees with user data:', employees.filter(e => e.user).length);
+    console.log('Admin users found:', employees.filter(e => e.user && e.user.role === 'admin').length);
+
+    // Filter out admin users from the employee list
+    const filteredEmployees = employees.filter(employee => {
+      // Exclude employees who have admin role
+      const isAdmin = employee.user && employee.user.role === 'admin';
+      if (isAdmin) {
+        console.log('Filtering out admin user:', employee.email, employee.user.username);
+      }
+      return !isAdmin;
+    });
+
+    console.log('Filtered employees count:', filteredEmployees.length);
+
     res.json({
       success: true,
-      count: employees.length,
-      data: employees
+      count: filteredEmployees.length,
+      data: filteredEmployees
     });
   } catch (err) {
     next(err);

@@ -218,8 +218,16 @@ const getFineSummary = async (req, res, next) => {
 
 const getEmployeeSummary = async (req, res, next) => {
   try {
-    const totalEmployees = await Employee.countDocuments();
-    const activeEmployees = await Employee.countDocuments({ status: 'Active' });
+    // Get all employees with populated user data to filter out admins
+    const allEmployees = await Employee.find().populate('user', 'role');
+    
+    // Filter out admin users
+    const nonAdminEmployees = allEmployees.filter(employee => {
+      return !employee.user || employee.user.role !== 'admin';
+    });
+    
+    const totalEmployees = nonAdminEmployees.length;
+    const activeEmployees = nonAdminEmployees.filter(emp => emp.status === 'Active').length;
 
     const finesAgg = await Fine.aggregate([
       { $match: { approved: true } },

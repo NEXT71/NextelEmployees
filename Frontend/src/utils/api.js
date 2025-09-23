@@ -244,6 +244,14 @@ export const fineAPI = {
     apiRequest(`/fines/${id}`, {
       method: 'DELETE',
     }),
+
+  // Get fine summary for dashboard
+  getFineSummary: () =>
+    apiRequest('/fines/summary'),
+
+  // Get employee summary with fine stats for dashboard
+  getEmployeeSummary: () =>
+    apiRequest('/fines/employeesSummary'),
 };
 
 // Salary API calls

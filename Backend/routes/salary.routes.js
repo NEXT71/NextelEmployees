@@ -8,8 +8,12 @@ import {
 } from '../controllers/salary.controller.js';
 import auth from '../middlewares/auth.js';
 import roles from '../middlewares/roles.js';
+import { timeAccessControl } from '../middlewares/timeAccess.js';
 
 const salaryRouter = express.Router();
+
+// Apply time access control to all salary routes
+salaryRouter.use(timeAccessControl);
 
 salaryRouter.post('/', auth, roles('admin'), createSalary);
 salaryRouter.get('/', auth, roles('admin'), getAllSalaries);

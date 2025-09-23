@@ -1,11 +1,13 @@
-import { User, LogOut, UserPlus, Clock, LayoutDashboard } from 'lucide-react';
+import { User, LogOut, Clock, LayoutDashboard, Users } from 'lucide-react';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 import 'react-lazy-load-image-component/src/effects/blur.css';
 import { Link, useLocation } from 'react-router-dom';
+import TimeAccessControl from './TimeAccessControl';
 
-const AdminHeader = ({ userName, onLogout, onRegisterEmployee }) => {
+const AdminHeader = ({ userName, onLogout }) => {
   const location = useLocation();
   const isAttendancePage = location.pathname.includes('/attendance');
+  const isEmployeesPage = location.pathname.includes('/employees');
 
   return (
     <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
@@ -27,48 +29,76 @@ const AdminHeader = ({ userName, onLogout, onRegisterEmployee }) => {
             <h1 className="text-xl font-semibold text-white">Nextel Employees</h1>
           </div>
           
+          {/* Center section with time access status */}
+          <div className="hidden md:block">
+            <TimeAccessControl />
+          </div>
+          
           {/* Right section with buttons */}
-          <div className="flex items-center space-x-4">
-            <Link
-              to={isAttendancePage ? "/admindashboard" : "/admindashboard/attendance"}
-              className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors"
-            >
-              {isAttendancePage ? (
-                <>
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>Dashboard</span>
-                </>
-              ) : (
-                <>
-                  <Clock className="w-4 h-4" />
-                  <span>Attendance</span>
-                </>
-              )}
-            </Link>
-            
-            {onRegisterEmployee && (
-              <button
-                onClick={onRegisterEmployee}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md text-sm transition-colors"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>Register Employee</span>
-              </button>
-            )}
-            
+          <div className="flex items-center space-x-3">
+            {/* Navigation Links */}
             <div className="flex items-center space-x-2">
-              <User className="w-4 h-4 text-slate-300" />
-              <span className="text-sm text-slate-200 font-medium">{userName}</span>
+              <Link
+                to="/admindashboard"
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  location.pathname === '/admindashboard' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Dashboard</span>
+              </Link>
+              
+              <Link
+                to="/admindashboard/attendance"
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  isAttendancePage 
+                    ? 'bg-blue-600 text-white' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <Clock className="w-4 h-4" />
+                <span>Attendance</span>
+              </Link>
+              
+              <Link
+                to="/admindashboard/employees"
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  isEmployeesPage 
+                    ? 'bg-blue-600 text-white' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Employees</span>
+              </Link>
             </div>
             
-            <button
-              onClick={onLogout}
-              className="flex items-center space-x-2 px-3 py-1.5 text-sm text-slate-300 hover:text-white transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Logout</span>
-            </button>
+            {/* Divider */}
+            <div className="w-px h-6 bg-slate-600"></div>
+            
+            {/* Action Buttons */}
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
+                <User className="w-4 h-4 text-slate-300" />
+                <span className="text-sm text-slate-200 font-medium">{userName}</span>
+              </div>
+              
+              <button
+                onClick={onLogout}
+                className="flex items-center space-x-2 px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-slate-800/50 rounded-md transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Logout</span>
+              </button>
+            </div>
           </div>
+        </div>
+        
+        {/* Mobile time access status */}
+        <div className="md:hidden mt-3">
+          <TimeAccessControl />
         </div>
       </div>
     </header>

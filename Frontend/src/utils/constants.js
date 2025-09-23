@@ -1,3 +1,6 @@
+// API Configuration
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
 export const FINE_TYPES = [
   { name: 'Clothing', amount: 300, code: 'CLT' },
   { name: 'Late', amount: 300, code: 'LAT' },
@@ -24,3 +27,8 @@ export const EMPLOYEE_STATUS = [
   'Inactive',
   'On Leave'
 ];
+
+export const ROLES = {
+  ADMIN: 'admin',
+  EMPLOYEE: 'employee'
+};

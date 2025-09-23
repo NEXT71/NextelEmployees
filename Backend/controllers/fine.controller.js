@@ -101,6 +101,24 @@ const userId = req.user?._id || req.user?.userId;
   }
 };
 
+const getFinesByEmployeeId = async (req, res, next) => {
+  try {
+    const { employeeId } = req.params;
+
+    const fines = await Fine.find({ employee: employeeId })
+      .sort('-date')
+      .populate('approvedBy', 'username');
+
+    res.json({
+      success: true,
+      count: fines.length,
+      data: fines
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const getAllFines = async (req, res, next) => {
   try {
     const { startDate, endDate, status, department } = req.query;
@@ -276,6 +294,7 @@ export {
   applyFine,
   approveFine,
   getEmployeeFines,
+  getFinesByEmployeeId,
   getFineSummary,
   getAllFines,
   getEmployeeSummary

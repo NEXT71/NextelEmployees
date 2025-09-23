@@ -1,31 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';
+import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
+import { authAPI, employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
 import { 
   Users, CheckCircle, XCircle, AlertTriangle, 
   X, UserPlus, Edit, Trash2, AlertCircle,
   Filter, Search, List, DollarSign, Clock, Calendar,
   ChevronDown, ChevronUp, User as UserIcon, Home, Phone, Mail
 } from 'lucide-react';
-
-const FINE_TYPES = [
-  { name: 'Clothing', amount: 300 },
-  { name: 'Late', amount: 300 },
-  { name: 'Absent', amount: 500 },
-  { name: 'Performance', amount: 500 },
-  { name: 'Late After Break', amount: 300 },
-  { name: 'MisBehave', amount: 1000 },
-  { name: 'Vape-Pod', amount: 300 },
-  { name: 'Saturday Off', amount: 500 },
-  { name: 'Mobile Usage/Wifi', amount: 300 },
-  { name: 'Sleeping', amount: 300 }
-];
-
-const DEPARTMENTS = [
-  'Customer Service',
-];
 
 const AdminDashboard = () => {
   const [user, setUser] = useState(null);
@@ -37,7 +21,6 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('employees');
   
   // Modals
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showFineModal, setShowFineModal] = useState(false);
   const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -54,6 +37,13 @@ const AdminDashboard = () => {
   const [fineFilter, setFineFilter] = useState('');
 
   // Form states
+  const [fineForm, setFineForm] = useState({
+    type: FINE_TYPES[0].name,
+    amount: FINE_TYPES[0].amount,
+    description: ''
+  });
+
+  // Employee edit form state
   const [employeeForm, setEmployeeForm] = useState({
     firstName: '',
     lastName: '',
@@ -71,12 +61,6 @@ const AdminDashboard = () => {
     }
   });
 
-  const [fineForm, setFineForm] = useState({
-    type: FINE_TYPES[0].name,
-    amount: FINE_TYPES[0].amount,
-    description: ''
-  });
-
   const navigate = useNavigate();
 
   // Fetch all data on component mount and tab change
@@ -84,36 +68,31 @@ const AdminDashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('token');
         
         // Get current user data
-        const userResponse = await axios.get('http://localhost:5000/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setUser(userResponse.data.data);
+        const userResponse = await authAPI.getCurrentUser();
+        setUser(userResponse.data);
 
         // Get all employees
-        const employeesResponse = await axios.get('http://localhost:5000/api/employees', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setEmployees(employeesResponse.data.data);
-
+        const employeesResponse = await employeeAPI.getAllEmployees();
+        setEmployees(employeesResponse.data);
 
         // Get all salaries
-        const salariesResponse = await axios.get('http://localhost:5000/api/salaries', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setSalaries(salariesResponse.data.data);
+        const salariesResponse = await salaryAPI.getAllSalaries();
+        setSalaries(salariesResponse.data);
 
-        // Get summary stats
-        const summaryResponse = await axios.get('http://localhost:5000/api/fines/employeesSummary', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setSummary(summaryResponse.data.data);
+        // Get summary stats (fallback if endpoint doesn't exist)
+        try {
+          const summaryResponse = await fineAPI.getAllFines(); // Using fines API as fallback
+          setSummary(summaryResponse.data || {});
+        } catch (summaryErr) {
+          console.warn('Summary endpoint not available:', summaryErr);
+          setSummary({});
+        }
 
       } catch (err) {
         console.error("Error fetching data:", err);
-        if (err.response?.status === 401) {
+        if (err.message.includes('401') || err.message.includes('Unauthorized')) {
           localStorage.removeItem('token');
           navigate('/');
         }
@@ -126,9 +105,7 @@ const AdminDashboard = () => {
 
   const handleLogout = async () => {
     try {
-      await axios.post('http://localhost:5000/api/auth/logout', {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await authAPI.logout();
       localStorage.removeItem('token');
       navigate('/');
     } catch (err) {
@@ -140,27 +117,19 @@ const AdminDashboard = () => {
   const viewEmployeeDetails = async (employee) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
       
       // Get employee fines
-      const finesResponse = await axios.get(
-  `http://localhost:5000/api/employees/${employee._id}/fines`,  // Matches employeeRouter.get('/:id/fines')
-  { headers: { Authorization: `Bearer ${token}` } }
-);
-
+      const finesResponse = await fineAPI.getFinesByEmployee(employee._id);
       
       // Get employee salaries
-      const salariesResponse = await axios.get(
-  `http://localhost:5000/api/employees/${employee._id}/salaries`,  // Matches employeeRouter.get('/:id/salaries')
-  { headers: { Authorization: `Bearer ${token}` } }
-);
+      const salariesResponse = await salaryAPI.getSalariesByEmployee(employee._id);
       
       setSelectedEmployee(employee);
-      setEmployeeFines(finesResponse.data.data);
-      setEmployeeSalaries(salariesResponse.data.data);
+      setEmployeeFines(finesResponse.data || []);
+      setEmployeeSalaries(salariesResponse.data || []);
       setShowEmployeeDetails(true);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load employee details');
+      setError(err.message || 'Failed to load employee details');
     } finally {
       setLoading(false);
     }
@@ -169,102 +138,6 @@ const AdminDashboard = () => {
   const closeEmployeeDetails = () => {
     setShowEmployeeDetails(false);
     setSelectedEmployee(null);
-  };
-
-  // Employee Modal Handlers
-  const openRegisterModal = () => {
-    setShowRegisterModal(true);
-    setEmployeeForm({
-      firstName: '',
-      lastName: '',
-      fatherName: '',
-      email: '',
-      department: 'Customer Service',
-      position: '',
-      employeeId: '',
-      hireDate: new Date().toISOString().split('T')[0],
-      salary: {
-        baseSalary: 0,
-        bonuses: 0,
-        deductions: 0
-      },
-      status: 'Active',
-      contact: {
-        phone: '',
-        address: '',
-        emergencyContact: ''
-      }
-    });
-    setError('');
-  };
-
-  const closeRegisterModal = () => setShowRegisterModal(false);
-
-  const handleRegisterEmployee = async () => {
-    try {
-      // Validate required fields
-      if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || 
-          !employeeForm.employeeId || !employeeForm.department || !employeeForm.position) {
-        setError('Please fill all required fields');
-        return;
-      }
-
-      const response = await axios.post(
-        'http://localhost:5000/api/auth/register/employee',
-        employeeForm,
-        {
-          headers: { 
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (response.data.success) {
-        // Refresh employees list
-        const employeesResponse = await axios.get('http://localhost:5000/api/employees', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        setEmployees(employeesResponse.data.data);
-        
-        setError('');
-        alert('Employee registered successfully!');
-        closeRegisterModal();
-        
-        // Reset form to default values
-        setEmployeeForm({
-          firstName: '',
-          lastName: '',
-          fatherName: '',
-          email: '',
-          department: 'Customer Service',
-          position: '',
-          employeeId: '',
-          hireDate: new Date().toISOString().split('T')[0],
-          salary: {
-            baseSalary: 0,
-            bonuses: 0,
-            deductions: 0
-          },
-          status: 'Active',
-          contact: {
-            phone: '',
-            address: '',
-            emergencyContact: ''
-          }
-        });
-      }
-    } catch (err) {
-      if (err.response?.data?.errors) {
-        // Handle validation errors from backend
-        const errorMessages = Object.values(err.response.data.errors)
-          .map(error => error.message || error)
-          .join(', ');
-        setError(errorMessages);
-      } else {
-        setError(err.response?.data?.message || 'Failed to register employee. Please try again.');
-      }
-    }
   };
 
   // Fine Modal Handlers
@@ -291,39 +164,27 @@ const AdminDashboard = () => {
 
   const applyFine = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        'http://localhost:5000/api/fines',
-        {
-          employeeId: selectedEmployee._id,
-          type: fineForm.type,
-          amount: fineForm.amount,
-          description: fineForm.description
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await fineAPI.createFine({
+        employeeId: selectedEmployee._id,
+        type: fineForm.type,
+        amount: fineForm.amount,
+        description: fineForm.description
+      });
 
-      if (response.data.success) {
+      if (response.success) {
         // Refresh all relevant data
-        const [employeesRes, finesRes, summaryRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/employees', {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get('http://localhost:5000/api/fines', {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get('http://localhost:5000/api/fines/employeesSummary', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
+        const [employeesRes, finesRes] = await Promise.all([
+          employeeAPI.getAllEmployees(),
+          fineAPI.getAllFines()
         ]);
         
-        setEmployees(employeesRes.data.data);
-        setFines(finesRes.data.data);
-        setSummary(summaryRes.data.data);
+        setEmployees(employeesRes.data);
+        setFines(finesRes.data);
+        setSummary({}); // Reset summary or fetch if available
         closeFineModal();
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to apply fine');
+      setError(err.message || 'Failed to apply fine');
     }
   };
 
@@ -365,40 +226,29 @@ const AdminDashboard = () => {
         return;
       }
 
-      const response = await axios.put(
-        `http://localhost:5000/api/employees/${employeeToEdit._id}`,
-        employeeForm,
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }}
-      );
+      const response = await employeeAPI.updateEmployee(employeeToEdit._id, employeeForm);
 
-      if (response.data.success) {
+      if (response.success) {
         // Refresh employees list
-        const employeesResponse = await axios.get('http://localhost:5000/api/employees', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        setEmployees(employeesResponse.data.data);
+        const employeesResponse = await employeeAPI.getAllEmployees();
+        setEmployees(employeesResponse.data);
         closeEditModal();
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update employee');
+      setError(err.message || 'Failed to update employee');
     }
   };
 
   const handleDeleteEmployee = async (employeeId) => {
     try {
-      const response = await axios.delete(
-        `http://localhost:5000/api/employees/${employeeId}`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-      );
+      const response = await employeeAPI.deleteEmployee(employeeId);
 
-      if (response.data.success) {
-        const employeesResponse = await axios.get('http://localhost:5000/api/employees', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        setEmployees(employeesResponse.data.data);
+      if (response.success) {
+        const employeesResponse = await employeeAPI.getAllEmployees();
+        setEmployees(employeesResponse.data);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete employee');
+      setError(err.message || 'Failed to delete employee');
     }
   };
 
@@ -458,7 +308,6 @@ const AdminDashboard = () => {
       <AdminHeader
         userName={user?.username}
         onLogout={handleLogout}
-        onRegisterEmployee={openRegisterModal}
       />
 
       <div className="container mx-auto p-6 space-y-8 relative z-10">
@@ -1130,125 +979,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* Register Employee Modal */}
-      {showRegisterModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl w-full max-w-md mx-auto">
-            <div className="flex items-center justify-between p-6 border-b border-white/20">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/20 rounded-lg">
-                  <UserPlus className="w-5 h-5 text-blue-400" />
-                </div>
-                <h2 className="text-xl font-semibold text-white">Register New Employee</h2>
-              </div>
-              <button
-                onClick={closeRegisterModal}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-300" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">First Name</label>
-                  <input
-                    type="text"
-                    value={employeeForm.firstName}
-                    onChange={(e) => setEmployeeForm({...employeeForm, firstName: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
-                  <input
-                    type="text"
-                    value={employeeForm.lastName}
-                    onChange={(e) => setEmployeeForm({...employeeForm, lastName: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Father's Name</label>
-                <input
-                  type="text"
-                  value={employeeForm.fatherName}
-                  onChange={(e) => setEmployeeForm({...employeeForm, fatherName: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-                <input
-                  type="email"
-                  value={employeeForm.email}
-                  onChange={(e) => setEmployeeForm({...employeeForm, email: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Department</label>
-                <select
-                  value={employeeForm.department}
-                  onChange={(e) => setEmployeeForm({...employeeForm, department: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                  required
-                >
-                  {DEPARTMENTS.map(dept => (
-                    <option key={dept} value={dept} className="bg-gray-800">{dept}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Position</label>
-                <input
-                  type="text"
-                  value={employeeForm.position}
-                  onChange={(e) => setEmployeeForm({...employeeForm, position: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Employee ID</label>
-                <input
-                  type="text"
-                  value={employeeForm.employeeId}
-                  onChange={(e) => setEmployeeForm({...employeeForm, employeeId: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={closeRegisterModal}
-                  className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-all duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRegisterEmployee}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200"
-                >
-                  Register Employee
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Fine Employee Modal */}
       {/* Fine Employee Modal */}
       {showFineModal && selectedEmployee && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">

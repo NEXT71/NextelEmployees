@@ -11,8 +11,12 @@ import {
 } from '../controllers/attendance.controller.js';
 import auth from '../middlewares/auth.js';
 import admin from '../middlewares/admin.js';
+import { timeAccessControl } from '../middlewares/timeAccess.js';
 
 const attendanceRouter = express.Router();
+
+// Apply time access control to all attendance routes
+attendanceRouter.use(timeAccessControl);
 
 // Protected routes
 attendanceRouter.post('/clock-in', auth, clockIn);

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { 
   CheckCircle, XCircle, DollarSign, Clock, Calendar,
   User, Mail, AlertTriangle, X, ChevronDown, ChevronUp, Home, AlertCircle, RefreshCw
 } from 'lucide-react';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
+import { authAPI, employeeAPI, attendanceAPI, fineAPI, isAuthenticated, clearAuth } from '../../utils/api';
 
 const EmployeeDashboard = () => {
   const [user, setUser] = useState(null);
@@ -42,20 +42,12 @@ const EmployeeDashboard = () => {
     return `${year}-${month}-${day}`;
   };
 
-const fetchEmployeeData = async (token, userId) => {
+const fetchEmployeeData = async (userId) => {
   try {
-    const response = await axios.get(
-      `http://localhost:5000/api/employees/user/${userId}`,
-      { 
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    const response = await employeeAPI.getEmployeeByUserId(userId);
 
-    if (response.data?.success && response.data.data) {
-      const employeeData = response.data.data;
+    if (response?.data) {
+      const employeeData = response.data;
       return {
         ...employeeData,
         name: `${employeeData.firstName} ${employeeData.lastName}`,
@@ -74,40 +66,32 @@ const fetchEmployeeData = async (token, userId) => {
   }
 };
 
-const fetchAttendanceData = async (token, employeeId) => {
+const fetchAttendanceData = async (employeeId) => {
   setLoadingAttendance(true);
   setAttendanceError(null);
   try {
-    const response = await axios.get('http://localhost:5000/api/attendance', {
-      headers: { Authorization: `Bearer ${token}` },
-      params: { employeeId }
-    });
+    const response = await attendanceAPI.getAttendanceByEmployee(employeeId);
     
     // Handle different response structures
-    const attendanceData = response.data?.data || response.data || [];
+    const attendanceData = response?.data || response || [];
     setAttendance(Array.isArray(attendanceData) ? attendanceData : []);
   } catch (err) {
     console.error("Attendance fetch error:", err);
-    setAttendanceError(err.response?.data?.message || "Failed to load attendance records");
+    setAttendanceError(err.message || "Failed to load attendance records");
     setAttendance([]); // Reset to empty array on error
   } finally {
     setLoadingAttendance(false);
   }
 };
 
-const fetchFinesData = async (token) => {
+const fetchFinesData = async () => {
   setLoadingFines(true);
   setFinesError(null);
   try {
-    const response = await axios.get('http://localhost:5000/api/fines/employee', {
-      headers: { 
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    const response = await fineAPI.getEmployeeFines();
     
     // Handle response based on your backend structure
-    const finesData = response.data?.data || response.data;
+    const finesData = response?.data || response;
     if (Array.isArray(finesData)) {
       setFines(finesData);
     } else {
@@ -116,27 +100,21 @@ const fetchFinesData = async (token) => {
     }
   } catch (err) {
     console.error("Fines fetch error:", err);
-    setFinesError(err.response?.data?.message || "Failed to load fines records");
+    setFinesError(err.message || "Failed to load fines records");
     setFines([]);
   } finally {
     setLoadingFines(false);
   }
 };
 
-const checkClockInStatus = async (token, employeeId) => {
+const checkClockInStatus = async (employeeId) => {
   try {
-    const response = await axios.get(
-      'http://localhost:5000/api/attendance/status',
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { employeeId }
-      }
-    );
+    const response = await attendanceAPI.getAttendanceStatus(employeeId);
     
     // Update based on the backend response
-    if (response.data?.data?.isClockedIn) {
+    if (response?.data?.isClockedIn) {
       setClockedIn(true);
-      setClockInTime(new Date(response.data.data.record.clockIn).toLocaleTimeString());
+      setClockInTime(new Date(response.data.record.clockIn).toLocaleTimeString());
     } else {
       setClockedIn(false);
       setClockInTime(null);
@@ -149,54 +127,69 @@ const checkClockInStatus = async (token, employeeId) => {
 };
 
   useEffect(() => {
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        navigate('/login');
-        return;
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        if (!isAuthenticated()) {
+          navigate('/login');
+          return;
+        }
+
+        // Get user data first
+        const userResponse = await authAPI.getCurrentUser();
+        
+        // Check if the response indicates an authentication error
+        if (userResponse?.error && userResponse?.status === 401) {
+          clearAuth();
+          navigate('/login');
+          return;
+        }
+        
+        if (!userResponse?.data?._id) {
+          throw new Error('Invalid user data received');
+        }
+
+        setUser(userResponse.data);
+        const userId = userResponse.data._id;
+
+        // Fetch employee data using the new API
+        const employeeResponse = await employeeAPI.getEmployeeByUserId(userId);
+        if (employeeResponse?.data) {
+          const employeeData = {
+            ...employeeResponse.data,
+            name: `${employeeResponse.data.firstName} ${employeeResponse.data.lastName}`,
+            salary: employeeResponse.data.salary || { baseSalary: 0 },
+            phone: employeeResponse.data.contact?.phone || 'N/A',
+            position: employeeResponse.data.position || 'Not specified',
+            employeeId: employeeResponse.data.employeeId || 'N/A'
+          };
+          setEmployee(employeeData);
+          
+          // Fetch other data in parallel using the updated functions
+          await Promise.all([
+            fetchAttendanceData(employeeData._id),
+            fetchFinesData()
+          ]);
+
+          // Check clock-in status
+          await checkClockInStatus(employeeData._id);
+        }
+
+      } catch (err) {
+        console.error("Data fetch error:", err);
+        if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+          clearAuth();
+          navigate('/login');
+        } else {
+          setError(err.message || 'Failed to load data');
+        }
+      } finally {
+        setLoading(false);
       }
+    };
 
-      // Get user data first
-      const userResponse = await axios.get('http://localhost:5000/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (!userResponse.data?.data?._id) {
-        throw new Error('Invalid user data received');
-      }
-
-      setUser(userResponse.data.data);
-      const userId = userResponse.data.data._id;
-
-      // Fetch employee data
-      const employee = await fetchEmployeeData(token, userId);
-      setEmployee(employee);
-
-      // Fetch other data in parallel
-      await Promise.all([
-        fetchAttendanceData(token, employee._id),
-        fetchFinesData(token)
-      ]);
-
-      // Check clock-in status
-      await checkClockInStatus(token, employee._id);
-
-    } catch (err) {
-      console.error("Data fetch error:", err);
-      if (err.response?.status === 401) {
-        localStorage.removeItem('token');
-        navigate('/login');
-      }
-      setError(err.response?.data?.message || err.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchData();
+    fetchData();
 
   const timer = setInterval(() => {
     setCurrentTime(new Date());
@@ -206,25 +199,18 @@ const checkClockInStatus = async (token, employeeId) => {
 }, [navigate]);
 
   const refreshAttendanceData = async () => {
-    const token = localStorage.getItem('token');
-    if (token && employee._id) {
-      await fetchAttendanceData(token, employee._id);
+    if (employee._id) {
+      await fetchAttendanceData(employee._id);
     }
   };
 
   const refreshFinesData = async () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      await fetchFinesData(token);
-    }
+    await fetchFinesData();
   };
 
   const handleLogout = async () => {
     try {
-      await axios.post('http://localhost:5000/api/auth/logout', {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      localStorage.removeItem('token');
+      await authAPI.logout();
       navigate('/');
     } catch (err) {
       console.error('Logout failed:', err);
@@ -234,36 +220,26 @@ const checkClockInStatus = async (token, employeeId) => {
 const handleClockIn = async () => {
   try {
     setError('');
-    const token = localStorage.getItem('token');
     
-    const response = await axios.post(
-      'http://localhost:5000/api/attendance/clock-in',
-      {}, // No body needed - backend gets user ID from token
-      { 
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 5000
-      }
-    );
+    const response = await attendanceAPI.clockIn();
 
-    if (response.data.success) {
+    if (response?.success) {
       setClockedIn(true);
-      setClockInTime(new Date(response.data.data.clockIn).toLocaleTimeString());
-      await fetchAttendanceData(token);
+      setClockInTime(new Date(response.data.clockIn).toLocaleTimeString());
+      await fetchAttendanceData(employee._id);
     }
   } catch (err) {
     console.error('ClockIn Error:', err);
     
-    if (err.response?.data?.message) {
-      setError(err.response.data.message);
-      if (err.response.data.existingRecord) {
+    if (err.message) {
+      setError(err.message);
+      // Check if error indicates existing record
+      if (err.message.includes('already clocked in')) {
         setClockedIn(true);
-        setClockInTime(new Date(err.response.data.existingRecord.clockIn).toLocaleTimeString());
+        // Try to get the current status
+        await checkClockInStatus(employee._id);
       }
-    }
-    else if (err.message.includes('timeout')) {
-      setError('Request timed out - please try again');
-    }
-    else {
+    } else {
       setError('Failed to complete clock in. Please try again.');
     }
   }
@@ -272,21 +248,16 @@ const handleClockIn = async () => {
 const handleClockOut = async () => {
   try {
     setError('');
-    const token = localStorage.getItem('token');
 
-    const response = await axios.post(
-      'http://localhost:5000/api/attendance/clock-out',
-      {}, // No body needed - backend gets user ID from token
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    const response = await attendanceAPI.clockOut();
 
-    if (response.data.success) {
+    if (response?.success) {
       setClockedIn(false);
       setClockInTime(null);
-      await fetchAttendanceData(token);
+      await fetchAttendanceData(employee._id);
     }
   } catch (err) {
-    setError(err.response?.data?.message || 'Failed to clock out');
+    setError(err.message || 'Failed to clock out');
   }
 };
 

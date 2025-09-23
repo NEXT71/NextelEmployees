@@ -63,6 +63,7 @@ user: {
   type: mongoose.Schema.Types.ObjectId,
   ref: 'User',
   unique: true,
+  sparse: true, // This allows multiple null values
   validate: {
     validator: async function(v) {
       if (!v) return true; // Allow null/undefined

@@ -47,25 +47,9 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  verified: {
-    type: Boolean,
-    default: false
-  },
-  verificationCode: {
-    type: String,
-    select: false
-  },
   verificationCodeExpires: {
     type: Date,
     default: () => new Date(Date.now() + 60 * 60 * 1000) // 1 hour
-  },
-  resetPasswordToken: {
-    type: String,
-    select: false
-  },
-  resetPasswordExpires: {
-    type: Date,
-    select: false
   },
   lastLogin: Date
 }, { timestamps: true });

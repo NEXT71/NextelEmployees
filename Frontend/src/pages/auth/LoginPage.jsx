@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import LoginForm from '../../components/auth/LoginForm';
+import { authAPI, isAuthenticated, clearAuth } from '../../utils/api';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -13,20 +13,20 @@ const LoginPage = () => {
     const checkAuth = async () => {
       setIsLoading(true);
       try {
-        const response = await axios.get('http://localhost:5000/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
+        if (isAuthenticated()) {
+          const response = await authAPI.getCurrentUser();
+          
+          // Check if response indicates authentication error
+          if (response?.error && response?.status === 401) {
+            clearAuth();
+          } else if (response?.data?.isLoggedIn) {
+            navigate(response.data.role === 'admin' ? '/admindashboard' : '/employeedashboard');
           }
-        });
-        
-        if (response.data?.success && response.data.data?.isLoggedIn) {
-          navigate(response.data.data.role === 'admin' ? '/admindashboard' : '/employeedashboard');
         }
       } catch (err) {
-        // Clear any existing token if unauthorized
-        if (err.response?.status === 401) {
-          localStorage.removeItem('token');
-        }
+        // Clear any existing token if unauthorized or connection fails
+        console.log('Auth check failed:', err.message);
+        clearAuth();
       } finally {
         setIsLoading(false);
       }
@@ -40,26 +40,40 @@ const LoginPage = () => {
     setError(null);
         
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
+      console.log('Attempting login with:', { email: credentials.email });
+      
+      const response = await authAPI.login({
         email: credentials.email,
         password: credentials.password
       });
       
-      if (response.data?.success) {
-        // Store token in localStorage
-        localStorage.setItem('token', response.data.token);
-        navigate(response.data.user.role === 'admin' ? '/admindashboard' : '/employeedashboard');
+      console.log('Login response:', response);
+      
+      if (response?.error) {
+        setError(response.message || 'Login failed. Please try again.');
+        return;
+      }
+      
+      if (response?.success && response?.user) {
+        console.log('Login successful, user role:', response.user.role);
+        const redirectPath = response.user.role === 'admin' ? '/admindashboard' : '/employeedashboard';
+        console.log('Redirecting to:', redirectPath);
+        navigate(redirectPath);
       } else {
-        setError(response.data?.message || 'Login failed. Please try again.');
+        setError(response?.message || 'Login failed. Please try again.');
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || 
-                         err.message || 
-                         'Login failed. Please try again.';
-      setError(errorMessage);
+      console.error('Login error:', err);
+      let errorMessage = 'Login failed. Please try again.';
       
-      // Clear token on error
-      localStorage.removeItem('token');
+      if (err.message?.includes('Failed to fetch')) {
+        errorMessage = 'Cannot connect to server. Please ensure the backend is running.';
+      } else {
+        errorMessage = err.message || 'Login failed. Please try again.';
+      }
+      
+      setError(errorMessage);
+      clearAuth();
     } finally {
       setIsLoading(false);
     }

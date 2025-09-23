@@ -19,7 +19,7 @@ const LoginForm = ({ onSubmit, isLoading, error }) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Email
+          Username or Email
         </label>
         <div className="relative">
           <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -28,7 +28,7 @@ const LoginForm = ({ onSubmit, isLoading, error }) => {
             value={credentials.email}
             onChange={(e) => setCredentials({...credentials, email: e.target.value})}
             className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter your Email"
+            placeholder="Enter your username or email"
             required
           />
         </div>

@@ -56,7 +56,7 @@ const AdminAttendance = () => {
       const token = localStorage.getItem('token');
       
       // First, fetch the attendance data
-      let url = 'http://localhost:5000/api/attendance/admin';
+      let url = 'https://nextelemployees-1.onrender.com/api/attendance/admin';
       const params = new URLSearchParams();
       
       if (activeTab === 'daily') {
@@ -85,7 +85,7 @@ const AdminAttendance = () => {
       }
       if (departmentFilter) summaryParams.append('department', departmentFilter);
       
-      const summaryRes = await axios.get('http://localhost:5000/api/attendance/admin/summary', { 
+      const summaryRes = await axios.get('https://nextelemployees-1.onrender.com/api/attendance/admin/summary', { 
         headers: { Authorization: `Bearer ${token}` },
         params: summaryParams
       });
@@ -118,7 +118,7 @@ const AdminAttendance = () => {
   const fetchUser = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/auth/me', {
+      const response = await axios.get('https://nextelemployees-1.onrender.com/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(response.data.data);
@@ -137,7 +137,7 @@ const AdminAttendance = () => {
 
   const handleLogout = async () => {
     try {
-      await axios.post('http://localhost:5000/api/auth/logout', {}, {
+      await axios.post('https://nextelemployees-1.onrender.com/api/auth/logout', {}, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       localStorage.removeItem('token');
@@ -152,7 +152,7 @@ const AdminAttendance = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        `http://localhost:5000/api/attendance/admin/${id}`,
+        `https://nextelemployees-1.onrender.com/api/attendance/admin/${id}`,
         updates,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -177,7 +177,7 @@ const AdminAttendance = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        'http://localhost:5000/api/attendance/admin/bulk',
+        'https://nextelemployees-1.onrender.com/api/attendance/admin/bulk',
         { 
           updates: selectedRecords.map(id => ({
             id,

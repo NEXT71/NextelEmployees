@@ -23,7 +23,7 @@ connectDB();
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001', 
-  'https://nextelemployees.vercel.app',
+  'https://nextel-employees.vercel.app',
   process.env.CLIENT_URL
 ].filter(Boolean);
 

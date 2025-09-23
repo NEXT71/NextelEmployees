@@ -43,6 +43,32 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// Health check route
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'Nextel Employees API is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    uptime: process.uptime()
+  });
+});
+
+// Basic API info route
+app.get('/api', (req, res) => {
+  res.status(200).json({
+    message: 'Nextel Employees Management API',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      employees: '/api/employees',
+      attendance: '/api/attendance',
+      fines: '/api/fines',
+      salaries: '/api/salaries'
+    }
+  });
+});
+
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/employees', employeeRouter);

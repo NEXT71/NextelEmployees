@@ -1,54 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, Users, Filter, MoreVertical, UserCheck, UserX, Edit3, Eye, Calendar } from 'lucide-react';
 import { employeeAPI } from '../../utils/api';
+import { useDebounce, useApiData } from '../../hooks/usePerformance';
+import VirtualScrollList from '../common/VirtualScrollList';
 
 const EmployeeList = () => {
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showActions, setShowActions] = useState(null);
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
+  // Debounce search term for better performance
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  const fetchEmployees = async () => {
-    try {
-      const data = await employeeAPI.getAllEmployees();
-      setEmployees(data.data || []);
-    } catch (error) {
-      console.error('Error fetching employees:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use optimized data fetching hook
+  const { data: employees = [], loading, error, refetch } = useApiData(
+    () => employeeAPI.getAllEmployees(),
+    [],
+    { staleTime: 2 * 60 * 1000 } // 2 minutes cache
+  );
 
-  const handleStatusToggle = async (employeeId, currentStatus) => {
+  const handleStatusToggle = useCallback(async (employeeId, currentStatus) => {
     try {
       await employeeAPI.updateEmployee(employeeId, {
         status: currentStatus === 'Active' ? 'Inactive' : 'Active'
       });
       
-      fetchEmployees(); // Refresh list
+      refetch(); // Refresh list
       setShowActions(null);
     } catch (error) {
       console.error('Error updating employee status:', error);
     }
-  };
+  }, [refetch]);
 
-  const filteredEmployees = employees.filter(emp => {
-    const matchesSearch = 
-      emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase());
+  // Memoized filtered employees for better performance
+  const filteredEmployees = useMemo(() => {
+    if (!employees.data) return [];
     
-    const matchesDepartment = !filterDepartment || emp.department === filterDepartment;
-    const matchesStatus = !filterStatus || emp.status === filterStatus;
-    
-    return matchesSearch && matchesDepartment && matchesStatus;
+    return employees.data.filter(emp => {
+      const matchesSearch = 
+        emp.firstName?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        emp.lastName?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        emp.email?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        emp.employeeId?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+      
+      const matchesDepartment = !filterDepartment || emp.department === filterDepartment;
+      const matchesStatus = !filterStatus || emp.status === filterStatus;
+      
+      return matchesSearch && matchesDepartment && matchesStatus;
+    });
+  }, [employees.data, debouncedSearchTerm, filterDepartment, filterStatus]);
   });
 
   const departments = [...new Set(employees.map(emp => emp.department).filter(Boolean))];

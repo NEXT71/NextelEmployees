@@ -2,21 +2,63 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import errorHandler from './middlewares/errorHandler.js';
 import authRouter from './routes/auth.routes.js';
 import employeeRouter from './routes/employee.routes.js';
 import attendanceRouter from './routes/attendance.routes.js';
 import fineRouter from './routes/fine.routes.js';
+import salaryRouter from './routes/salary.routes.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const app = express();
 
-// Database connection
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    error: 'Too many requests from this IP, please try again later.',
+    retryAfter: 900 // 15 minutes in seconds
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api/', limiter);
+
+// Compression middleware for response compression
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6, // Compression level (0-9)
+  threshold: 1024, // Only compress responses > 1KB
+}));
+
+// Database connection with optimizations
 import './config/db.js';
 import connectDB from './config/db.js';
-import salaryRouter from './routes/salary.routes.js';
 
 connectDB();
 // Middlewares

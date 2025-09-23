@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './constants';
+import { apiCache, requestDeduplicator, performanceMonitor } from './apiCache';
 
 // Helper function to get token from localStorage
 const getToken = () => {
@@ -22,8 +23,55 @@ const setToken = (token) => {
   }
 };
 
-// Helper function to make API requests with proper error handling
+// Helper function to create cache key
+const createCacheKey = (endpoint, options = {}) => {
+  const method = options.method || 'GET';
+  const body = options.body || '';
+  return `${method}:${endpoint}:${body}`;
+};
+
+// Helper function to determine if request should be cached
+const shouldCache = (endpoint, method = 'GET') => {
+  if (method !== 'GET') return false;
+  
+  const cacheableEndpoints = [
+    '/auth/me',
+    '/employees',
+    '/messages/available-admins',
+    '/attendance',
+    '/fines',
+    '/salaries'
+  ];
+  
+  return cacheableEndpoints.some(path => endpoint.includes(path));
+};
+
+// Helper function to make API requests with proper error handling and caching
 const apiRequest = async (endpoint, options = {}) => {
+  const requestKey = `${options.method || 'GET'}:${endpoint}`;
+  performanceMonitor.start(requestKey);
+  
+  // Check cache first for GET requests
+  const cacheKey = createCacheKey(endpoint, options);
+  if (shouldCache(endpoint, options.method)) {
+    const cachedResult = apiCache.get(cacheKey);
+    if (cachedResult) {
+      performanceMonitor.end(requestKey);
+      return cachedResult;
+    }
+  }
+
+  // Use request deduplication for GET requests
+  if (!options.method || options.method === 'GET') {
+    return requestDeduplicator.dedupe(requestKey, async () => {
+      return makeApiCall(endpoint, options, cacheKey);
+    });
+  }
+
+  return makeApiCall(endpoint, options, cacheKey);
+};
+
+const makeApiCall = async (endpoint, options = {}, cacheKey) => {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getToken();
   
@@ -80,8 +128,24 @@ const apiRequest = async (endpoint, options = {}) => {
       throw new Error(data.message || `HTTP error! status: ${response.status}`);
     }
 
+    // Cache successful GET responses
+    if (shouldCache(endpoint, options.method) && cacheKey) {
+      // Set cache TTL based on endpoint type
+      let ttl = 5 * 60 * 1000; // Default 5 minutes
+      if (endpoint.includes('/auth/me')) ttl = 15 * 60 * 1000; // 15 minutes for user data
+      if (endpoint.includes('/available-admins')) ttl = 30 * 60 * 1000; // 30 minutes for admin list
+      
+      apiCache.set(cacheKey, data, ttl);
+    }
+
+    const requestKey = `${options.method || 'GET'}:${endpoint}`;
+    performanceMonitor.end(requestKey);
+    
     return data;
   } catch (error) {
+    const requestKey = `${options.method || 'GET'}:${endpoint}`;
+    performanceMonitor.end(requestKey);
+    
     // Handle network connection errors specifically
     if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
       console.error(`Connection failed for ${endpoint}:`, error);

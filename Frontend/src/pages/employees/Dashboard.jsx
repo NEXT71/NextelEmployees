@@ -668,9 +668,10 @@ const formatTime = (timeString) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 relative overflow-hidden">
+      {/* Background elements - responsive */}
       <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-64 sm:h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-48 h-48 sm:w-96 sm:h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
       
       <Header
@@ -679,7 +680,7 @@ const formatTime = (timeString) => {
         showProfileButton={false}
       />
 
-      <div className="container mx-auto p-6 space-y-8 relative z-10">
+      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">
         {error && (
           <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-red-300 text-sm flex justify-between items-center">
             <span>{error}</span>
@@ -689,9 +690,9 @@ const formatTime = (timeString) => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
           <ProfileCard employee={employee} />
-          <div className="lg:col-span-2">
+          <div className="xl:col-span-2">
             <ClockInOut
               clockedIn={clockedIn}
               clockInTime={clockInTime}

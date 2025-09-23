@@ -299,10 +299,10 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 relative overflow-hidden">
-      {/* Background elements */}
+      {/* Background elements - responsive */}
       <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-64 sm:h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-48 h-48 sm:w-96 sm:h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
       
       <AdminHeader
@@ -310,7 +310,7 @@ const AdminDashboard = () => {
         onLogout={handleLogout}
       />
 
-      <div className="container mx-auto p-6 space-y-8 relative z-10">
+      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">
         {/* Error Message */}
         {error && (
           <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-red-300 text-sm flex justify-between items-center">
@@ -321,18 +321,18 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Stats Overview - Responsive Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <StatsCard
             title="Total Employees"
             value={summary.totalEmployees || 0}
-            icon={<Users className="w-8 h-8" />}
+            icon={<Users className="w-6 h-6 sm:w-8 sm:h-8" />}
             color="blue"
           />
           <StatsCard
             title="Active Employees"
             value={summary.activeEmployees || 0}
-            icon={<CheckCircle className="w-8 h-8" />}
+            icon={<CheckCircle className="w-6 h-6 sm:w-8 sm:h-8" />}
             color="green"
           />
           <StatsCard
@@ -349,30 +349,30 @@ const AdminDashboard = () => {
           />
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-white/10">
+        {/* Tabs - Mobile Friendly */}
+        <div className="flex flex-wrap gap-2 border-b border-white/10">
           <button
             onClick={() => setActiveTab('employees')}
-            className={`px-4 py-2 font-medium flex items-center space-x-2 ${activeTab === 'employees' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
+            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'employees' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
           >
-            <Users className="w-5 h-5" />
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Employees</span>
           </button>
 
         </div>
 
-        {/* Search and Filters */}
-        <div className="flex flex-col md:flex-row gap-4">
+        {/* Search and Filters - Responsive */}
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-blue-200/70" />
+              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-blue-200/70" />
             </div>
             <input
               type="text"
               placeholder={`Search ${activeTab === 'employees' ? 'employees' : 'fines'}...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-full bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+              className="pl-9 sm:pl-10 w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 sm:px-4 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm sm:text-base"
             />
           </div>
           

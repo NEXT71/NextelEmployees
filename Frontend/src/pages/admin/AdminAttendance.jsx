@@ -286,7 +286,7 @@ const AdminAttendance = () => {
         onLogout={handleLogout}
       />
 
-      <div className="container mx-auto p-6 space-y-8">
+      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
         {error && (
           <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-red-300 text-sm flex justify-between items-center">
             <span>{error}</span>
@@ -296,24 +296,24 @@ const AdminAttendance = () => {
           </div>
         )}
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Stats Overview - Responsive Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <StatsCard
             title="Total Employees"
             value={summary.totalEmployees || 0}
-            icon={<Users className="w-8 h-8" />}
+            icon={<Users className="w-6 h-6 sm:w-8 sm:h-8" />}
             color="blue"
           />
           <StatsCard
             title="Present"
             value={summary.Present || 0}
-            icon={<CheckCircle className="w-8 h-8" />}
+            icon={<CheckCircle className="w-6 h-6 sm:w-8 sm:h-8" />}
             color="green"
           />
           <StatsCard
             title="Absent"
             value={summary.Absent || 0}
-            icon={<XCircle className="w-8 h-8" />}
+            icon={<XCircle className="w-6 h-6 sm:w-8 sm:h-8" />}
             color="red"
           />
           <StatsCard
@@ -324,39 +324,39 @@ const AdminAttendance = () => {
           />
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-white/10">
+        {/* Tabs - Mobile Friendly */}
+        <div className="flex flex-wrap gap-2 border-b border-white/10">
           <button
             onClick={() => setActiveTab('daily')}
-            className={`px-4 py-2 font-medium flex items-center space-x-2 ${activeTab === 'daily' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
+            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'daily' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
           >
-            <Calendar className="w-5 h-5" />
+            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Daily View</span>
           </button>
           <button
             onClick={() => setActiveTab('range')}
-            className={`px-4 py-2 font-medium flex items-center space-x-2 ${activeTab === 'range' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
+            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'range' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
           >
-            <List className="w-5 h-5" />
+            <List className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Date Range</span>
           </button>
         </div>
 
-        {/* Date Selection */}
-        <div className="flex flex-col md:flex-row gap-4 items-center">
+        {/* Date Selection - Responsive */}
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
           {activeTab === 'daily' ? (
-            <div className="flex items-center gap-3">
-              <label className="text-sm text-blue-200/80">Select Date:</label>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+              <label className="text-sm text-blue-200/80 whitespace-nowrap">Select Date:</label>
               <DatePicker
                 selected={selectedDate}
                 onChange={(date) => setSelectedDate(date)}
-                className="bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                className="bg-white/5 border border-white/10 rounded-lg py-2 px-3 sm:px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm sm:text-base w-full sm:w-auto"
               />
             </div>
           ) : (
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-blue-200/80">From:</label>
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full lg:w-auto">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                <label className="text-sm text-blue-200/80 whitespace-nowrap">From:</label>
                 <DatePicker
                   selected={startDate}
                   onChange={(date) => setStartDate(date)}

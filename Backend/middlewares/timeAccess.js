@@ -3,6 +3,11 @@
 
 const timeAccessControl = (req, res, next) => {
   try {
+    // Skip time restriction in production unless explicitly enabled
+    if (process.env.NODE_ENV === 'production' && process.env.ENABLE_TIME_RESTRICTION !== 'true') {
+      return next();
+    }
+    
     // Get current time in Pakistan Standard Time (Asia/Karachi timezone)
     const now = new Date();
     const pktTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Karachi"}));

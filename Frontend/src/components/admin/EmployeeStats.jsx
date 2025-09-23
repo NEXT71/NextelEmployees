@@ -6,10 +6,7 @@ const EmployeeStats = () => {
   const [stats, setStats] = useState({
     totalEmployees: 0,
     activeEmployees: 0,
-    inactiveEmployees: 0,
     departmentStats: [],
-    recentHires: 0,
-    avgSalary: 0,
     attendanceRate: 0
   });
   const [loading, setLoading] = useState(true);
@@ -20,11 +17,8 @@ const EmployeeStats = () => {
 
   const fetchStats = async () => {
     try {
-      // Fetch employee statistics and all employees
-      const [statsResult, employeesResult] = await Promise.all([
-        employeeAPI.getEmployeeStats().catch(() => ({ data: null })), // Fallback if stats endpoint doesn't exist
-        employeeAPI.getAllEmployees()
-      ]);
+      // Fetch all employees
+      const employeesResult = await employeeAPI.getAllEmployees();
       
       const employees = employeesResult.data || [];
       
@@ -41,26 +35,10 @@ const EmployeeStats = () => {
         return acc;
       }, {});
 
-      // Calculate recent hires (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentHires = employees.filter(emp => 
-        emp.startDate && new Date(emp.startDate) >= thirtyDaysAgo
-      ).length;
-
-      // Calculate average salary
-      const salariesWithValues = employees.filter(emp => emp.salary && emp.salary > 0);
-      const avgSalary = salariesWithValues.length > 0 
-        ? salariesWithValues.reduce((sum, emp) => sum + emp.salary, 0) / salariesWithValues.length
-        : 0;
-
       setStats({
         totalEmployees: employees.length,
         activeEmployees: employees.filter(emp => emp.status === 'Active').length,
-        inactiveEmployees: employees.filter(emp => emp.status === 'Inactive').length,
         departmentStats: Object.values(departmentStats),
-        recentHires,
-        avgSalary,
         attendanceRate: 85 // This would come from attendance data
       });
     } catch (error) {

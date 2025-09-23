@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserCheck, UserX, Building, TrendingUp, Calendar, DollarSign, Clock } from 'lucide-react';
+import { Users, UserCheck, Building, TrendingUp, Clock } from 'lucide-react';
 import { employeeAPI } from '../../utils/api';
 
 const EmployeeStats = () => {
@@ -121,7 +121,7 @@ const EmployeeStats = () => {
   return (
     <div className="space-y-6">
       {/* Main Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard
           icon={Users}
           title="Total Employees"
@@ -138,32 +138,6 @@ const EmployeeStats = () => {
           trend={{ positive: true, value: "+8%" }}
         />
         <StatCard
-          icon={UserX}
-          title="Inactive Employees"
-          value={stats.inactiveEmployees}
-          subtitle={`${stats.totalEmployees > 0 ? ((stats.inactiveEmployees / stats.totalEmployees) * 100).toFixed(1) : 0}% of total`}
-          color="red"
-        />
-        <StatCard
-          icon={Calendar}
-          title="Recent Hires"
-          value={stats.recentHires}
-          subtitle="Last 30 days"
-          color="purple"
-          trend={{ positive: true, value: "+25%" }}
-        />
-      </div>
-
-      {/* Additional Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <StatCard
-          icon={DollarSign}
-          title="Average Salary"
-          value={`$${stats.avgSalary.toLocaleString()}`}
-          subtitle="Monthly average"
-          color="yellow"
-        />
-        <StatCard
           icon={Clock}
           title="Attendance Rate"
           value={`${stats.attendanceRate}%`}
@@ -171,6 +145,10 @@ const EmployeeStats = () => {
           color="indigo"
           trend={{ positive: true, value: "+3%" }}
         />
+      </div>
+
+      {/* Department Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <StatCard
           icon={Building}
           title="Departments"

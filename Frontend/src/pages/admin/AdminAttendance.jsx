@@ -281,6 +281,16 @@ const AdminAttendance = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
+      <style dangerouslySetInnerHTML={{__html: `
+        .admin-attendance-select option {
+          background-color: rgba(15, 23, 42, 0.95) !important;
+          color: white !important;
+          padding: 8px !important;
+        }
+        .admin-attendance-select option:hover {
+          background-color: rgba(59, 130, 246, 0.2) !important;
+        }
+      `}} />
       <AdminHeader
         userName={user?.username}
         onLogout={handleLogout}
@@ -424,7 +434,7 @@ const AdminAttendance = () => {
               <select
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                className="admin-attendance-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
               >
                 <option value="">All Departments</option>
                 {DEPARTMENTS.map(dept => (
@@ -435,7 +445,7 @@ const AdminAttendance = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+              className="admin-attendance-select bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
             >
               <option value="">All Status</option>
               {STATUS_OPTIONS.map(status => (
@@ -512,7 +522,7 @@ const AdminAttendance = () => {
                         <select
                           value={record.status}
                           onChange={(e) => updateAttendanceRecord(record._id, { status: e.target.value })}
-                          className={`bg-transparent border rounded px-2 py-1 text-xs ${getStatusColor(record.status)}`}
+                          className={`admin-attendance-select bg-transparent border rounded px-2 py-1 text-xs ${getStatusColor(record.status)}`}
                         >
                           {STATUS_OPTIONS.map(status => (
                             <option key={status.value} value={status.value}>

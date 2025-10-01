@@ -19,15 +19,24 @@ const attendanceSchema = new mongoose.Schema({
   },
   clockIn: {
     type: Date,
-    required: true
+    default: null
   },
   clockOut: {
-    type: Date
+    type: Date,
+    default: null
   },
   status: {
     type: String,
     enum: ['Present', 'Absent', 'Late', 'Half-day'],
-    default: 'Present'
+    default: 'Absent'
+  },
+  autoMarked: {
+    type: Boolean,
+    default: false,
+    description: 'Whether this record was automatically created by the system'
+  },
+  notes: {
+    type: String
   }
 }, {
   timestamps: true,

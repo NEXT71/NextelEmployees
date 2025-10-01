@@ -26,7 +26,7 @@ const employeeSchema = new mongoose.Schema({
   department: {
     type: String,
     required: true,
-    enum: ['Customer Service', 'Technical Support', 'Sales', 'Quality Assurance', 'HR']
+    enum: ['Sales', 'Quality Assurance', 'HR']
   },
   position: {
     type: String,

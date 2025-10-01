@@ -7,7 +7,8 @@
     "check:db": "node scripts/checkDatabaseRelationships.js",
     "cleanup:orphaned": "node scripts/cleanupOrphanedRecords.js",
     "fix:index": "node scripts/fixEmployeeUserIndex.js",
-    "reset:employees": "node scripts/resetEmployeeData.js"
+    "reset:employees": "node scripts/resetEmployeeData.js",
+    "check:admin": "node scripts/checkAdminRole.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -22,6 +23,7 @@
     "joi": "^18.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.17.1",
+    "node-cron": "^4.2.1",
     "nodemailer": "^7.0.5",
     "nodemon": "^3.1.10"
   }

@@ -63,6 +63,7 @@ app.use(compression({
 // Database connection with optimizations
 import './config/db.js';
 import connectDB from './config/db.js';
+import { scheduleAttendanceJobs } from './jobs/attendanceJobs.js';
 
 connectDB();
 // Middlewares
@@ -127,5 +128,11 @@ app.use('/api/messages', messageRouter);
 // Error handling
 app.use(errorHandler);
 
+// Initialize scheduled jobs
+scheduleAttendanceJobs();
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log('✅ Automated attendance system initialized');
+});

@@ -8,6 +8,7 @@ import {
   getTimeUntilNextAttendanceWindow,
   formatPKTTime 
 } from '../middlewares/attendanceTimeAccess.js';
+import { markAbsentEmployees } from '../jobs/attendanceJobs.js';
 
 const getTodayRange = () => {
   const now = new Date();
@@ -69,49 +70,72 @@ export const clockIn = async (req, res) => {
       });
     }
 
-    // Get today's date at midnight UTC (matches your schema's getter)
+    // Get today's date at midnight UTC
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    // Use employee field to match your schema
-    const [existingAttendance, newAttendance] = await Promise.all([
-      Attendance.findOne({
-        employee: employee._id,
-        date: today
-      }),
-      Attendance.findOneAndUpdate(
-        {
-          employee: employee._id,  // Matches your schema
-          date: today,
-          clockOut: { $exists: false }
-        },
-        { 
-          $setOnInsert: {
-            clockIn: new Date(),
-            status: 'Present'
-          }
-        },
-        {
-          upsert: true,
-          new: true,
-          setDefaultsOnInsert: true
-        }
-      )
-    ]);
+    // Check if there's an existing attendance record (likely auto-marked as Absent)
+    const existingAttendance = await Attendance.findOne({
+      employee: employee._id,
+      date: today
+    });
 
-    if (existingAttendance && existingAttendance._id.toString() !== newAttendance._id.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: existingAttendance.clockOut 
-          ? 'You have already completed attendance for today'
-          : 'You are already clocked in',
-        existingRecord: {
+    // If record exists and is auto-marked Absent, update it to Present
+    if (existingAttendance) {
+      if (existingAttendance.clockIn && existingAttendance.clockOut) {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already completed attendance for today',
+          existingRecord: {
+            clockIn: existingAttendance.clockIn,
+            clockOut: existingAttendance.clockOut,
+            status: existingAttendance.status
+          }
+        });
+      }
+
+      if (existingAttendance.clockIn && !existingAttendance.clockOut) {
+        return res.status(400).json({
+          success: false,
+          message: 'You are already clocked in',
+          existingRecord: {
+            clockIn: existingAttendance.clockIn,
+            status: existingAttendance.status
+          }
+        });
+      }
+
+      // Update the auto-marked absent record
+      existingAttendance.clockIn = new Date();
+      existingAttendance.status = 'Present';
+      existingAttendance.autoMarked = false;
+      existingAttendance.notes = 'Clocked in during attendance window';
+      await existingAttendance.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Successfully clocked in',
+        data: {
+          id: existingAttendance._id,
           clockIn: existingAttendance.clockIn,
-          clockOut: existingAttendance.clockOut,
-          status: existingAttendance.status
+          status: existingAttendance.status,
+          employee: {
+            id: employee._id,
+            employeeId: employee.employeeId,
+            name: `${employee.firstName} ${employee.lastName}`
+          }
         }
       });
     }
+
+    // If no record exists, create new one (shouldn't happen if scheduler is working)
+    const newAttendance = await Attendance.create({
+      employee: employee._id,
+      date: today,
+      clockIn: new Date(),
+      status: 'Present',
+      autoMarked: false
+    });
 
     return res.status(201).json({
       success: true,
@@ -119,6 +143,7 @@ export const clockIn = async (req, res) => {
       data: {
         id: newAttendance._id,
         clockIn: newAttendance.clockIn,
+        status: newAttendance.status,
         employee: {
           id: employee._id,
           employeeId: employee.employeeId,
@@ -129,26 +154,6 @@ export const clockIn = async (req, res) => {
 
   } catch (error) {
     console.error('ClockIn Error:', error);
-    
-    if (error.code === 11000) {
-      const userId = req.user?._id || req.user?.userId;
-      const employee = await Employee.findOne({ user: userId });
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      
-      const existing = await Attendance.findOne({
-        employee: employee._id,
-        date: today
-      });
-      
-      return res.status(400).json({
-        success: false,
-        message: existing?.clockOut 
-          ? 'Attendance already completed today' 
-          : 'Already clocked in today',
-        existingRecord: existing || null
-      });
-    }
     
     res.status(500).json({
       success: false,
@@ -315,10 +320,39 @@ export const getAdminAttendance = async (req, res) => {
       query.status = status;
     }
 
+    // Get all employees and filter out admins
+    let employeeFilter = {};
     if (department) {
-      const employeesInDept = await Employee.find({ department }, '_id');
-      query.employee = { $in: employeesInDept.map(e => e._id) };
+      employeeFilter.department = department;
     }
+    
+    // Find all employees with their user role
+    const employees = await Employee.find(employeeFilter)
+      .populate('user', 'role username');
+    
+    console.log('🔍 DEBUG: Total employees found:', employees.length);
+    employees.forEach(emp => {
+      console.log(`   - ${emp.employeeId} (${emp.firstName} ${emp.lastName}):`, 
+        emp.user ? `User: ${emp.user.username}, Role: ${emp.user.role}` : 'NO USER LINKED');
+    });
+    
+    // Filter out employees who have admin role
+    const nonAdminEmployees = employees.filter(emp => {
+      const isAdmin = emp.user && emp.user.role === 'admin';
+      if (isAdmin) {
+        console.log(`   ❌ EXCLUDING ADMIN: ${emp.employeeId} (${emp.firstName} ${emp.lastName})`);
+      }
+      return !isAdmin;
+    });
+    
+    console.log('✅ Non-admin employees after filtering:', nonAdminEmployees.length);
+    
+    const nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);
+    
+    // Add employee filter to query
+    query.employee = { $in: nonAdminEmployeeIds };
+    
+    console.log('📊 Query employee IDs:', nonAdminEmployeeIds.length);
 
     const attendance = await Attendance.find(query)
       .populate({
@@ -327,6 +361,8 @@ export const getAdminAttendance = async (req, res) => {
         model: 'Employee'
       })
       .sort({ date: -1 });
+
+    console.log('📝 Attendance records returned:', attendance.length);
 
     res.json({
       success: true,
@@ -451,10 +487,23 @@ export const getAdminAttendanceSummary = async (req, res) => {
       };
     }
 
+    // Get all employees and filter out admins
+    let employeeFilter = {};
     if (department) {
-      const employees = await Employee.find({ department }, '_id');
-      matchQuery.employee = { $in: employees.map(e => e._id) };
+      employeeFilter.department = department;
     }
+    
+    // Find all non-admin employees
+    const employees = await Employee.find(employeeFilter)
+      .populate('user', 'role');
+    
+    // Filter out employees who have admin role
+    const nonAdminEmployees = employees.filter(emp => 
+      !emp.user || emp.user.role !== 'admin'
+    );
+    
+    const nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);
+    matchQuery.employee = { $in: nonAdminEmployeeIds };
 
     const summary = await Attendance.aggregate([
       { $match: matchQuery },
@@ -473,9 +522,8 @@ export const getAdminAttendanceSummary = async (req, res) => {
       }
     ]);
 
-    const totalEmployees = await Employee.countDocuments(
-      department ? { department } : {}
-    );
+    // Count only non-admin employees
+    const totalEmployees = nonAdminEmployees.length;
 
     const summaryObj = {
       Present: 0,
@@ -524,6 +572,34 @@ export const getAttendanceTimeWindow = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error checking attendance time window',
+      error: error.message
+    });
+  }
+};
+
+// Manual trigger for marking absences (Admin only)
+export const triggerAbsenceMarking = async (req, res) => {
+  try {
+    const result = await markAbsentEmployees();
+    
+    if (result.success) {
+      res.status(200).json({
+        success: true,
+        message: `Successfully processed absence marking`,
+        data: result
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to mark absences',
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error('Error triggering absence marking:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error triggering absence marking',
       error: error.message
     });
   }

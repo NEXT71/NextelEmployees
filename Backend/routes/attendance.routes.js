@@ -8,7 +8,8 @@ import {
   getAttendanceStatus,
   updateAdminAttendance,
   getAdminAttendanceSummary,
-  getAttendanceTimeWindow
+  getAttendanceTimeWindow,
+  triggerAbsenceMarking
 } from '../controllers/attendance.controller.js';
 import auth from '../middlewares/auth.js';
 import admin from '../middlewares/admin.js';
@@ -29,5 +30,8 @@ attendanceRouter.get('/admin', auth, admin, getAdminAttendance);
 attendanceRouter.put('/admin/:id', auth, admin, updateAdminAttendance);
 attendanceRouter.post('/admin/bulk', auth, admin, bulkUpdateAdminAttendance);
 attendanceRouter.get('/admin/summary', auth, admin, getAdminAttendanceSummary);
+
+// Manual trigger for absence marking (Admin only, for testing/manual use)
+attendanceRouter.post('/admin/mark-absences', auth, admin, triggerAbsenceMarking);
 
 export default attendanceRouter;

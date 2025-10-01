@@ -1,5 +1,8 @@
 // API Configuration
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://nextelemployees-1.onrender.com/api';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000/api' 
+    : 'https://nextelemployees-1.onrender.com/api');
 
 export const FINE_TYPES = [
   { name: 'Clothing', amount: 300, code: 'CLT' },
@@ -30,3 +33,10 @@ export const ROLES = {
   ADMIN: 'admin',
   EMPLOYEE: 'employee'
 };
+
+export const ATTENDANCE_STATUS = [
+  { value: 'Present', label: 'Present', color: 'bg-green-500' },
+  { value: 'Absent', label: 'Absent', color: 'bg-red-500' },
+  { value: 'Late', label: 'Late', color: 'bg-yellow-500' },
+  { value: 'Half-day', label: 'Half Day', color: 'bg-blue-500' }
+];

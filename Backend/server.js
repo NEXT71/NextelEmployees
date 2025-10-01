@@ -11,6 +11,7 @@ import employeeRouter from './routes/employee.routes.js';
 import attendanceRouter from './routes/attendance.routes.js';
 import fineRouter from './routes/fine.routes.js';
 import salaryRouter from './routes/salary.routes.js';
+import messageRouter from './routes/message.routes.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -106,7 +107,8 @@ app.get('/api', (req, res) => {
       employees: '/api/employees',
       attendance: '/api/attendance',
       fines: '/api/fines',
-      salaries: '/api/salaries'
+      salaries: '/api/salaries',
+      messages: '/api/messages'
     }
   });
 });
@@ -117,6 +119,7 @@ app.use('/api/employees', employeeRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/fines', fineRouter);
 app.use('/api/salaries', salaryRouter);
+app.use('/api/messages', messageRouter);
 
 // Error handling
 app.use(errorHandler);

@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';
+import AdminMessageCenter from '../../components/admin/AdminMessageCenter';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
-import { authAPI, employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
+import { authAPI, employeeAPI, fineAPI, salaryAPI, messageAPI } from '../../utils/api';
 import { 
   Users, CheckCircle, XCircle, AlertTriangle, 
   X, UserPlus, Edit, Trash2, AlertCircle,
   Filter, Search, List, DollarSign, Clock, Calendar,
-  ChevronDown, ChevronUp, User as UserIcon, Home, Phone, Mail
+  ChevronDown, ChevronUp, User as UserIcon, Home, Phone, Mail, MessageSquare
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -29,6 +30,7 @@ const AdminDashboard = () => {
   const [error, setError] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [employeeToEdit, setEmployeeToEdit] = useState(null);
+  const [showMessageCenter, setShowMessageCenter] = useState(false);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -1097,6 +1099,22 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Floating Message Button */}
+      <button
+        onClick={() => setShowMessageCenter(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-40 group"
+        title="Employee Messages"
+      >
+        <MessageSquare className="w-6 h-6 group-hover:scale-110 transition-transform" />
+        <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
+      </button>
+
+      {/* Admin Message Center Modal */}
+      <AdminMessageCenter 
+        isOpen={showMessageCenter}
+        onClose={() => setShowMessageCenter(false)}
+      />
     </div>
   );
 };

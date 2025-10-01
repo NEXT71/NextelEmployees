@@ -343,6 +343,55 @@ export const salaryAPI = {
     }),
 };
 
+// Message API calls
+export const messageAPI = {
+  // Send message to admins (employee)
+  sendMessage: (messageData) =>
+    apiRequest('/messages/send', {
+      method: 'POST',
+      body: JSON.stringify(messageData),
+    }),
+
+  // Get employee's messages
+  getMyMessages: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/messages/my-messages${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get all messages for admin
+  getAdminMessages: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/messages/admin/all${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Admin respond to message
+  respondToMessage: (messageId, response) =>
+    apiRequest(`/messages/${messageId}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ response }),
+    }),
+
+  // Mark message as read
+  markAsRead: (messageId) =>
+    apiRequest(`/messages/${messageId}/read`, {
+      method: 'PATCH',
+    }),
+
+  // Get message statistics
+  getMessageStats: () =>
+    apiRequest('/messages/admin/stats'),
+
+  // Resolve message
+  resolveMessage: (messageId) =>
+    apiRequest(`/messages/${messageId}/resolve`, {
+      method: 'PATCH',
+    }),
+
+  // Get available admins for targeting
+  getAvailableAdmins: () =>
+    apiRequest('/messages/available-admins'),
+};
+
 // Utility functions for authentication
 export const isAuthenticated = () => {
   return !!getToken();
@@ -359,6 +408,7 @@ export const api = {
   attendance: attendanceAPI,
   fines: fineAPI,
   salaries: salaryAPI,
+  messages: messageAPI,
 };
 
 export default api;

@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   CheckCircle, XCircle, DollarSign, Clock, Calendar,
-  User, Mail, AlertTriangle, X, ChevronDown, ChevronUp, Home, AlertCircle, RefreshCw
+  User, Mail, AlertTriangle, X, ChevronDown, ChevronUp, Home, AlertCircle, RefreshCw, MessageCircle
 } from 'lucide-react';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import AttendanceTimeStatus from '../../components/common/AttendanceTimeStatus';
-import { authAPI, employeeAPI, attendanceAPI, fineAPI, isAuthenticated, clearAuth } from '../../utils/api';
+import MessageCenter from '../../components/common/MessageCenter';
+import { authAPI, employeeAPI, attendanceAPI, fineAPI, messageAPI, isAuthenticated, clearAuth } from '../../utils/api';
 import { isWithinAttendanceWindow } from '../../utils/attendanceTimeAccess';
 
 const EmployeeDashboard = () => {
@@ -34,6 +35,7 @@ const EmployeeDashboard = () => {
   const [loadingFines, setLoadingFines] = useState(false);
   const [attendanceError, setAttendanceError] = useState(null);
   const [finesError, setFinesError] = useState(null);
+  const [showMessageCenter, setShowMessageCenter] = useState(false);
   const navigate = useNavigate();
 
 const fetchAttendanceData = async (employeeId) => {
@@ -744,6 +746,22 @@ const formatTime = (timeString) => {
           onRefresh={refreshFinesData}
         />
       </div>
+
+      {/* Floating Message Button */}
+      <button
+        onClick={() => setShowMessageCenter(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-40 group"
+        title="Contact Admins"
+      >
+        <MessageCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
+        <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
+      </button>
+
+      {/* Message Center Modal */}
+      <MessageCenter 
+        isOpen={showMessageCenter}
+        onClose={() => setShowMessageCenter(false)}
+      />
     </div>
   );
 };

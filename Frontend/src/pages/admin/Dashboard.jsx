@@ -36,7 +36,6 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [fineFilter, setFineFilter] = useState('');
 
   // Form states
   const [fineForm, setFineForm] = useState({
@@ -210,7 +209,7 @@ const AdminDashboard = () => {
         
         setEmployees(employeesRes.data);
         setFines(finesRes.data);
-        setSummary({}); // Reset summary or fetch if available
+        refreshSummary(); // Refresh summary stats
         closeFineModal();
       }
     } catch (err) {
@@ -259,6 +258,7 @@ const AdminDashboard = () => {
         // Refresh employees list
         const employeesResponse = await employeeAPI.getAllEmployees();
         setEmployees(employeesResponse.data);
+        refreshSummary(); // Refresh summary stats
         closeEditModal();
       }
     } catch (err) {
@@ -279,7 +279,29 @@ const AdminDashboard = () => {
     }
   };
 
-  // Filter functions
+  // Refresh summary stats
+  const refreshSummary = async () => {
+    try {
+      // Try to get summary from API first
+      const summaryResponse = await fineAPI.getEmployeeSummary();
+      if (summaryResponse && summaryResponse.data) {
+        setSummary(summaryResponse.data);
+      }
+    } catch (err) {
+      // Fallback to calculating from current data
+      const totalEmployees = employees.length;
+      const activeEmployees = employees.filter(emp => emp.status === 'Active').length;
+      const totalFinesCount = fines.length;
+      const totalFineAmount = fines.reduce((sum, fine) => sum + (fine.approved ? fine.amount : 0), 0);
+      
+      setSummary({
+        totalEmployees,
+        activeEmployees,
+        totalFinesCount,
+        totalFineAmount
+      });
+    }
+  };
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch = 
       `${employee.firstName} ${employee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -290,22 +312,6 @@ const AdminDashboard = () => {
     const matchesStatus = statusFilter ? employee.status === statusFilter : true;
     
     return matchesSearch && matchesDepartment && matchesStatus;
-  });
-
-  const filteredFines = fines.filter(fine => {
-    if (!fine.employee) return false;
-    
-    const employee = employees.find(e => e._id === fine.employee);
-    if (!employee) return false;
-    
-    const matchesEmployee = 
-      `${employee.firstName} ${employee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.employeeId?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesType = fineFilter ? fine.type === fineFilter : true;
-    
-    return matchesEmployee && matchesType;
   });
 
   if (loading) {
@@ -431,18 +437,7 @@ const AdminDashboard = () => {
                   <option value="inactive">Inactive</option>
                 </select>
               </>
-            ) : (
-              <select
-                value={fineFilter}
-                onChange={(e) => setFineFilter(e.target.value)}
-                className="bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-              >
-                <option value="">All Fine Types</option>
-                {FINE_TYPES.map(type => (
-                  <option key={type.name} value={type.name}>{type.name}</option>
-                ))}
-              </select>
-            )}
+            ) : null}
           </div>
         </div>
 

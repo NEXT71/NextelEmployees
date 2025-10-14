@@ -23,7 +23,6 @@ export const validateEmployeeRegister = (data) => {
         'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
       }),
     department: Joi.string().min(2).max(50).required(),
-    position: Joi.string().min(2).max(50).required(),
     employeeId: Joi.string().pattern(/^[a-zA-Z0-9]{6,12}$/).required()
       .messages({
         'string.pattern.base': 'Employee ID must be 6-12 alphanumeric characters'

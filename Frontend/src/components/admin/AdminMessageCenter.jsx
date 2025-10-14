@@ -333,7 +333,6 @@ const AdminMessageCenter = ({ isOpen, onClose }) => {
                           <>
                             <div>ID: {selectedMessage.senderDetails.employeeId}</div>
                             <div>Department: {selectedMessage.senderDetails.department}</div>
-                            <div>Position: {selectedMessage.senderDetails.position}</div>
                           </>
                         )}
                       </div>

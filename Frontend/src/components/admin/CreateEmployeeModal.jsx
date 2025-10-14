@@ -52,7 +52,7 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
     try {
       // Validate required fields (same as inline modal)
       if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || 
-          !employeeForm.password || !employeeForm.employeeId || !employeeForm.department || !employeeForm.position) {
+          !employeeForm.password || !employeeForm.employeeId || !employeeForm.department) {
         setError('Please fill all required fields');
         setLoading(false);
         return;

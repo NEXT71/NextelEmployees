@@ -20,7 +20,6 @@ const createTestAdmin = async () => {
       lastName: 'Admin',
       email: 'admin@test.com',
       department: 'IT',
-      position: 'System Administrator',
       employeeId: 'TESTADMIN',
       status: 'Active',
       hireDate: new Date()

@@ -77,7 +77,7 @@ const sendMessage = async (req, res, next) => {
       },
       {
         path: 'senderDetails',
-        select: 'firstName lastName employeeId department position'
+        select: 'firstName lastName employeeId department'
       }
     ]);
 
@@ -139,7 +139,7 @@ const getAdminMessages = async (req, res, next) => {
 
     const messages = await Message.find(filter)
       .populate('from', 'username email')
-      .populate('senderDetails', 'firstName lastName employeeId department position contact')
+      .populate('senderDetails', 'firstName lastName employeeId department contact')
       .populate('adminResponse.respondedBy', 'username email')
       .sort({ createdAt: -1, isUrgent: -1 })
       .limit(limit * 1)

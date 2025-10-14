@@ -25,7 +25,6 @@ const seedAdmin = async () => {
       lastName: 'Rana',
       email: 'hr.manager.nextelbpo@gmail.com',
       department: 'HR',
-      position: 'HR Manager',
       employeeId: 'ADMIN001',
       status: 'Active',
       hireDate: new Date(),
@@ -54,7 +53,6 @@ const seedAdmin = async () => {
     console.log('📧 Email: hr.manager.nextelbpo@gmail.com');
     console.log('👤 Username: qamar.rana');
     console.log('🔑 Password: NextelHR2024!');
-    console.log('💼 Position: HR Manager');
     console.log('⚠️  Please change the password after first login!');
 
   } catch (error) {

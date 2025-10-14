@@ -274,7 +274,7 @@ export const getAdminAttendance = async (req, res) => {
     const attendance = await Attendance.find(query)
       .populate({
         path: 'employee',
-        select: 'firstName lastName employeeId department position',
+        select: 'firstName lastName employeeId department',
         model: 'Employee'
       })
       .sort({ date: -1 });

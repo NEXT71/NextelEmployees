@@ -34,7 +34,6 @@ const registerEmployee = async (req, res, next) => {
       fatherName,
       email, 
       department, 
-      position, 
       employeeId,
       hireDate,
       status,
@@ -47,7 +46,7 @@ const registerEmployee = async (req, res, next) => {
     // ======================
 
     // 1. Check required fields
-    const requiredFields = ['firstName', 'lastName', 'email', 'department', 'position', 'employeeId', 'password'];
+    const requiredFields = ['firstName', 'lastName', 'email', 'department', 'employeeId', 'password'];
     const missingFields = requiredFields.filter(field => !req.body[field]);
     
     if (missingFields.length > 0) {
@@ -101,19 +100,12 @@ const registerEmployee = async (req, res, next) => {
       });
     }
 
-    // 5. Validate department and position
+    // 5. Validate department
     if (department.length < 2 || department.length > 50) {
       return res.status(400).json({
         success: false,
         message: 'Department must be between 2-50 characters',
         field: 'department'
-      });
-    }
-    if (position.length < 2 || position.length > 50) {
-      return res.status(400).json({
-        success: false,
-        message: 'Position must be between 2-50 characters',
-        field: 'position'
       });
     }
 
@@ -200,7 +192,6 @@ const registerEmployee = async (req, res, next) => {
             lastName,
             fatherName,
             department,
-            position,
             hireDate,
             status: 'Active',
             contact
@@ -230,7 +221,6 @@ const registerEmployee = async (req, res, next) => {
       fatherName,
       email,
       department,
-      position,
       employeeId,
       hireDate: hireDate || Date.now(),
       status: status || 'Active',
@@ -304,7 +294,6 @@ const registerEmployee = async (req, res, next) => {
         email,
         username: existingUser.username,
         department,
-        position,
         message: 'Employee account created with admin-provided password'
       }
     });

@@ -18,7 +18,6 @@ const EmployeeDashboard = () => {
     lastName: '',
     email: '',
     contact: { phone: '' },
-    position: '',
     employeeId: '',
     salary: { baseSalary: 0 }
   });
@@ -133,7 +132,6 @@ const checkClockInStatus = async (employeeId) => {
             name: `${employeeResponse.data.firstName} ${employeeResponse.data.lastName}`,
             salary: employeeResponse.data.salary || { baseSalary: 0 },
             phone: employeeResponse.data.contact?.phone || 'N/A',
-            position: employeeResponse.data.position || 'Not specified',
             employeeId: employeeResponse.data.employeeId || 'N/A'
           };
           setEmployee(employeeData);
@@ -287,7 +285,7 @@ const calculateSummary = () => {
           <h2 className="text-xl font-semibold text-white">
             {employee?.name || 'No name'}
           </h2>
-          <p className="text-blue-200/80">{employee?.position || 'Position not set'}</p>
+          <p className="text-blue-200/80">{employee?.employeeId || 'ID not set'}</p>
         </div>
       </div>
 

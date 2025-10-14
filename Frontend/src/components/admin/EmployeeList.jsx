@@ -153,7 +153,6 @@ const EmployeeList = () => {
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-300">Employee</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-300">Contact</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-300">Department</th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-slate-300">Position</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-300">Start Date</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-300">Status</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-300">Actions</th>
@@ -183,9 +182,6 @@ const EmployeeList = () => {
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-white">{employee.department || 'N/A'}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-white">{employee.position || 'N/A'}</span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2 text-slate-300">

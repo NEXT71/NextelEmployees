@@ -136,8 +136,7 @@ const updateEmployee = async (req, res, next) => {
       ...req.body,
       contact: {
         phone: req.body.contact?.phone || '',
-        address: req.body.contact?.address || '',
-        emergencyContact: req.body.contact?.emergencyContact || ''
+        address: req.body.contact?.address || ''
       }
     };
 

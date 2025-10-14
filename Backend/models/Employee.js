@@ -14,10 +14,6 @@ const employeeSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  fatherName: {
-    type: String,
-    default: ''
-  },
   email: {
     type: String,
     required: true,
@@ -27,10 +23,6 @@ const employeeSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: ['Sales', 'Quality Assurance', 'HR']
-  },
-  position: {
-    type: String,
-    required: true
   },
   hireDate: {
     type: Date,
@@ -55,7 +47,6 @@ const employeeSchema = new mongoose.Schema({
   },
   contact: {
     phone: { type: String, default: '' },
-    emergencyContact: { type: String, default: '' },
     address: { type: String, default: '' }
   },  
   // In Employee model

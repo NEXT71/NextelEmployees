@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  CheckCircle, XCircle, DollarSign, Clock, Calendar,
+  CheckCircle, XCircle, DollarSign, Calendar,
   User, Mail, AlertTriangle, X, ChevronDown, ChevronUp, Home, AlertCircle, RefreshCw, MessageCircle
 } from 'lucide-react';
 import Header from '../../components/common/Header';
@@ -84,7 +84,7 @@ const checkClockInStatus = async (employeeId) => {
     const response = await attendanceAPI.getAttendanceStatus(employeeId);
     
     // Update based on the backend response
-    if (response?.data?.isClockedIn) {
+    if (response?.data?.hasClockedIn) {
       setClockedIn(true);
       setClockInTime(new Date(response.data.record.clockIn).toLocaleTimeString());
     } else {
@@ -226,35 +226,6 @@ const handleClockIn = async () => {
   }
 };
 
-const handleClockOut = async () => {
-  try {
-    setError('');
-
-    // Check if within attendance window before attempting
-    if (!isWithinAttendanceWindow()) {
-      setError('Clock out is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time');
-      return;
-    }
-
-    const response = await attendanceAPI.clockOut();
-
-    if (response?.success) {
-      setClockedIn(false);
-      setClockInTime(null);
-      await fetchAttendanceData(employee._id);
-    }
-  } catch (err) {
-    console.error('ClockOut Error:', err);
-    
-    // Handle specific attendance time restriction error
-    if (err.message && err.message.includes('only allowed between')) {
-      setError(err.message);
-    } else {
-      setError(err.message || 'Failed to clock out');
-    }
-  }
-};
-
 const calculateSummary = () => {
   const today = new Date();
   const currentMonth = today.getMonth();
@@ -276,11 +247,9 @@ const calculateSummary = () => {
   const absentDays = monthlyRecords.filter(record => record.status === 'Absent').length;
   
   const totalHours = monthlyRecords.reduce((total, record) => {
-    if (record.clockIn && record.clockOut) {
-      const clockIn = new Date(record.clockIn);
-      const clockOut = new Date(record.clockOut);
-      const hours = (clockOut - clockIn) / (1000 * 60 * 60);
-      return total + hours;
+    if (record.clockIn) {
+      // Since we only have clock in, we'll count each present day as 8 hours for estimation
+      return total + 8;
     }
     return total;
   }, 0);
@@ -331,7 +300,7 @@ const calculateSummary = () => {
     </div>
   );
 
-  const ClockInOut = ({ clockedIn, clockInTime, currentTime, onClockIn, onClockOut }) => {
+  const ClockInOut = ({ clockedIn, clockInTime, currentTime, onClockIn }) => {
     const isTimeAllowed = isWithinAttendanceWindow();
     
     return (
@@ -339,17 +308,17 @@ const calculateSummary = () => {
         <div className="flex flex-col md:flex-row items-center justify-between">
           <div className="text-center md:text-left mb-6 md:mb-0">
             <h2 className="text-xl font-semibold text-white mb-2">
-              {clockedIn ? 'Currently Working' : 'Ready to Start'}
+              {clockedIn ? 'Attendance Marked' : 'Mark Your Attendance'}
             </h2>
             <p className="text-blue-200/80 mb-4">
-              {clockedIn ? `Clocked in at ${clockInTime}` : 'Click the button to clock in'}
+              {clockedIn ? `Clocked in at ${clockInTime}` : 'Click the button to mark your attendance for today'}
             </p>
             {!isTimeAllowed && (
               <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
                 <div className="flex items-center space-x-2">
                   <AlertTriangle className="w-4 h-4 text-orange-400" />
                   <span className="text-sm text-orange-300">
-                    Clock in/out only allowed 6:00 PM - 5:30 AM PKT
+                    Attendance marking only allowed 6:00 PM - 5:30 AM PKT
                   </span>
                 </div>
               </div>
@@ -376,22 +345,20 @@ const calculateSummary = () => {
             </div>
             
             <button
-              onClick={clockedIn ? onClockOut : onClockIn}
-              disabled={!isTimeAllowed}
+              onClick={onClockIn}
+              disabled={clockedIn || !isTimeAllowed}
               className={`
                 relative px-6 py-3 rounded-lg font-semibold text-white transition-all duration-300
-                ${!isTimeAllowed 
+                ${!isTimeAllowed || clockedIn 
                   ? 'bg-gray-500/50 cursor-not-allowed opacity-50' 
-                  : clockedIn 
-                    ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
-                    : 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+                  : 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
                 }
               `}
-              title={!isTimeAllowed ? 'Clock in/out is only allowed between 6:00 PM - 5:30 AM PKT' : ''}
+              title={clockedIn ? 'You have already marked attendance for today' : (!isTimeAllowed ? 'Attendance marking is only allowed between 6:00 PM - 5:30 AM PKT' : '')}
             >
               <div className="flex items-center space-x-2">
-                <Clock className="w-5 h-5" />
-                <span>{clockedIn ? 'Clock Out' : 'Clock In'}</span>
+                <CheckCircle className="w-5 h-5" />
+                <span>{clockedIn ? 'Attendance Marked' : 'Mark Attendance'}</span>
               </div>
             </button>
           </div>
@@ -411,24 +378,14 @@ const calculateSummary = () => {
 };
 
     // In AttendanceTable
-const formatTime = (timeString) => {
+    const formatTime = (timeString) => {
   if (!timeString) return '-';
   const date = new Date(timeString);
   return date.toLocaleTimeString('en-PK', { 
     hour: '2-digit', 
     minute: '2-digit'
   });
-};
-
-    const calculateHours = (clockIn, clockOut) => {
-      if (!clockIn || !clockOut) return '0h';
-      const start = new Date(clockIn);
-      const end = new Date(clockOut);
-      const hours = (end - start) / (1000 * 60 * 60);
-      return `${hours.toFixed(1)}h`;
-    };
-
-    return (
+};    return (
       <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl overflow-hidden">
         <div 
           className="p-6 border-b border-white/10 flex justify-between items-center cursor-pointer"
@@ -481,9 +438,7 @@ const formatTime = (timeString) => {
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Clock In</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Clock Out</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Hours</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
@@ -496,9 +451,6 @@ const formatTime = (timeString) => {
                         <td className="px-6 py-4 text-sm text-blue-100 font-mono">
                           {formatTime(record.clockIn)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-blue-100 font-mono">
-                          {formatTime(record.clockOut)}
-                        </td>
                         <td className="px-6 py-4">
                           <span className={`
                             inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
@@ -510,14 +462,11 @@ const formatTime = (timeString) => {
                             {record.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-blue-100 font-mono">
-                          {calculateHours(record.clockIn, record.clockOut)}
-                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="5" className="px-6 py-4 text-center text-blue-200/70">
+                      <td colSpan="3" className="px-6 py-4 text-center text-blue-200/70">
                         No attendance records found
                       </td>
                     </tr>
@@ -700,7 +649,6 @@ const formatTime = (timeString) => {
               clockInTime={clockInTime}
               currentTime={currentTime}
               onClockIn={handleClockIn}
-              onClockOut={handleClockOut}
             />
           </div>
         </div>

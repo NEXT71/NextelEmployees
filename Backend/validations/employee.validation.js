@@ -5,16 +5,12 @@ const validateEmployee = (data, isUpdate = false) => {
     employeeId: isUpdate ? Joi.string().optional() : Joi.string().required(),
     firstName: Joi.string().required(),
     lastName: Joi.string().required(),
-    fatherName: Joi.string().optional(),
     email: Joi.string().email().required(),
     department: Joi.string().valid(
-      'Customer Service', 
-      'Technical Support', 
       'Sales', 
       'Quality Assurance', 
       'HR'
     ).required(),
-    position: Joi.string().required(),
     hireDate: Joi.date().required(),
     salary: Joi.object({
       baseSalary: Joi.number().required(),
@@ -24,8 +20,7 @@ const validateEmployee = (data, isUpdate = false) => {
     status: Joi.string().valid('Active', 'Inactive', 'On Leave').default('Active'),
     contact: Joi.object({
       phone: Joi.string(),
-      address: Joi.string(),
-      emergencyContact: Joi.string()
+      address: Joi.string()
     }).optional()
   });
 

@@ -7,18 +7,15 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
   const [employeeForm, setEmployeeForm] = useState({
     firstName: '',
     lastName: '',
-    fatherName: '',
     email: '',
     password: '',
-    department: 'Customer Service',
-    position: '',
+    department: 'Sales',
     employeeId: '',
     hireDate: new Date().toISOString().split('T')[0],
     status: 'Active',
     contact: {
       phone: '',
-      address: '',
-      emergencyContact: ''
+      address: ''
     }
   });
   const [loading, setLoading] = useState(false);
@@ -92,18 +89,15 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
         setEmployeeForm({
           firstName: '',
           lastName: '',
-          fatherName: '',
           email: '',
           password: '',
-          department: 'Customer Service',
-          position: '',
+          department: 'Sales',
           employeeId: '',
           hireDate: new Date().toISOString().split('T')[0],
           status: 'Active',
           contact: {
             phone: '',
-            address: '',
-            emergencyContact: ''
+            address: ''
           }
         });
         
@@ -196,17 +190,6 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Father's Name</label>
-            <input
-              type="text"
-              name="fatherName"
-              value={employeeForm.fatherName}
-              onChange={handleEmployeeFormChange}
-              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-            />
-          </div>
-
-          <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
             <input
               type="email"
@@ -284,18 +267,6 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Position</label>
-            <input
-              type="text"
-              name="position"
-              value={employeeForm.position}
-              onChange={handleEmployeeFormChange}
-              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-              required
-            />
-          </div>
-
-          <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Employee ID</label>
             <input
               type="text"
@@ -307,27 +278,15 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Phone</label>
-              <input
-                type="tel"
-                name="contact.phone"
-                value={employeeForm.contact.phone}
-                onChange={handleEmployeeFormChange}
-                className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Emergency Contact</label>
-              <input
-                type="tel"
-                name="contact.emergencyContact"
-                value={employeeForm.contact.emergencyContact}
-                onChange={handleEmployeeFormChange}
-                className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Phone</label>
+            <input
+              type="tel"
+              name="contact.phone"
+              value={employeeForm.contact.phone}
+              onChange={handleEmployeeFormChange}
+              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
+            />
           </div>
 
           <div>

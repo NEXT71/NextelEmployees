@@ -49,17 +49,14 @@ const AdminDashboard = () => {
   const [employeeForm, setEmployeeForm] = useState({
     firstName: '',
     lastName: '',
-    fatherName: '',
     email: '',
-    department: 'Customer Service',
-    position: '',
+    department: 'Sales',
     employeeId: '',
     hireDate: new Date().toISOString().split('T')[0],
     status: 'Active',
     contact: {
       phone: '',
-      address: '',
-      emergencyContact: ''
+      address: ''
     }
   });
 
@@ -227,17 +224,14 @@ const AdminDashboard = () => {
     setEmployeeForm({
       firstName: employee.firstName,
       lastName: employee.lastName,
-      fatherName: employee.fatherName || '',
       email: employee.email,
       department: employee.department,
-      position: employee.position,
       employeeId: employee.employeeId,
       hireDate: employee.hireDate || new Date().toISOString().split('T')[0],
       status: employee.status || 'Active',
       contact: employee.contact || {
         phone: '',
-        address: '',
-        emergencyContact: ''
+        address: ''
       }
     });
     setShowEditModal(true);
@@ -254,7 +248,7 @@ const AdminDashboard = () => {
     
       // Validate required fields
       if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || 
-          !employeeForm.employeeId || !employeeForm.department || !employeeForm.position) {
+          !employeeForm.employeeId || !employeeForm.department) {
         setError('Please fill all required fields');
         return;
       }
@@ -580,7 +574,7 @@ const AdminDashboard = () => {
                   <h2 className="text-xl font-semibold text-white">
                     {selectedEmployee.firstName} {selectedEmployee.lastName}
                   </h2>
-                  <p className="text-sm text-blue-200/80">{selectedEmployee.position} • {selectedEmployee.department}</p>
+                  <p className="text-sm text-blue-200/80">{selectedEmployee.department}</p>
                 </div>
               </div>
               <button
@@ -603,15 +597,6 @@ const AdminDashboard = () => {
                         <p className="text-xs text-blue-200/70">Full Name</p>
                         <p className="text-sm text-white">
                           {selectedEmployee.firstName} {selectedEmployee.lastName}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <UserIcon className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Father's Name</p>
-                        <p className="text-sm text-white">
-                          {selectedEmployee.fatherName || 'Not provided'}
                         </p>
                       </div>
                     </div>
@@ -645,15 +630,6 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <AlertCircle className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Emergency Contact</p>
-                        <p className="text-sm text-white">
-                          {selectedEmployee.contact?.emergencyContact || 'Not provided'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
                       <Home className="w-4 h-4 text-blue-300/80" />
                       <div>
                         <p className="text-xs text-blue-200/70">Address</p>
@@ -674,15 +650,6 @@ const AdminDashboard = () => {
                         <p className="text-xs text-blue-200/70">Department</p>
                         <p className="text-sm text-white">
                           {selectedEmployee.department || 'Not assigned'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <UserIcon className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Position</p>
-                        <p className="text-sm text-white">
-                          {selectedEmployee.position || 'Not assigned'}
                         </p>
                       </div>
                     </div>
@@ -871,16 +838,6 @@ const AdminDashboard = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Father's Name</label>
-                <input
-                  type="text"
-                  value={employeeForm.fatherName}
-                  onChange={(e) => setEmployeeForm({...employeeForm, fatherName: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                />
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
                 <input
                   type="email"
@@ -906,16 +863,6 @@ const AdminDashboard = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Position</label>
-                <input
-                  type="text"
-                  value={employeeForm.position}
-                  onChange={(e) => setEmployeeForm({...employeeForm, position: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                />
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Employee ID</label>
                 <input
                   type="text"
@@ -938,21 +885,6 @@ const AdminDashboard = () => {
                       contact: {
                         ...employeeForm.contact,
                         phone: e.target.value
-                      }
-                    })}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                  />
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Emergency Contact</label>
-                  <input
-                    type="text"
-                    value={employeeForm.contact.emergencyContact}
-                    onChange={(e) => setEmployeeForm({
-                      ...employeeForm,
-                      contact: {
-                        ...employeeForm.contact,
-                        emergencyContact: e.target.value
                       }
                     })}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"

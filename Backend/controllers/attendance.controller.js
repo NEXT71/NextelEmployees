@@ -82,22 +82,10 @@ export const clockIn = async (req, res) => {
 
     // If record exists and is auto-marked Absent, update it to Present
     if (existingAttendance) {
-      if (existingAttendance.clockIn && existingAttendance.clockOut) {
+      if (existingAttendance.clockIn) {
         return res.status(400).json({
           success: false,
-          message: 'You have already completed attendance for today',
-          existingRecord: {
-            clockIn: existingAttendance.clockIn,
-            clockOut: existingAttendance.clockOut,
-            status: existingAttendance.status
-          }
-        });
-      }
-
-      if (existingAttendance.clockIn && !existingAttendance.clockOut) {
-        return res.status(400).json({
-          success: false,
-          message: 'You are already clocked in',
+          message: 'You have already clocked in for today',
           existingRecord: {
             clockIn: existingAttendance.clockIn,
             status: existingAttendance.status
@@ -162,76 +150,6 @@ export const clockIn = async (req, res) => {
   }
 };
 
-// Similarly update clockOut
-export const clockOut = async (req, res) => {
-  try {
-    const userId = req.user?._id || req.user?.userId;
-    
-    // Check if within attendance time window
-    if (!isWithinAttendanceWindow()) {
-      const timeInfo = getTimeUntilNextAttendanceWindow();
-      return res.status(403).json({
-        success: false,
-        message: 'Clock out is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time',
-        currentTime: formatPKTTime(getCurrentPKTTime()),
-        allowedWindow: '6:00 PM - 5:30 AM PKT',
-        nextAvailableTime: timeInfo.nextAccessTime ? formatPKTTime(timeInfo.nextAccessTime) : null,
-        error: 'ATTENDANCE_TIME_RESTRICTED'
-      });
-    }
-    
-    // Find employee by user reference
-    const employee = await Employee.findOne({ user: userId });
-
-    if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee record not found'
-      });
-    }
-
-    const { today, tomorrow } = getTodayRange();
-
-    const attendance = await Attendance.findOne({
-      employee: employee._id,
-      date: { $gte: today, $lt: tomorrow },
-      clockOut: { $exists: false }
-    });
-
-    if (!attendance) {
-      return res.status(400).json({
-        success: false,
-        message: 'No active attendance record found'
-      });
-    }
-
-    attendance.clockOut = new Date();
-    await attendance.save();
-
-    res.json({
-      success: true,
-      message: 'Successfully clocked out',
-      data: {
-        id: attendance._id,
-        clockIn: attendance.clockIn,
-        clockOut: attendance.clockOut,
-        hoursWorked: ((attendance.clockOut - attendance.clockIn) / (1000 * 60 * 60)).toFixed(2),
-        employee: {
-          id: employee._id,
-          employeeId: employee.employeeId,
-          name: `${employee.firstName} ${employee.lastName}`
-        }
-      }
-    });
-  } catch (error) {
-    console.error('ClockOut Error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during clock out'
-    });
-  }
-};
-
 // Update getAttendance to match registration flow
 export const getAttendance = async (req, res) => {
   try {
@@ -285,8 +203,7 @@ const userId = req.user?._id || req.user?.userId;
     res.json({
       success: true,
       data: {
-        isClockedIn: !!attendance && !attendance.clockOut,
-        isClockedOut: !!attendance?.clockOut,
+        hasClockedIn: !!attendance && !!attendance.clockIn,
         record: attendance
       }
     });
@@ -381,7 +298,7 @@ export const getAdminAttendance = async (req, res) => {
 export const updateAdminAttendance = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, clockIn, clockOut } = req.body;
+    const { status, clockIn } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -393,7 +310,6 @@ export const updateAdminAttendance = async (req, res) => {
     const updates = {};
     if (status) updates.status = status;
     if (clockIn) updates.clockIn = new Date(clockIn);
-    if (clockOut) updates.clockOut = new Date(clockOut);
 
     const attendance = await Attendance.findByIdAndUpdate(
       id,
@@ -443,8 +359,7 @@ export const bulkUpdateAdminAttendance = async (req, res) => {
         update: {
           $set: {
             status: update.status,
-            ...(update.clockIn && { clockIn: new Date(update.clockIn) }),
-            ...(update.clockOut && { clockOut: new Date(update.clockOut) })
+            ...(update.clockIn && { clockIn: new Date(update.clockIn) })
           }
         }
       }

@@ -2,7 +2,6 @@ import express from 'express';
 import {
   bulkUpdateAdminAttendance,
   clockIn,
-  clockOut,
   getAdminAttendance,
   getAttendance,
   getAttendanceStatus,
@@ -19,7 +18,6 @@ const attendanceRouter = express.Router();
 
 // Clock in/out routes with specific attendance time restrictions (6PM - 5:30AM)
 attendanceRouter.post('/clock-in', auth, attendanceTimeAccessControl, clockIn);
-attendanceRouter.post('/clock-out', auth, attendanceTimeAccessControl, clockOut);
 
 // Other attendance routes without the stricter time restriction
 attendanceRouter.get('/', auth, getAttendance);

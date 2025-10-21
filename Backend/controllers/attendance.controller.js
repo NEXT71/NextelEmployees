@@ -220,8 +220,9 @@ export const getAdminAttendance = async (req, res) => {
     const { date, startDate, endDate, department, status } = req.query;
     const query = {};
 
+    let selectedDate;
     if (date) {
-      const selectedDate = new Date(date);
+      selectedDate = new Date(date);
       selectedDate.setHours(0, 0, 0, 0);
       const nextDate = new Date(selectedDate);
       nextDate.setDate(nextDate.getDate() + 1);
@@ -271,13 +272,52 @@ export const getAdminAttendance = async (req, res) => {
     
     console.log('📊 Query employee IDs:', nonAdminEmployeeIds.length);
 
-    const attendance = await Attendance.find(query)
+    let attendance = await Attendance.find(query)
       .populate({
         path: 'employee',
         select: 'firstName lastName employeeId department',
         model: 'Employee'
       })
       .sort({ date: -1 });
+
+    // If we're fetching for a specific date, ensure all employees have records
+    if (selectedDate) {
+      const employeesWithRecords = new Set(attendance.map(record => record.employee._id.toString()));
+      const employeesWithoutRecords = nonAdminEmployees.filter(
+        emp => !employeesWithRecords.has(emp._id.toString())
+      );
+
+      if (employeesWithoutRecords.length > 0) {
+        console.log(`📝 Creating absent records for ${employeesWithoutRecords.length} employees without records`);
+        
+        const absentRecords = [];
+        for (const employee of employeesWithoutRecords) {
+          try {
+            const record = await Attendance.create({
+              employee: employee._id,
+              date: selectedDate,
+              status: 'Absent',
+              clockIn: null,
+              clockOut: null,
+              autoMarked: true,
+              notes: 'Auto-marked absent for admin view'
+            });
+            absentRecords.push(record);
+          } catch (err) {
+            console.error(`❌ Error creating absent record for ${employee.employeeId}:`, err.message);
+          }
+        }
+
+        // Re-fetch attendance with the new records
+        attendance = await Attendance.find(query)
+          .populate({
+            path: 'employee',
+            select: 'firstName lastName employeeId department',
+            model: 'Employee'
+          })
+          .sort({ date: -1 });
+      }
+    }
 
     console.log('📝 Attendance records returned:', attendance.length);
 
@@ -389,8 +429,9 @@ export const getAdminAttendanceSummary = async (req, res) => {
     const { date, startDate, endDate, department } = req.query;
     const matchQuery = {};
 
+    let selectedDate;
     if (date) {
-      const selectedDate = new Date(date);
+      selectedDate = new Date(date);
       selectedDate.setHours(0, 0, 0, 0);
       const nextDate = new Date(selectedDate);
       nextDate.setDate(nextDate.getDate() + 1);
@@ -419,6 +460,35 @@ export const getAdminAttendanceSummary = async (req, res) => {
     
     const nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);
     matchQuery.employee = { $in: nonAdminEmployeeIds };
+
+    // For daily view, ensure all employees have attendance records
+    if (selectedDate) {
+      const existingRecords = await Attendance.find(matchQuery);
+      const employeesWithRecords = new Set(existingRecords.map(record => record.employee.toString()));
+      const employeesWithoutRecords = nonAdminEmployees.filter(
+        emp => !employeesWithRecords.has(emp._id.toString())
+      );
+
+      if (employeesWithoutRecords.length > 0) {
+        console.log(`📝 Creating absent records for ${employeesWithoutRecords.length} employees in summary`);
+        
+        for (const employee of employeesWithoutRecords) {
+          try {
+            await Attendance.create({
+              employee: employee._id,
+              date: selectedDate,
+              status: 'Absent',
+              clockIn: null,
+              clockOut: null,
+              autoMarked: true,
+              notes: 'Auto-marked absent for summary'
+            });
+          } catch (err) {
+            console.error(`❌ Error creating absent record for ${employee.employeeId}:`, err.message);
+          }
+        }
+      }
+    }
 
     const summary = await Attendance.aggregate([
       { $match: matchQuery },
@@ -452,8 +522,11 @@ export const getAdminAttendanceSummary = async (req, res) => {
       summaryObj[item.status] = item.count;
     });
 
-    summaryObj.Absent = totalEmployees - 
-      (summaryObj.Present + summaryObj.Late + summaryObj['Half-day']);
+    // Ensure Absent count is correct
+    const accountedEmployees = summaryObj.Present + summaryObj.Late + summaryObj['Half-day'] + summaryObj.Absent;
+    if (accountedEmployees < totalEmployees) {
+      summaryObj.Absent = totalEmployees - (summaryObj.Present + summaryObj.Late + summaryObj['Half-day']);
+    }
 
     res.json({
       success: true,

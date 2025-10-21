@@ -211,45 +211,7 @@ const EmployeeList = () => {
                       >
                         <MoreVertical className="w-4 h-4" />
                       </button>
-                      
-                      {showActions === employee._id && (
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-slate-800 border border-slate-600/50 rounded-lg shadow-xl z-10 py-1">
-                          <button
-                            onClick={() => {/* Add view details functionality */}}
-                            className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 flex items-center space-x-2"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span>View Details</span>
-                          </button>
-                          <button
-                            onClick={() => {/* Add edit functionality */}}
-                            className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 flex items-center space-x-2"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                            <span>Edit Employee</span>
-                          </button>
-                          <button
-                            onClick={() => handleStatusToggle(employee._id, employee.status)}
-                            className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-700/50 flex items-center space-x-2 ${
-                              employee.status === 'Active' 
-                                ? 'text-red-400' 
-                                : 'text-green-400'
-                            }`}
-                          >
-                            {employee.status === 'Active' ? (
-                              <>
-                                <UserX className="w-4 h-4" />
-                                <span>Deactivate</span>
-                              </>
-                            ) : (
-                              <>
-                                <UserCheck className="w-4 h-4" />
-                                <span>Activate</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
+                  
                     </div>
                   </td>
                 </tr>

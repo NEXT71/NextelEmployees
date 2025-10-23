@@ -35,7 +35,6 @@ const AdminDashboard = () => {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
 
   // Form states
   const [fineForm, setFineForm] = useState({
@@ -309,9 +308,8 @@ const AdminDashboard = () => {
       employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesDepartment = departmentFilter ? employee.department === departmentFilter : true;
-    const matchesStatus = statusFilter ? employee.status === statusFilter : true;
     
-    return matchesSearch && matchesDepartment && matchesStatus;
+    return matchesSearch && matchesDepartment;
   });
 
   if (loading) {
@@ -437,15 +435,6 @@ const AdminDashboard = () => {
                     ))}
                   </select>
                 </div>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="admin-dashboard-select bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                >
-                  <option value="">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
               </>
             ) : null}
           </div>

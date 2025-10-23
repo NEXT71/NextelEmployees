@@ -332,6 +332,16 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 relative overflow-hidden">
+      <style dangerouslySetInnerHTML={{__html: `
+        .admin-dashboard-select option {
+          background-color: rgba(30, 58, 138, 0.95) !important;
+          color: rgb(219, 234, 254) !important;
+          padding: 8px !important;
+        }
+        .admin-dashboard-select option:hover {
+          background-color: rgba(59, 130, 246, 0.3) !important;
+        }
+      `}} />
       {/* Background elements - responsive */}
       <div className="absolute inset-0">
         <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-64 sm:h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
@@ -419,7 +429,7 @@ const AdminDashboard = () => {
                   <select
                     value={departmentFilter}
                     onChange={(e) => setDepartmentFilter(e.target.value)}
-                    className="pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                    className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
                   >
                     <option value="">All Departments</option>
                     {DEPARTMENTS.map(dept => (
@@ -430,7 +440,7 @@ const AdminDashboard = () => {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                  className="admin-dashboard-select bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
                 >
                   <option value="">All Status</option>
                   <option value="active">Active</option>
@@ -848,7 +858,7 @@ const AdminDashboard = () => {
                 <select
                   value={employeeForm.department}
                   onChange={(e) => setEmployeeForm({...employeeForm, department: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  className="admin-dashboard-select w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                   required
                 >
                   {DEPARTMENTS.map(dept => (
@@ -908,7 +918,7 @@ const AdminDashboard = () => {
                 <select
                   value={employeeForm.status}
                   onChange={(e) => setEmployeeForm({...employeeForm, status: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  className="admin-dashboard-select w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -975,7 +985,7 @@ const AdminDashboard = () => {
                 <select
                   value={fineForm.type}
                   onChange={handleFineTypeChange}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                  className="admin-dashboard-select w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                 >
                   {FINE_TYPES.map((type) => (
                     <option key={type.name} value={type.name} className="bg-gray-800">

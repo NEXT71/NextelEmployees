@@ -114,7 +114,7 @@ const EmployeeList = () => {
             <select
               value={filterDepartment}
               onChange={(e) => setFilterDepartment(e.target.value)}
-              className="w-full bg-blue-900/50 border border-blue-600/50 rounded-lg pl-10 pr-4 py-3 text-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors appearance-none"
+              className="w-full bg-blue-900/50 border border-blue-600/50 rounded-lg pl-10 pr-4 py-3 text-blue-100 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors appearance-none"
             >
               <option value="">All Departments</option>
               {departments.map((dept) => (
@@ -128,7 +128,7 @@ const EmployeeList = () => {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full bg-blue-900/50 border border-blue-600/50 rounded-lg pl-10 pr-4 py-3 text-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors appearance-none"
+              className="w-full bg-blue-900/50 border border-blue-600/50 rounded-lg pl-10 pr-4 py-3 text-blue-100 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors appearance-none"
             >
               <option value="">All Status</option>
               <option value="Active">Active</option>

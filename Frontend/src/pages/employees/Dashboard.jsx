@@ -27,6 +27,7 @@ const EmployeeDashboard = () => {
   const [error, setError] = useState('');
   const [clockedIn, setClockedIn] = useState(false);
   const [clockInTime, setClockInTime] = useState(null);
+  const [clockOutTime, setClockOutTime] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showAttendanceDetails, setShowAttendanceDetails] = useState(false);
   const [showFinesDetails, setShowFinesDetails] = useState(false);
@@ -224,6 +225,36 @@ const handleClockIn = async () => {
   }
 };
 
+const handleClockOut = async () => {
+  try {
+    setError('');
+    
+    // Check if within attendance window before attempting
+    if (!isWithinAttendanceWindow()) {
+      setError('Clock out is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time');
+      return;
+    }
+    
+    const response = await attendanceAPI.clockOut();
+
+    if (response?.success) {
+      setClockOutTime(new Date(response.data.clockOut).toLocaleTimeString());
+      await fetchAttendanceData(employee._id);
+    }
+  } catch (err) {
+    console.error('ClockOut Error:', err);
+    
+    // Handle specific attendance time restriction error
+    if (err.message && err.message.includes('only allowed between')) {
+      setError(err.message);
+    } else if (err.message) {
+      setError(err.message);
+    } else {
+      setError('Failed to complete clock out. Please try again.');
+    }
+  }
+};
+
 const calculateSummary = () => {
   const today = new Date();
   const currentMonth = today.getMonth();
@@ -298,7 +329,7 @@ const calculateSummary = () => {
     </div>
   );
 
-  const ClockInOut = ({ clockedIn, clockInTime, currentTime, onClockIn }) => {
+  const ClockInOut = ({ clockedIn, clockInTime, clockOutTime, currentTime, onClockIn, onClockOut }) => {
     const isTimeAllowed = isWithinAttendanceWindow();
     
     return (
@@ -306,10 +337,10 @@ const calculateSummary = () => {
         <div className="flex flex-col md:flex-row items-center justify-between">
           <div className="text-center md:text-left mb-6 md:mb-0">
             <h2 className="text-xl font-semibold text-white mb-2">
-              {clockedIn ? 'Attendance Marked' : 'Mark Your Attendance'}
+              {clockOutTime ? 'Attendance Complete' : clockedIn ? 'Clock Out' : 'Mark Your Attendance'}
             </h2>
             <p className="text-blue-200/80 mb-4">
-              {clockedIn ? `Clocked in at ${clockInTime}` : 'Click the button to mark your attendance for today'}
+              {clockOutTime ? `Clocked out at ${clockOutTime}` : clockedIn ? `Clocked in at ${clockInTime}` : 'Click the button to mark your attendance for today'}
             </p>
             {!isTimeAllowed && (
               <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
@@ -342,23 +373,25 @@ const calculateSummary = () => {
               <div className="text-sm text-blue-300/70">Current Time</div>
             </div>
             
-            <button
-              onClick={onClockIn}
-              disabled={clockedIn || !isTimeAllowed}
-              className={`
-                relative px-6 py-3 rounded-lg font-semibold text-white transition-all duration-300
-                ${!isTimeAllowed || clockedIn 
-                  ? 'bg-gray-500/50 cursor-not-allowed opacity-50' 
-                  : 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
-                }
-              `}
-              title={clockedIn ? 'You have already marked attendance for today' : (!isTimeAllowed ? 'Attendance marking is only allowed between 6:00 PM - 5:30 AM PKT' : '')}
-            >
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="w-5 h-5" />
-                <span>{clockedIn ? 'Attendance Marked' : 'Mark Attendance'}</span>
-              </div>
-            </button>
+            {!clockOutTime && (
+              <button
+                onClick={clockedIn ? onClockOut : onClockIn}
+                disabled={!isTimeAllowed}
+                className={`
+                  relative px-6 py-3 rounded-lg font-semibold text-white transition-all duration-300
+                  ${!isTimeAllowed 
+                    ? 'bg-gray-500/50 cursor-not-allowed opacity-50' 
+                    : 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+                  }
+                `}
+                title={!isTimeAllowed ? 'Attendance marking is only allowed between 6:00 PM - 5:30 AM PKT' : ''}
+              >
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="w-5 h-5" />
+                  <span>{clockedIn ? 'Clock Out' : 'Mark Attendance'}</span>
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -436,6 +469,7 @@ const calculateSummary = () => {
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Clock In</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Clock Out</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Status</th>
                   </tr>
                 </thead>
@@ -448,6 +482,9 @@ const calculateSummary = () => {
                         </td>
                         <td className="px-6 py-4 text-sm text-blue-100 font-mono">
                           {formatTime(record.clockIn)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-blue-100 font-mono">
+                          {formatTime(record.clockOut)}
                         </td>
                         <td className="px-6 py-4">
                           <span className={`
@@ -464,7 +501,7 @@ const calculateSummary = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="3" className="px-6 py-4 text-center text-blue-200/70">
+                      <td colSpan="4" className="px-6 py-4 text-center text-blue-200/70">
                         No attendance records found
                       </td>
                     </tr>
@@ -645,8 +682,10 @@ const calculateSummary = () => {
             <ClockInOut
               clockedIn={clockedIn}
               clockInTime={clockInTime}
+              clockOutTime={clockOutTime}
               currentTime={currentTime}
               onClockIn={handleClockIn}
+              onClockOut={handleClockOut}
             />
           </div>
         </div>

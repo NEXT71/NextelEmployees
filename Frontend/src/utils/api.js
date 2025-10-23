@@ -254,6 +254,12 @@ export const attendanceAPI = {
       method: 'POST',
     }),
 
+  // Clock out
+  clockOut: () =>
+    apiRequest('/attendance/clock-out', {
+      method: 'POST',
+    }),
+
   // Create attendance record
   createAttendance: (attendanceData) =>
     apiRequest('/attendance', {

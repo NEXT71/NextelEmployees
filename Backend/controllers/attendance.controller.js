@@ -150,6 +150,114 @@ export const clockIn = async (req, res) => {
   }
 };
 
+export const clockOut = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.user?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+
+    // Check if within attendance time window
+    if (!isWithinAttendanceWindow()) {
+      const timeInfo = getTimeUntilNextAttendanceWindow();
+      return res.status(403).json({
+        success: false,
+        message: 'Clock out is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time',
+        currentTime: formatPKTTime(getCurrentPKTTime()),
+        allowedWindow: '6:00 PM - 5:30 AM PKT',
+        nextAvailableTime: timeInfo.nextAccessTime ? formatPKTTime(timeInfo.nextAccessTime) : null,
+        error: 'ATTENDANCE_TIME_RESTRICTED'
+      });
+    }
+
+    const employee = await Employee.findOne({ user: userId })
+      .select('_id firstName lastName employeeId status')
+      .lean();
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: 'Employee record not found'
+      });
+    }
+
+    if (employee.status !== 'Active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only active employees can clock out'
+      });
+    }
+
+    // Get today's date at midnight UTC
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    // Find today's attendance record
+    const existingAttendance = await Attendance.findOne({
+      employee: employee._id,
+      date: today
+    });
+
+    if (!existingAttendance) {
+      return res.status(400).json({
+        success: false,
+        message: 'No attendance record found for today. Please clock in first.'
+      });
+    }
+
+    if (!existingAttendance.clockIn) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have not clocked in today. Please clock in first.'
+      });
+    }
+
+    if (existingAttendance.clockOut) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already clocked out for today',
+        existingRecord: {
+          clockOut: existingAttendance.clockOut,
+          status: existingAttendance.status
+        }
+      });
+    }
+
+    // Update the record with clock out time
+    existingAttendance.clockOut = new Date();
+    existingAttendance.notes = existingAttendance.notes ? `${existingAttendance.notes}. Clocked out.` : 'Clocked out.';
+    await existingAttendance.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Successfully clocked out',
+      data: {
+        id: existingAttendance._id,
+        clockIn: existingAttendance.clockIn,
+        clockOut: existingAttendance.clockOut,
+        status: existingAttendance.status,
+        employee: {
+          id: employee._id,
+          employeeId: employee.employeeId,
+          name: `${employee.firstName} ${employee.lastName}`
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('ClockOut Error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Server error during clock out'
+    });
+  }
+};
+
 // Update getAttendance to match registration flow
 export const getAttendance = async (req, res) => {
   try {

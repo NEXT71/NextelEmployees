@@ -227,6 +227,18 @@ export const clockOut = async (req, res) => {
       });
     }
 
+    // Check minimum time requirement (1 minute for testing - can be made configurable)
+    const minClockOutTime = 1 * 60 * 1000; // 1 minute in milliseconds
+    const timeSinceClockIn = new Date() - new Date(existingAttendance.clockIn);
+    
+    if (timeSinceClockIn < minClockOutTime) {
+      const remainingTime = Math.ceil((minClockOutTime - timeSinceClockIn) / 1000 / 60);
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot clock out immediately after clocking in. Please wait at least ${remainingTime} more minute(s).` 
+      });
+    }
+
     // Update the record with clock out time
     existingAttendance.clockOut = new Date();
     existingAttendance.notes = existingAttendance.notes ? `${existingAttendance.notes}. Clocked out.` : 'Clocked out.';

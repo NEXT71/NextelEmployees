@@ -40,6 +40,7 @@ const AdminDashboard = () => {
   const [monthFilter, setMonthFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
+  const [fineSearchTerm, setFineSearchTerm] = useState('');
   
   // Applied filters (for fines tab)
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
@@ -327,7 +328,7 @@ const AdminDashboard = () => {
 
   // Clear fines filters
   const clearFinesFilters = () => {
-    setSearchTerm('');
+    setFineSearchTerm('');
     setMonthFilter('');
     setDateFilter('');
     setEmployeeFilter('');
@@ -484,8 +485,8 @@ const AdminDashboard = () => {
             <input
               type="text"
               placeholder={`Search ${activeTab === 'employees' ? 'employees' : 'fines'}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={activeTab === 'fines' ? fineSearchTerm : searchTerm}
+              onChange={(e) => activeTab === 'fines' ? setFineSearchTerm(e.target.value) : setSearchTerm(e.target.value)}
               className="pl-9 sm:pl-10 w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 sm:px-4 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm sm:text-base"
             />
           </div>
@@ -562,7 +563,7 @@ const AdminDashboard = () => {
                 </select>
                 <button
                   onClick={() => {
-                    setAppliedSearchTerm(searchTerm);
+                    setAppliedSearchTerm(fineSearchTerm);
                     setAppliedMonthFilter(monthFilter);
                     setAppliedDateFilter(dateFilter);
                     setAppliedEmployeeFilter(employeeFilter);

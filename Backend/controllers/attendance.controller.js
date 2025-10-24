@@ -341,6 +341,7 @@ export const getAdminAttendance = async (req, res) => {
     const query = {};
 
     let selectedDate;
+    let isDateRange = false;
     if (date) {
       selectedDate = new Date(date);
       selectedDate.setHours(0, 0, 0, 0);
@@ -348,6 +349,7 @@ export const getAdminAttendance = async (req, res) => {
       nextDate.setDate(nextDate.getDate() + 1);
       query.date = { $gte: selectedDate, $lt: nextDate };
     } else if (startDate && endDate) {
+      isDateRange = true;
       query.date = { 
         $gte: new Date(startDate),
         $lte: new Date(endDate)
@@ -401,7 +403,7 @@ export const getAdminAttendance = async (req, res) => {
       .sort({ date: -1 });
 
     // If we're fetching for a specific date, ensure all employees have records
-    if (selectedDate) {
+    if (selectedDate && !isDateRange) {
       const employeesWithRecords = new Set(attendance.map(record => record.employee._id.toString()));
       const employeesWithoutRecords = nonAdminEmployees.filter(
         emp => !employeesWithRecords.has(emp._id.toString())
@@ -439,12 +441,100 @@ export const getAdminAttendance = async (req, res) => {
       }
     }
 
-    console.log('📝 Attendance records returned:', attendance.length);
+    // For date range queries, group by date
+    let responseData;
+    if (isDateRange) {
+      // Group attendance records by date
+      const groupedByDate = {};
+      
+      attendance.forEach(record => {
+        const dateKey = record.date.toISOString().split('T')[0]; // YYYY-MM-DD format
+        if (!groupedByDate[dateKey]) {
+          groupedByDate[dateKey] = [];
+        }
+        groupedByDate[dateKey].push(record);
+      });
+
+      // Ensure all dates in the range have records for all employees
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateKey = d.toISOString().split('T')[0];
+        
+        if (!groupedByDate[dateKey]) {
+          groupedByDate[dateKey] = [];
+        }
+        
+        // Check which employees don't have records for this date
+        const employeesWithRecords = new Set(groupedByDate[dateKey].map(record => record.employee._id.toString()));
+        const employeesWithoutRecords = nonAdminEmployees.filter(
+          emp => !employeesWithRecords.has(emp._id.toString())
+        );
+        
+        // Create absent records for missing employees
+        if (employeesWithoutRecords.length > 0) {
+          console.log(`📝 Creating absent records for ${employeesWithoutRecords.length} employees on ${dateKey}`);
+          
+          for (const employee of employeesWithoutRecords) {
+            try {
+              const record = await Attendance.create({
+                employee: employee._id,
+                date: d,
+                status: 'Absent',
+                clockIn: null,
+                clockOut: null,
+                autoMarked: true,
+                notes: 'Auto-marked absent for date range view'
+              });
+              
+              // Add the populated record to the group
+              const populatedRecord = await Attendance.findById(record._id)
+                .populate({
+                  path: 'employee',
+                  select: 'firstName lastName employeeId department',
+                  model: 'Employee'
+                });
+              
+              groupedByDate[dateKey].push(populatedRecord);
+            } catch (err) {
+              console.error(`❌ Error creating absent record for ${employee.employeeId} on ${dateKey}:`, err.message);
+            }
+          }
+        }
+        
+        // Sort records within each date by employee name
+        groupedByDate[dateKey].sort((a, b) => {
+          const nameA = `${a.employee?.firstName || ''} ${a.employee?.lastName || ''}`.trim();
+          const nameB = `${b.employee?.firstName || ''} ${b.employee?.lastName || ''}`.trim();
+          return nameA.localeCompare(nameB);
+        });
+      }
+      
+      // Convert to array format sorted by date (newest first)
+      responseData = Object.keys(groupedByDate)
+        .sort((a, b) => new Date(b) - new Date(a))
+        .map(dateKey => ({
+          date: dateKey,
+          records: groupedByDate[dateKey]
+        }));
+      
+    } else {
+      // For single date queries, return flat array
+      responseData = attendance;
+    }
+
+    console.log('📝 Attendance records returned:', isDateRange ? 
+      responseData.reduce((total, group) => total + group.records.length, 0) : 
+      attendance.length);
 
     res.json({
       success: true,
-      count: attendance.length,
-      data: attendance
+      count: isDateRange ? 
+        responseData.reduce((total, group) => total + group.records.length, 0) : 
+        attendance.length,
+      data: responseData,
+      isDateRange
     });
   } catch (error) {
     console.error('AdminGetAttendance Error:', error);

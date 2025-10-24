@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import AdminHeader from '../../components/common/AdminHeader';
@@ -39,6 +39,7 @@ const AdminAttendance = () => {
   const [selectedRecords, setSelectedRecords] = useState([]);
   const [bulkStatus, setBulkStatus] = useState('');
   const [isBulkEditing, setIsBulkEditing] = useState(false);
+  const [isDateRange, setIsDateRange] = useState(false);
   const [summary, setSummary] = useState({
     Present: 0,
     Absent: 0,
@@ -74,6 +75,7 @@ const AdminAttendance = () => {
       });
       
       setAttendance(attendanceRes.data.data || []); // Ensure we always have an array
+      setIsDateRange(attendanceRes.data.isDateRange || false);
       
       // Then fetch the summary data
       const summaryParams = new URLSearchParams();
@@ -211,32 +213,33 @@ const AdminAttendance = () => {
 
   // Select all records
   const selectAllRecords = () => {
-    if (selectedRecords.length === attendance.length) {
+    const allRecords = getAllRecords();
+    if (selectedRecords.length === allRecords.length) {
       setSelectedRecords([]);
     } else {
-      setSelectedRecords(attendance.map(record => record._id));
+      setSelectedRecords(allRecords.map(record => record._id));
     }
   };
 
   // Export to CSV
   const exportToCSV = () => {
-    if (attendance.length === 0) {
+    const allRecords = getAllRecords();
+    if (allRecords.length === 0) {
       setError('No data to export');
       return;
     }
 
     const headers = [
-      'Employee ID', 'Name', 'Department', 'Date', 
-      'Status', 'Clock In', 'Clock Out'
+      'Date', 'Employee ID', 'Name', 'Department', 'Status', 'Clock In', 'Clock Out'
     ];
     
     const data = [
       headers.join(','),
-      ...attendance.map(record => [
+      ...allRecords.map(record => [
+        new Date(record.date).toLocaleDateString(),
         record.employee?.employeeId || '',
         `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim(),
         record.employee?.department || '',
-        new Date(record.date).toLocaleDateString(),
         record.status,
         record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : '',
         record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : ''
@@ -247,14 +250,21 @@ const AdminAttendance = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `attendance_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `attendance_${activeTab === 'daily' ? selectedDate.toISOString().split('T')[0] : `${startDate.toISOString().split('T')[0]}_to_${endDate.toISOString().split('T')[0]}`}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Filtered attendance
-  const filteredAttendance = attendance.filter(record => {
+  // Filtered attendance - handle both flat array and grouped data
+  const getAllRecords = () => {
+    if (isDateRange && Array.isArray(attendance)) {
+      return attendance.flatMap(group => group.records || []);
+    }
+    return attendance;
+  };
+
+  const filteredAttendance = getAllRecords().filter(record => {
     // Safely handle cases where employee data might be missing
     const employeeName = record.employee 
       ? `${record.employee.firstName || ''} ${record.employee.lastName || ''}`.toLowerCase()
@@ -466,7 +476,7 @@ const AdminAttendance = () => {
                   : `Attendance from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`}
               </h3>
               <div className="text-sm text-blue-200/70">
-                Showing {filteredAttendance.length} of {attendance.length} records
+                Showing {filteredAttendance.length} of {isDateRange ? attendance.reduce((total, group) => total + group.records.length, 0) : attendance.length} records
               </div>
             </div>
           </div>
@@ -479,7 +489,7 @@ const AdminAttendance = () => {
                     <th className="px-6 py-4 text-center">
                       <input
                         type="checkbox"
-                        checked={selectedRecords.length === attendance.length && attendance.length > 0}
+                        checked={selectedRecords.length === getAllRecords().length && getAllRecords().length > 0}
                         onChange={selectAllRecords}
                         className="rounded bg-white/10 border-white/20"
                       />
@@ -495,92 +505,217 @@ const AdminAttendance = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
-                {filteredAttendance.length > 0 ? (
-                  filteredAttendance.map((record) => (
-                    <tr key={record._id} className="hover:bg-white/5">
-                      {isBulkEditing && (
-                        <td className="px-6 py-4 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedRecords.includes(record._id)}
-                            onChange={() => toggleRecordSelection(record._id)}
-                            className="rounded bg-white/10 border-white/20"
-                          />
-                        </td>
-                      )}
-                      <td className="px-6 py-4 text-sm text-blue-100">
-                        {record.employee?.employeeId || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-white">
-                        {record.employee?.firstName} {record.employee?.lastName}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-blue-100">
-                        {record.employee?.department || 'Not assigned'}
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <select
-                          value={record.status}
-                          onChange={(e) => updateAttendanceRecord(record._id, { status: e.target.value })}
-                          className={`admin-attendance-select bg-transparent border rounded px-2 py-1 text-xs ${getStatusColor(record.status)}`}
-                        >
-                          {STATUS_OPTIONS.map(status => (
-                            <option key={status.value} value={status.value}>
-                              {status.label}
-                            </option>
+                {isDateRange ? (
+                  // Date range view - group by date
+                  attendance.length > 0 ? (
+                    attendance.map((dateGroup) => (
+                      <React.Fragment key={dateGroup.date}>
+                        {/* Date header row */}
+                        <tr className="bg-blue-500/10">
+                          <td colSpan={isBulkEditing ? 8 : 7} className="px-6 py-3">
+                            <div className="flex items-center space-x-2">
+                              <Calendar className="w-4 h-4 text-blue-300" />
+                              <span className="text-sm font-medium text-blue-200">
+                                {new Date(dateGroup.date).toLocaleDateString('en-US', { 
+                                  weekday: 'long', 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })}
+                              </span>
+                              <span className="text-xs text-blue-300/70 bg-blue-500/20 px-2 py-1 rounded">
+                                {dateGroup.records.length} records
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* Records for this date */}
+                        {dateGroup.records
+                          .filter(record => {
+                            // Apply search filter to individual records
+                            const employeeName = record.employee 
+                              ? `${record.employee.firstName || ''} ${record.employee.lastName || ''}`.toLowerCase()
+                              : '';
+                            const employeeId = record.employee?.employeeId?.toLowerCase() || '';
+                            
+                            return employeeName.includes(searchTerm.toLowerCase()) ||
+                                   employeeId.includes(searchTerm.toLowerCase());
+                          })
+                          .map((record) => (
+                            <tr key={record._id} className="hover:bg-white/5">
+                              {isBulkEditing && (
+                                <td className="px-6 py-4 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedRecords.includes(record._id)}
+                                    onChange={() => toggleRecordSelection(record._id)}
+                                    className="rounded bg-white/10 border-white/20"
+                                  />
+                                </td>
+                              )}
+                              <td className="px-6 py-4 text-sm text-blue-100">
+                                {record.employee?.employeeId || 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 text-sm text-white">
+                                {record.employee?.firstName} {record.employee?.lastName}
+                              </td>
+                              <td className="px-6 py-4 text-sm text-blue-100">
+                                {record.employee?.department || 'Not assigned'}
+                              </td>
+                              <td className="px-6 py-4">
+                                <select
+                                  value={record.status}
+                                  onChange={(e) => updateAttendanceRecord(record._id, { status: e.target.value })}
+                                  className={`admin-attendance-select bg-transparent border rounded px-2 py-1 text-xs ${getStatusColor(record.status)}`}
+                                >
+                                  {STATUS_OPTIONS.map(status => (
+                                    <option key={status.value} value={status.value}>
+                                      {status.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-blue-100">
+                                {record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : '--:--'}
+                              </td>
+                              <td className="px-6 py-4 text-sm text-blue-100">
+                                {record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : '--:--'}
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => {
+                                      const newClockIn = prompt('Enter new clock-in time (HH:MM)', 
+                                        record.clockIn ? new Date(record.clockIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '09:00');
+                                      if (newClockIn) {
+                                        const [hours, minutes] = newClockIn.split(':');
+                                        const newDate = new Date(record.date);
+                                        newDate.setHours(parseInt(hours), parseInt(minutes));
+                                        updateAttendanceRecord(record._id, { clockIn: newDate });
+                                      }
+                                    }}
+                                    className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
+                                    title="Edit Clock In"
+                                  >
+                                    <Clock className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const newClockOut = prompt('Enter new clock-out time (HH:MM)', 
+                                        record.clockOut ? new Date(record.clockOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '17:00');
+                                      if (newClockOut) {
+                                        const [hours, minutes] = newClockOut.split(':');
+                                        const newDate = new Date(record.date);
+                                        newDate.setHours(parseInt(hours), parseInt(minutes));
+                                        updateAttendanceRecord(record._id, { clockOut: newDate });
+                                      }
+                                    }}
+                                    className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
+                                    title="Edit Clock Out"
+                                  >
+                                    <Clock className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
                           ))}
-                        </select>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-blue-100">
-                        {record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : '--:--'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-blue-100">
-                        {record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : '--:--'}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              const newClockIn = prompt('Enter new clock-in time (HH:MM)', 
-                                record.clockIn ? new Date(record.clockIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '09:00');
-                              if (newClockIn) {
-                                const [hours, minutes] = newClockIn.split(':');
-                                const newDate = new Date(record.date);
-                                newDate.setHours(parseInt(hours), parseInt(minutes));
-                                updateAttendanceRecord(record._id, { clockIn: newDate });
-                              }
-                            }}
-                            className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
-                            title="Edit Clock In"
-                          >
-                            <Clock className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              const newClockOut = prompt('Enter new clock-out time (HH:MM)', 
-                                record.clockOut ? new Date(record.clockOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '17:00');
-                              if (newClockOut) {
-                                const [hours, minutes] = newClockOut.split(':');
-                                const newDate = new Date(record.date);
-                                newDate.setHours(parseInt(hours), parseInt(minutes));
-                                updateAttendanceRecord(record._id, { clockOut: newDate });
-                              }
-                            }}
-                            className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
-                            title="Edit Clock Out"
-                          >
-                            <Clock className="w-4 h-4" />
-                          </button>
-                        </div>
+                      </React.Fragment>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={isBulkEditing ? 8 : 7} className="px-6 py-4 text-center text-blue-200/70">
+                        No attendance records found
                       </td>
                     </tr>
-                  ))
+                  )
                 ) : (
-                  <tr>
-                    <td colSpan={isBulkEditing ? 9 : 8} className="px-6 py-4 text-center text-blue-200/70">
-                      {attendance.length === 0 ? 'No attendance records found' : 'No records match your filters'}
-                    </td>
-                  </tr>
+                  // Single date view - flat list
+                  filteredAttendance.length > 0 ? (
+                    filteredAttendance.map((record) => (
+                      <tr key={record._id} className="hover:bg-white/5">
+                        {isBulkEditing && (
+                          <td className="px-6 py-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedRecords.includes(record._id)}
+                              onChange={() => toggleRecordSelection(record._id)}
+                              className="rounded bg-white/10 border-white/20"
+                            />
+                          </td>
+                        )}
+                        <td className="px-6 py-4 text-sm text-blue-100">
+                          {record.employee?.employeeId || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-white">
+                          {record.employee?.firstName} {record.employee?.lastName}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-blue-100">
+                          {record.employee?.department || 'Not assigned'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <select
+                            value={record.status}
+                            onChange={(e) => updateAttendanceRecord(record._id, { status: e.target.value })}
+                            className={`admin-attendance-select bg-transparent border rounded px-2 py-1 text-xs ${getStatusColor(record.status)}`}
+                          >
+                            {STATUS_OPTIONS.map(status => (
+                              <option key={status.value} value={status.value}>
+                                {status.label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-blue-100">
+                          {record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : '--:--'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-blue-100">
+                          {record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : '--:--'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => {
+                                const newClockIn = prompt('Enter new clock-in time (HH:MM)', 
+                                  record.clockIn ? new Date(record.clockIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '09:00');
+                                if (newClockIn) {
+                                  const [hours, minutes] = newClockIn.split(':');
+                                  const newDate = new Date(record.date);
+                                  newDate.setHours(parseInt(hours), parseInt(minutes));
+                                  updateAttendanceRecord(record._id, { clockIn: newDate });
+                                }
+                              }}
+                              className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
+                              title="Edit Clock In"
+                            >
+                              <Clock className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                const newClockOut = prompt('Enter new clock-out time (HH:MM)', 
+                                  record.clockOut ? new Date(record.clockOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '17:00');
+                                if (newClockOut) {
+                                  const [hours, minutes] = newClockOut.split(':');
+                                  const newDate = new Date(record.date);
+                                  newDate.setHours(parseInt(hours), parseInt(minutes));
+                                  updateAttendanceRecord(record._id, { clockOut: newDate });
+                                }
+                              }}
+                              className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
+                              title="Edit Clock Out"
+                            >
+                              <Clock className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={isBulkEditing ? 8 : 7} className="px-6 py-4 text-center text-blue-200/70">
+                        {attendance.length === 0 ? 'No attendance records found' : 'No records match your filters'}
+                      </td>
+                    </tr>
+                  )
                 )}
               </tbody>
             </table>

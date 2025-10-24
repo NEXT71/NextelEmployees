@@ -73,6 +73,27 @@ const AdminDashboard = () => {
 
   const navigate = useNavigate();
 
+  // Refresh summary stats
+  const refreshSummary = async () => {
+    try {
+      const summaryResponse = await fineAPI.getEmployeeSummary();
+      setSummary(summaryResponse.data || {});
+    } catch (summaryErr) {
+      console.warn('Summary endpoint not available:', summaryErr);
+      // Fallback: calculate basic stats from current data
+      const employeesCount = employees.length;
+      const activeCount = employees.filter(emp => emp.status === 'Active').length;
+      const totalFinesCount = fines.length;
+      const totalFineAmount = fines.reduce((sum, fine) => sum + (fine.amount || 0), 0);
+      setSummary({
+        totalEmployees: employeesCount,
+        activeEmployees: activeCount,
+        totalFinesCount,
+        totalFineAmount
+      });
+    }
+  };
+
   // Fetch all data on component mount and tab change
   useEffect(() => {
     const fetchData = async () => {
@@ -118,22 +139,8 @@ const AdminDashboard = () => {
         const finesResponse = await fineAPI.getAllFines();
         setFines(finesResponse.data || []);
 
-        // Get summary stats from proper endpoint
-        try {
-          const summaryResponse = await fineAPI.getEmployeeSummary();
-          setSummary(summaryResponse.data || {});
-        } catch (summaryErr) {
-          console.warn('Summary endpoint not available:', summaryErr);
-          // Fallback: calculate basic stats from filtered employees data
-          const employeesCount = filteredEmployees.length;
-          const activeCount = filteredEmployees.filter(emp => emp.status === 'Active').length;
-          setSummary({
-            totalEmployees: employeesCount,
-            activeEmployees: activeCount,
-            totalFinesCount: 0,
-            totalFineAmount: 0
-          });
-        }
+        // Get summary stats
+        await refreshSummary();
 
       } catch (err) {
         console.error("Error fetching data:", err);

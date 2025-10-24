@@ -40,6 +40,13 @@ const AdminDashboard = () => {
   const [monthFilter, setMonthFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
+  
+  // Applied filters (for fines tab)
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
+  const [appliedMonthFilter, setAppliedMonthFilter] = useState('');
+  const [appliedDateFilter, setAppliedDateFilter] = useState('');
+  const [appliedEmployeeFilter, setAppliedEmployeeFilter] = useState('');
+  const [appliedFineFilter, setAppliedFineFilter] = useState('');
 
   // Form states
   const [fineForm, setFineForm] = useState({
@@ -106,11 +113,9 @@ const AdminDashboard = () => {
         const salariesResponse = await salaryAPI.getAllSalaries();
         setSalaries(salariesResponse.data);
 
-        // Get all fines if fines tab is active or for summary
-        if (activeTab === 'fines') {
-          const finesResponse = await fineAPI.getAllFines();
-          setFines(finesResponse.data || []);
-        }
+        // Get all fines (always load for summary and fines tab)
+        const finesResponse = await fineAPI.getAllFines();
+        setFines(finesResponse.data || []);
 
         // Get summary stats from proper endpoint
         try {
@@ -320,28 +325,18 @@ const AdminDashboard = () => {
     }
   };
 
-  // Refresh summary stats
-  const refreshSummary = async () => {
-    try {
-      // Try to get summary from API first
-      const summaryResponse = await fineAPI.getEmployeeSummary();
-      if (summaryResponse && summaryResponse.data) {
-        setSummary(summaryResponse.data);
-      }
-    } catch (err) {
-      // Fallback to calculating from current data
-      const totalEmployees = employees.length;
-      const activeEmployees = employees.filter(emp => emp.status === 'Active').length;
-      const totalFinesCount = fines.length;
-      const totalFineAmount = fines.reduce((sum, fine) => sum + (fine.approved ? fine.amount : 0), 0);
-      
-      setSummary({
-        totalEmployees,
-        activeEmployees,
-        totalFinesCount,
-        totalFineAmount
-      });
-    }
+  // Clear fines filters
+  const clearFinesFilters = () => {
+    setSearchTerm('');
+    setMonthFilter('');
+    setDateFilter('');
+    setEmployeeFilter('');
+    setFineFilter('');
+    setAppliedSearchTerm('');
+    setAppliedMonthFilter('');
+    setAppliedDateFilter('');
+    setAppliedEmployeeFilter('');
+    setAppliedFineFilter('');
   };
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch = 
@@ -360,24 +355,24 @@ const AdminDashboard = () => {
     const employee = employees.find(e => e._id === fine.employee);
     if (!employee) return false;
     
-    const matchesEmployee = employeeFilter ? fine.employee === employeeFilter : true;
-    const matchesType = fineFilter ? fine.type === fineFilter : true;
+    const matchesEmployee = appliedEmployeeFilter ? fine.employee === appliedEmployeeFilter : true;
+    const matchesType = appliedFineFilter ? fine.type === appliedFineFilter : true;
     
     // Month filter
-    const matchesMonth = monthFilter ? 
-      new Date(fine.date).toISOString().slice(0, 7) === monthFilter : true;
+    const matchesMonth = appliedMonthFilter ? 
+      new Date(fine.date).toISOString().slice(0, 7) === appliedMonthFilter : true;
     
     // Date filter
-    const matchesDate = dateFilter ? 
-      new Date(fine.date).toISOString().slice(0, 10) === dateFilter : true;
+    const matchesDate = appliedDateFilter ? 
+      new Date(fine.date).toISOString().slice(0, 10) === appliedDateFilter : true;
     
     // Search filter
-    const matchesSearch = searchTerm ? 
-      `${employee.firstName} ${employee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fine.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fine.description?.toLowerCase().includes(searchTerm.toLowerCase()) : true;
+    const matchesSearch = appliedSearchTerm ? 
+      `${employee.firstName} ${employee.lastName}`.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+      employee.email?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+      employee.employeeId?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+      fine.type.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+      fine.description?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) : true;
     
     return matchesEmployee && matchesType && matchesMonth && matchesDate && matchesSearch;
   });
@@ -565,6 +560,26 @@ const AdminDashboard = () => {
                     <option key={type.name} value={type.name}>{type.name}</option>
                   ))}
                 </select>
+                <button
+                  onClick={() => {
+                    setAppliedSearchTerm(searchTerm);
+                    setAppliedMonthFilter(monthFilter);
+                    setAppliedDateFilter(dateFilter);
+                    setAppliedEmployeeFilter(employeeFilter);
+                    setAppliedFineFilter(fineFilter);
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
+                >
+                  <Search className="w-4 h-4" />
+                  Apply Filters
+                </button>
+                <button
+                  onClick={clearFinesFilters}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  Clear Filters
+                </button>
               </>
             ) : null}
           </div>

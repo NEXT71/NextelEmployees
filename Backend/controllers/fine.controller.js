@@ -73,6 +73,26 @@ const approveFine = async (req, res, next) => {
   }
 };
 
+const deleteFine = async (req, res, next) => {
+  try {
+    const fine = await Fine.findByIdAndDelete(req.params.id);
+
+    if (!fine) {
+      return res.status(404).json({
+        success: false,
+        message: 'Fine not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Fine deleted successfully'
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Update getEmployeeFines to match registration flow
 const getEmployeeFines = async (req, res, next) => {
   try {
@@ -301,6 +321,7 @@ const getDateFilter = (period) => {
 export {
   applyFine,
   approveFine,
+  deleteFine,
   getEmployeeFines,
   getFinesByEmployeeId,
   getFineSummary,

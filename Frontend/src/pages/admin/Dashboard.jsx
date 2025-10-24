@@ -35,6 +35,11 @@ const AdminDashboard = () => {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [fineFilter, setFineFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [employeeFilter, setEmployeeFilter] = useState('');
 
   // Form states
   const [fineForm, setFineForm] = useState({
@@ -100,6 +105,12 @@ const AdminDashboard = () => {
         // Get all salaries
         const salariesResponse = await salaryAPI.getAllSalaries();
         setSalaries(salariesResponse.data);
+
+        // Get all fines if fines tab is active or for summary
+        if (activeTab === 'fines') {
+          const finesResponse = await fineAPI.getAllFines();
+          setFines(finesResponse.data || []);
+        }
 
         // Get summary stats from proper endpoint
         try {
@@ -278,6 +289,37 @@ const AdminDashboard = () => {
     }
   };
 
+  // Fine Management Functions
+  const approveFine = async (fineId) => {
+    try {
+      const response = await fineAPI.approveFine(fineId);
+
+      if (response.success) {
+        // Refresh fines data
+        const finesResponse = await fineAPI.getAllFines();
+        setFines(finesResponse.data);
+        refreshSummary(); // Refresh summary stats
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to approve fine');
+    }
+  };
+
+  const deleteFine = async (fineId) => {
+    try {
+      const response = await fineAPI.deleteFine(fineId);
+
+      if (response.success) {
+        // Refresh fines data
+        const finesResponse = await fineAPI.getAllFines();
+        setFines(finesResponse.data);
+        refreshSummary(); // Refresh summary stats
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to delete fine');
+    }
+  };
+
   // Refresh summary stats
   const refreshSummary = async () => {
     try {
@@ -310,6 +352,34 @@ const AdminDashboard = () => {
     const matchesDepartment = departmentFilter ? employee.department === departmentFilter : true;
     
     return matchesSearch && matchesDepartment;
+  });
+
+  const filteredFines = fines.filter(fine => {
+    if (!fine.employee) return false;
+    
+    const employee = employees.find(e => e._id === fine.employee);
+    if (!employee) return false;
+    
+    const matchesEmployee = employeeFilter ? fine.employee === employeeFilter : true;
+    const matchesType = fineFilter ? fine.type === fineFilter : true;
+    
+    // Month filter
+    const matchesMonth = monthFilter ? 
+      new Date(fine.date).toISOString().slice(0, 7) === monthFilter : true;
+    
+    // Date filter
+    const matchesDate = dateFilter ? 
+      new Date(fine.date).toISOString().slice(0, 10) === dateFilter : true;
+    
+    // Search filter
+    const matchesSearch = searchTerm ? 
+      `${employee.firstName} ${employee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fine.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fine.description?.toLowerCase().includes(searchTerm.toLowerCase()) : true;
+    
+    return matchesEmployee && matchesType && matchesMonth && matchesDate && matchesSearch;
   });
 
   if (loading) {
@@ -400,6 +470,14 @@ const AdminDashboard = () => {
             <span>Employees</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab('fines')}
+            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'fines' ? 'text-orange-300 border-b-2 border-orange-400' : 'text-blue-200/70 hover:text-orange-300'}`}
+          >
+            <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>Fines</span>
+          </button>
+
         </div>
 
         {/* Search and Filters - Responsive */}
@@ -435,6 +513,58 @@ const AdminDashboard = () => {
                     ))}
                   </select>
                 </div>
+              </>
+            ) : activeTab === 'fines' ? (
+              <>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Calendar className="h-5 w-5 text-blue-200/70" />
+                  </div>
+                  <input
+                    type="month"
+                    value={monthFilter}
+                    onChange={(e) => setMonthFilter(e.target.value)}
+                    className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                  />
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Calendar className="h-5 w-5 text-blue-200/70" />
+                  </div>
+                  <input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                  />
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Users className="h-5 w-5 text-blue-200/70" />
+                  </div>
+                  <select
+                    value={employeeFilter}
+                    onChange={(e) => setEmployeeFilter(e.target.value)}
+                    className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                  >
+                    <option value="">All Employees</option>
+                    {employees.map(employee => (
+                      <option key={employee._id} value={employee._id}>
+                        {employee.firstName} {employee.lastName} ({employee.employeeId})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <select
+                  value={fineFilter}
+                  onChange={(e) => setFineFilter(e.target.value)}
+                  className="bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                >
+                  <option value="">All Fine Types</option>
+                  {FINE_TYPES.map(type => (
+                    <option key={type.name} value={type.name}>{type.name}</option>
+                  ))}
+                </select>
               </>
             ) : null}
           </div>
@@ -552,6 +682,119 @@ const AdminDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Fines Table */}
+      {activeTab === 'fines' && (
+        <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-orange-500/5 to-red-500/5 blur-sm"></div>
+          
+          <div className="relative z-10">
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold bg-gradient-to-r from-orange-100 to-red-100 bg-clip-text text-transparent">
+                  Fine Management
+                </h3>
+                <div className="text-sm text-blue-200/70">
+                  Showing {filteredFines.length} of {fines.length} fines
+                </div>
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-white/5">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Employee</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Description</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {filteredFines.length > 0 ? (
+                    filteredFines.map((fine) => {
+                      const employee = employees.find(e => e._id === fine.employee);
+                      return (
+                        <tr key={fine._id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center">
+                                <span className="text-white text-sm font-medium">
+                                  {employee?.firstName?.charAt(0) || 'U'}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-white">
+                                  {employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee'}
+                                </div>
+                                <div className="text-xs text-blue-200/70">
+                                  {employee?.employeeId || 'N/A'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-blue-100">
+                            {new Date(fine.date).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-blue-100">
+                            {fine.type}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-red-300 font-medium">
+                            RS{fine.amount?.toLocaleString() || '0'}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`
+                              inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                              ${fine.approved 
+                                ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
+                                : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                              }
+                            `}>
+                              {fine.approved ? 'Approved' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-blue-200/80 max-w-xs truncate">
+                            {fine.description || 'No description'}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-2">
+                              {!fine.approved && (
+                                <button
+                                  onClick={() => approveFine(fine._id)}
+                                  className="p-2 text-green-300 hover:text-white hover:bg-green-500/20 rounded-lg transition-colors"
+                                  title="Approve Fine"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => deleteFine(fine._id)}
+                                className="p-2 text-red-300 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors"
+                                title="Delete Fine"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="px-6 py-4 text-center text-blue-200/70">
+                        No fines found matching your criteria
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Employee Details Modal */}
       {showEmployeeDetails && selectedEmployee && (

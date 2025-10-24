@@ -309,6 +309,12 @@ export const fineAPI = {
       method: 'DELETE',
     }),
 
+  // Approve fine
+  approveFine: (id) =>
+    apiRequest(`/fines/${id}/approve`, {
+      method: 'PATCH',
+    }),
+
   // Get fine summary for dashboard
   getFineSummary: () =>
     apiRequest('/fines/summary'),

@@ -9,7 +9,8 @@ import {
   Users, CheckCircle, XCircle, AlertTriangle, 
   X, UserPlus, Edit, Trash2, AlertCircle,
   Filter, Search, List, DollarSign, Clock, Calendar,
-  ChevronDown, ChevronUp, User as UserIcon, Home, Phone, Mail, MessageSquare
+  ChevronDown, ChevronUp, User as UserIcon, Home, Phone, Mail, MessageSquare,
+  RefreshCw
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -91,6 +92,63 @@ const AdminDashboard = () => {
         totalFinesCount,
         totalFineAmount
       });
+    }
+  };
+
+  // Refresh all dashboard data
+  const refreshDashboard = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Get current user data
+      const userResponse = await authAPI.getCurrentUser();
+      setUser(userResponse.data);
+
+      // Get all employees (backend should filter out admins, but add frontend backup)
+      const employeesResponse = await employeeAPI.getAllEmployees();
+      const allEmployees = employeesResponse.data || [];
+      
+      // Additional frontend filtering as backup to ensure admin doesn't see themselves
+      const filteredEmployees = allEmployees.filter(employee => {
+        const currentUser = userResponse.data;
+        
+        // Filter out by multiple criteria to be safe
+        return (
+          // Different email
+          employee.email !== currentUser.email &&
+          // Different user ID if linked
+          employee.user?._id !== currentUser._id &&
+          // Not admin role if populated
+          employee.user?.role !== 'admin' &&
+          // Different username if available
+          employee.user?.username !== currentUser.username
+        );
+      });
+      
+      setEmployees(filteredEmployees);
+
+      // Get all salaries
+      const salariesResponse = await salaryAPI.getAllSalaries();
+      setSalaries(salariesResponse.data);
+
+      // Get all fines (always load for summary and fines tab)
+      const finesResponse = await fineAPI.getAllFines();
+      setFines(finesResponse.data || []);
+
+      // Get summary stats
+      await refreshSummary();
+
+    } catch (err) {
+      console.error("Error refreshing dashboard:", err);
+      if (err.message.includes('401') || err.message.includes('Unauthorized')) {
+        localStorage.removeItem('token');
+        navigate('/');
+      } else {
+        setError('Failed to refresh dashboard data');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -296,6 +354,7 @@ const AdminDashboard = () => {
       if (response.success) {
         const employeesResponse = await employeeAPI.getAllEmployees();
         setEmployees(employeesResponse.data);
+        refreshSummary(); // Refresh summary stats
       }
     } catch (err) {
       setError(err.message || 'Failed to delete employee');
@@ -444,6 +503,22 @@ const AdminDashboard = () => {
             </button>
           </div>
         )}
+
+        {/* Stats Overview Header with Refresh Button */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
+            Dashboard Overview
+          </h2>
+          <button
+            onClick={refreshDashboard}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Refresh Dashboard Data"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
 
         {/* Stats Overview - Responsive Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">

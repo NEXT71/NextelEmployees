@@ -353,10 +353,10 @@ const AdminDashboard = () => {
   const filteredFines = fines.filter(fine => {
     if (!fine.employee) return false;
     
-    const employee = employees.find(e => e._id === fine.employee);
+    const employee = employees.find(e => e._id === fine.employee._id);
     if (!employee) return false;
     
-    const matchesEmployee = appliedEmployeeFilter ? fine.employee === appliedEmployeeFilter : true;
+    const matchesEmployee = appliedEmployeeFilter ? fine.employee._id === appliedEmployeeFilter : true;
     const matchesType = appliedFineFilter ? fine.type === appliedFineFilter : true;
     
     // Month filter
@@ -377,6 +377,16 @@ const AdminDashboard = () => {
     
     return matchesEmployee && matchesType && matchesMonth && matchesDate && matchesSearch;
   });
+
+  // Group fines by employee for the grouped display
+  const groupedFines = filteredFines.reduce((groups, fine) => {
+    const employeeId = fine.employee._id;
+    if (!groups[employeeId]) {
+      groups[employeeId] = [];
+    }
+    groups[employeeId].push(fine);
+    return groups;
+  }, {});
 
   if (loading) {
     return (
@@ -711,102 +721,122 @@ const AdminDashboard = () => {
                   Fine Management
                 </h3>
                 <div className="text-sm text-blue-200/70">
-                  Showing {filteredFines.length} of {fines.length} fines
+                  Showing {filteredFines.length} fines for {Object.keys(groupedFines).length} employees
                 </div>
               </div>
             </div>
             
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-white/5">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Employee</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Description</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {filteredFines.length > 0 ? (
-                    filteredFines.map((fine) => {
-                      const employee = employees.find(e => e._id === fine.employee);
-                      return (
-                        <tr key={fine._id} className="hover:bg-white/5 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center">
-                                <span className="text-white text-sm font-medium">
-                                  {employee?.firstName?.charAt(0) || 'U'}
-                                </span>
+              {Object.keys(groupedFines).length > 0 ? (
+                Object.entries(groupedFines).map(([employeeId, employeeFines]) => {
+                  const employee = employeeFines[0].employee;
+                  const totalAmount = employeeFines.reduce((sum, fine) => sum + (fine.amount || 0), 0);
+                  const approvedCount = employeeFines.filter(fine => fine.approved).length;
+                  const pendingCount = employeeFines.length - approvedCount;
+                  
+                  return (
+                    <div key={employeeId} className="border-b border-white/10 last:border-b-0">
+                      {/* Employee Header */}
+                      <div className="bg-white/5 px-6 py-4 border-b border-white/10">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center">
+                              <span className="text-white text-sm font-medium">
+                                {employee.firstName?.charAt(0) || 'U'}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-white">
+                                {employee.firstName} {employee.lastName}
                               </div>
-                              <div>
-                                <div className="text-sm font-medium text-white">
-                                  {employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee'}
-                                </div>
-                                <div className="text-xs text-blue-200/70">
-                                  {employee?.employeeId || 'N/A'}
-                                </div>
+                              <div className="text-xs text-blue-200/70">
+                                ID: {employee.employeeId || 'N/A'} • Department: {employee.department || 'Not assigned'}
                               </div>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-blue-100">
-                            {new Date(fine.date).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-blue-100">
-                            {fine.type}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-red-300 font-medium">
-                            RS{fine.amount?.toLocaleString() || '0'}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`
-                              inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                              ${fine.approved 
-                                ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
-                                : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
-                              }
-                            `}>
-                              {fine.approved ? 'Approved' : 'Pending'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-blue-200/80 max-w-xs truncate">
-                            {fine.description || 'No description'}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center space-x-2">
-                              {!fine.approved && (
-                                <button
-                                  onClick={() => approveFine(fine._id)}
-                                  className="p-2 text-green-300 hover:text-white hover:bg-green-500/20 rounded-lg transition-colors"
-                                  title="Approve Fine"
-                                >
-                                  <CheckCircle className="w-4 h-4" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => deleteFine(fine._id)}
-                                className="p-2 text-red-300 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors"
-                                title="Delete Fine"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-red-300">
+                              Total: RS{totalAmount.toLocaleString()}
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="7" className="px-6 py-4 text-center text-blue-200/70">
-                        No fines found matching your criteria
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                            <div className="text-xs text-blue-200/70">
+                              {approvedCount} approved • {pendingCount} pending
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Employee Fines Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-white/5">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Date</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Type</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Amount</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Status</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Description</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/10">
+                            {employeeFines.map((fine) => (
+                              <tr key={fine._id} className="hover:bg-white/5 transition-colors">
+                                <td className="px-6 py-3 text-sm text-blue-100">
+                                  {new Date(fine.date).toLocaleDateString()}
+                                </td>
+                                <td className="px-6 py-3 text-sm text-blue-100">
+                                  {fine.type}
+                                </td>
+                                <td className="px-6 py-3 text-sm text-red-300 font-medium">
+                                  RS{fine.amount?.toLocaleString() || '0'}
+                                </td>
+                                <td className="px-6 py-3">
+                                  <span className={`
+                                    inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                    ${fine.approved 
+                                      ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
+                                      : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                                    }
+                                  `}>
+                                    {fine.approved ? 'Approved' : 'Pending'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-3 text-sm text-blue-200/80 max-w-xs truncate">
+                                  {fine.description || 'No description'}
+                                </td>
+                                <td className="px-6 py-3">
+                                  <div className="flex items-center space-x-2">
+                                    {!fine.approved && (
+                                      <button
+                                        onClick={() => approveFine(fine._id)}
+                                        className="p-2 text-green-300 hover:text-white hover:bg-green-500/20 rounded-lg transition-colors"
+                                        title="Approve Fine"
+                                      >
+                                        <CheckCircle className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => deleteFine(fine._id)}
+                                      className="p-2 text-red-300 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors"
+                                      title="Delete Fine"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="px-6 py-8 text-center text-blue-200/70">
+                  No fines found matching your criteria
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -142,6 +142,17 @@ const updateEmployee = async (req, res, next) => {
 
     delete updateData.salary;
 
+    // First, get the current employee to check for associated user
+    const currentEmployee = await Employee.findById(req.params.id);
+    
+    if (!currentEmployee) {
+      return res.status(404).json({
+        success: false,
+        message: `Employee not found with id ${req.params.id}`
+      });
+    }
+
+    // Update the employee
     const employee = await Employee.findByIdAndUpdate(
       req.params.id,
       updateData,
@@ -153,11 +164,44 @@ const updateEmployee = async (req, res, next) => {
     .select('-__v')
     .populate('user', 'username email role');
 
-    if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: `Employee not found with id ${req.params.id}`
-      });
+    // Update the associated User model if it exists
+    if (employee.user) {
+      const userUpdateData = {};
+      
+      // Update email if changed
+      if (req.body.email && req.body.email !== currentEmployee.email) {
+        userUpdateData.email = req.body.email;
+      }
+      
+      // Update username if firstName or lastName changed
+      if (req.body.firstName || req.body.lastName) {
+        const firstName = req.body.firstName || currentEmployee.firstName;
+        const lastName = req.body.lastName || currentEmployee.lastName;
+        // Generate username format: firstname.lastname
+        userUpdateData.username = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`;
+      }
+
+      // Only update if there are changes
+      if (Object.keys(userUpdateData).length > 0) {
+        try {
+          await User.findByIdAndUpdate(
+            employee.user._id,
+            userUpdateData,
+            { 
+              new: true,
+              runValidators: true
+            }
+          );
+          console.log(`✅ Updated associated user account for employee: ${employee.firstName} ${employee.lastName}`);
+        } catch (userUpdateError) {
+          // If there's a duplicate key error, log it but don't fail the employee update
+          if (userUpdateError.code === 11000) {
+            console.warn(`⚠️ Could not update user account due to duplicate: ${userUpdateError.message}`);
+          } else {
+            console.error('Error updating user account:', userUpdateError);
+          }
+        }
+      }
     }
 
     res.json({

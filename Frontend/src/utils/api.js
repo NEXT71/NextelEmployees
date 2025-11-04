@@ -296,6 +296,13 @@ export const fineAPI = {
       body: JSON.stringify(fineData),
     }),
 
+  // Bulk apply fine to multiple employees
+  applyBulkFine: (bulkFineData) =>
+    apiRequest('/fines/bulk', {
+      method: 'POST',
+      body: JSON.stringify(bulkFineData),
+    }),
+
   // Update fine
   updateFine: (id, updateData) =>
     apiRequest(`/fines/${id}`, {
@@ -322,6 +329,18 @@ export const fineAPI = {
   // Get employee summary with fine stats for dashboard
   getEmployeeSummary: () =>
     apiRequest('/fines/employeesSummary'),
+
+  // Generate employee report
+  generateEmployeeReport: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/fines/reports/employees${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Generate fine report
+  generateFineReport: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/fines/reports/fines${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 // Salary API calls

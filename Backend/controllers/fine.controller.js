@@ -45,6 +45,69 @@ const applyFine = async (req, res, next) => {
   }
 };
 
+// Bulk apply fines to multiple employees
+const applyBulkFine = async (req, res, next) => {
+  try {
+    const { employeeIds, type, amount, description, date } = req.body;
+
+    // Validate input
+    if (!employeeIds || !Array.isArray(employeeIds) || employeeIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide an array of employee IDs'
+      });
+    }
+
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Fine type is required'
+      });
+    }
+
+    // Verify all employees exist
+    const employees = await Employee.find({ _id: { $in: employeeIds } });
+    
+    if (employees.length !== employeeIds.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'Some employees were not found'
+      });
+    }
+
+    // Calculate fine amount
+    const fineAmount = amount || FINE_TYPES.find(t => t.name === type)?.amount || 0;
+    const fineDate = date ? new Date(date) : new Date();
+
+    // Create fines for all employees
+    const fines = await Fine.insertMany(
+      employeeIds.map(empId => ({
+        employee: empId,
+        type,
+        amount: fineAmount,
+        description: description || `Bulk fine: ${type}`,
+        date: fineDate,
+        approved: req.user.role === 'admin',
+        approvedBy: req.user.role === 'admin' ? req.user._id : null
+      }))
+    );
+
+    // Populate employee details for response
+    const populatedFines = await Fine.find({ 
+      _id: { $in: fines.map(f => f._id) } 
+    }).populate('employee', 'firstName lastName employeeId department');
+
+    res.status(201).json({
+      success: true,
+      message: `Successfully applied ${fines.length} fines`,
+      data: populatedFines,
+      count: fines.length
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const approveFine = async (req, res, next) => {
   try {
     const fine = await Fine.findByIdAndUpdate(
@@ -318,13 +381,133 @@ const getDateFilter = (period) => {
   return filter;
 };
 
+// Generate report data for employees
+const generateEmployeeReport = async (req, res, next) => {
+  try {
+    const { department, status, startDate, endDate } = req.query;
+    const query = {};
+
+    if (department) query.department = department;
+    if (status) query.status = status;
+
+    const employees = await Employee.find(query)
+      .populate('user', 'username email role')
+      .select('-__v')
+      .lean();
+
+    // Filter out admins
+    const filteredEmployees = employees.filter(emp => 
+      !emp.user || emp.user.role !== 'admin'
+    );
+
+    // Fetch additional data for each employee
+    const employeeData = await Promise.all(
+      filteredEmployees.map(async (emp) => {
+        // Get fines
+        const fineQuery = { employee: emp._id, approved: true };
+        if (startDate && endDate) {
+          fineQuery.date = {
+            $gte: new Date(startDate),
+            $lte: new Date(endDate)
+          };
+        }
+        const fines = await Fine.find(fineQuery);
+        const totalFines = fines.reduce((sum, fine) => sum + fine.amount, 0);
+
+        return {
+          employeeId: emp.employeeId,
+          name: `${emp.firstName} ${emp.lastName}`,
+          email: emp.email,
+          department: emp.department,
+          status: emp.status,
+          hireDate: emp.hireDate,
+          phone: emp.contact?.phone || 'N/A',
+          fineCount: fines.length,
+          totalFineAmount: totalFines
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      count: employeeData.length,
+      data: employeeData,
+      generatedAt: new Date()
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Generate report data for fines
+const generateFineReport = async (req, res, next) => {
+  try {
+    const { department, type, approved, startDate, endDate } = req.query;
+    const query = {};
+
+    if (type) query.type = type;
+    if (approved !== undefined) query.approved = approved === 'true';
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    let fines = await Fine.find(query)
+      .populate('employee', 'firstName lastName employeeId department')
+      .populate('approvedBy', 'username')
+      .sort('-date')
+      .lean();
+
+    // Filter by department if specified
+    if (department) {
+      fines = fines.filter(fine => fine.employee?.department === department);
+    }
+
+    const reportData = fines.map(fine => ({
+      date: fine.date,
+      employeeId: fine.employee?.employeeId || 'N/A',
+      employeeName: fine.employee 
+        ? `${fine.employee.firstName} ${fine.employee.lastName}` 
+        : 'Unknown',
+      department: fine.employee?.department || 'N/A',
+      type: fine.type,
+      amount: fine.amount,
+      description: fine.description || '',
+      approved: fine.approved ? 'Yes' : 'No',
+      approvedBy: fine.approvedBy?.username || 'N/A'
+    }));
+
+    const summary = {
+      totalFines: fines.length,
+      totalAmount: fines.reduce((sum, fine) => sum + fine.amount, 0),
+      approvedFines: fines.filter(f => f.approved).length,
+      pendingFines: fines.filter(f => !f.approved).length
+    };
+
+    res.json({
+      success: true,
+      count: reportData.length,
+      data: reportData,
+      summary,
+      generatedAt: new Date()
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export {
   applyFine,
+  applyBulkFine,
   approveFine,
   deleteFine,
   getEmployeeFines,
   getFinesByEmployeeId,
   getFineSummary,
   getAllFines,
-  getEmployeeSummary
+  getEmployeeSummary,
+  generateEmployeeReport,
+  generateFineReport
 };

@@ -1,13 +1,16 @@
 import express from 'express';
 import {
   applyFine,
+  applyBulkFine,
   approveFine,
   getEmployeeFines,
   getFinesByEmployeeId,
   getAllFines,
   getFineSummary,
   getEmployeeSummary,
-  deleteFine
+  deleteFine,
+  generateEmployeeReport,
+  generateFineReport
 } from '../controllers/fine.controller.js';
 import auth from '../middlewares/auth.js';
 import roles from '../middlewares/roles.js';
@@ -15,6 +18,7 @@ import roles from '../middlewares/roles.js';
 const fineRouter = express.Router();
 
 fineRouter.post('/', auth, applyFine);
+fineRouter.post('/bulk', auth, roles('admin'), applyBulkFine);
 fineRouter.patch('/:id/approve', auth, roles('admin'), approveFine);
 fineRouter.delete('/:id', auth, roles('admin'), deleteFine);
 fineRouter.get('/employee', auth, getEmployeeFines); // For current authenticated employee
@@ -22,5 +26,7 @@ fineRouter.get('/employee/:employeeId', auth, roles('admin'), getFinesByEmployee
 fineRouter.get('/', auth, roles('admin'), getAllFines);
 fineRouter.get('/summary', auth, roles('admin'), getFineSummary);
 fineRouter.get('/employeesSummary', auth, roles('admin'), getEmployeeSummary);
+fineRouter.get('/reports/employees', auth, roles('admin'), generateEmployeeReport);
+fineRouter.get('/reports/fines', auth, roles('admin'), generateFineReport);
 
 export default fineRouter;

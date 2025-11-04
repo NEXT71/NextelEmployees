@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';
 import AdminMessageCenter from '../../components/admin/AdminMessageCenter';
+import BulkFineModal from '../../components/admin/BulkFineModal';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
 import { authAPI, employeeAPI, fineAPI, salaryAPI, messageAPI } from '../../utils/api';
 import { 
@@ -10,7 +11,7 @@ import {
   X, UserPlus, Edit, Trash2, AlertCircle,
   Filter, Search, List, DollarSign, Clock, Calendar,
   ChevronDown, ChevronUp, User as UserIcon, Home, Phone, Mail, MessageSquare,
-  RefreshCw
+  RefreshCw, Download, UserCheck
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -24,6 +25,7 @@ const AdminDashboard = () => {
   
   // Modals
   const [showFineModal, setShowFineModal] = useState(false);
+  const [showBulkFineModal, setShowBulkFineModal] = useState(false);
   const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeeFines, setEmployeeFines] = useState([]);
@@ -392,6 +394,84 @@ const AdminDashboard = () => {
     }
   };
 
+  // Bulk Fine Application
+  const handleBulkFine = async (bulkFineData) => {
+    try {
+      const response = await fineAPI.applyBulkFine(bulkFineData);
+
+      if (response.success) {
+        // Refresh fines data
+        const finesResponse = await fineAPI.getAllFines();
+        setFines(finesResponse.data);
+        refreshSummary();
+        setShowBulkFineModal(false);
+        alert(`Successfully applied fine to ${bulkFineData.employeeIds.length} employees`);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to apply bulk fine');
+    }
+  };
+
+  // Report Download Functions
+  const convertToCSV = (data, headers) => {
+    const headerRow = headers.join(',');
+    const rows = data.map(row => 
+      headers.map(header => {
+        const value = row[header] || '';
+        // Escape commas and quotes
+        return `"${String(value).replace(/"/g, '""')}"`;
+      }).join(',')
+    );
+    return [headerRow, ...rows].join('\n');
+  };
+
+  const downloadCSV = (csvContent, filename) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDownloadEmployeeReport = async () => {
+    try {
+      const response = await fineAPI.generateEmployeeReport();
+      if (response.success && response.data) {
+        const headers = ['employeeId', 'name', 'email', 'department', 'status', 'totalFines', 'totalAmount'];
+        const csvContent = convertToCSV(response.data, headers);
+        const filename = `employee-report-${new Date().toISOString().split('T')[0]}.csv`;
+        downloadCSV(csvContent, filename);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to generate employee report');
+    }
+  };
+
+  const handleDownloadFineReport = async () => {
+    try {
+      const queryParams = new URLSearchParams({
+        month: appliedMonthFilter || '',
+        date: appliedDateFilter || '',
+        employeeId: appliedEmployeeFilter || '',
+        type: appliedFineFilter || ''
+      }).toString();
+
+      const response = await fineAPI.generateFineReport(queryParams);
+      if (response.success && response.data) {
+        const headers = ['date', 'employeeId', 'employeeName', 'type', 'description', 'amount', 'status'];
+        const csvContent = convertToCSV(response.data, headers);
+        const filename = `fine-report-${new Date().toISOString().split('T')[0]}.csv`;
+        downloadCSV(csvContent, filename);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to generate fine report');
+    }
+  };
+
   // Clear fines filters
   const clearFinesFilters = () => {
     setFineSearchTerm('');
@@ -677,6 +757,38 @@ const AdminDashboard = () => {
             ) : null}
           </div>
         </div>
+
+        {/* Action Buttons - Bulk Operations & Reports */}
+        {activeTab === 'employees' && (
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setShowBulkFineModal(true)}
+              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-purple-500/50"
+            >
+              <UserCheck className="w-5 h-5" />
+              Bulk Apply Fine
+            </button>
+            <button
+              onClick={handleDownloadEmployeeReport}
+              className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-green-500/50"
+            >
+              <Download className="w-5 h-5" />
+              Download Employee Report
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'fines' && (
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleDownloadFineReport}
+              className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-green-500/50"
+            >
+              <Download className="w-5 h-5" />
+              Download Fine Report
+            </button>
+          </div>
+        )}
 
         {/* Employees Table */}
         {activeTab === 'employees' && (
@@ -1396,6 +1508,14 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Bulk Fine Modal */}
+      <BulkFineModal
+        isOpen={showBulkFineModal}
+        onClose={() => setShowBulkFineModal(false)}
+        employees={employees}
+        onApply={handleBulkFine}
+      />
 
       {/* Floating Message Button */}
       <button

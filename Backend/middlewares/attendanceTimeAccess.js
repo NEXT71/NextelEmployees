@@ -1,5 +1,5 @@
 // Attendance-specific time access control middleware
-// Allows clock in/clock out only between 6:00 PM to 5:30 AM Pakistan Standard Time
+// Allows clock in/clock out only between 6:00 PM to 6:30 AM Pakistan Standard Time
 
 const attendanceTimeAccessControl = (req, res, next) => {
   try {
@@ -19,9 +19,9 @@ const attendanceTimeAccessControl = (req, res, next) => {
     // Convert current time to minutes since midnight for easier comparison
     const currentTimeInMinutes = (currentHour * 60) + currentMinute;
     
-    // Define attendance access window: 6:00 PM to 5:30 AM
+    // Define attendance access window: 6:00 PM to 6:30 AM
     const startTime = (18 * 60); // 6:00 PM = 18:00 = 1080 minutes
-    const endTime = (5 * 60) + 30; // 5:30 AM = 05:30 = 330 minutes
+    const endTime = (6 * 60) + 30; // 6:30 AM = 06:30 = 390 minutes
     
     // Check if current time is within allowed window
     // Since the window crosses midnight (6:00 PM to 5:30 AM), we need special logic
@@ -61,9 +61,9 @@ const attendanceTimeAccessControl = (req, res, next) => {
       
       return res.status(403).json({
         success: false,
-        message: 'Clock in/Clock out is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time',
+        message: 'Clock in/Clock out is only allowed between 6:00 PM - 6:30 AM Pakistan Standard Time',
         currentTime: currentTimeFormatted,
-        allowedWindow: '6:00 PM - 5:30 AM PKT',
+        allowedWindow: '6:00 PM - 6:30 AM PKT',
         nextAvailableTime: `${nextTimeFormatted} on ${nextDateFormatted}`,
         error: 'ATTENDANCE_TIME_RESTRICTED'
       });
@@ -94,7 +94,7 @@ const isWithinAttendanceWindow = () => {
     const currentTimeInMinutes = (currentHour * 60) + currentMinute;
     
     const startTime = (18 * 60); // 6:00 PM
-    const endTime = (5 * 60) + 30; // 5:30 AM
+    const endTime = (6 * 60) + 30; // 6:30 AM
     
     if (startTime > endTime) {
       return (currentTimeInMinutes >= startTime) || (currentTimeInMinutes <= endTime);
@@ -131,8 +131,8 @@ const getNextAttendanceAccessTime = () => {
   const currentMinute = pktTime.getMinutes();
   const currentTimeInMinutes = (currentHour * 60) + currentMinute;
   
-  // If it's currently between 5:31 AM and 5:59 PM, next access is today at 6:00 PM
-  if (currentTimeInMinutes > (5 * 60 + 30) && currentTimeInMinutes < (18 * 60)) {
+  // If it's currently between 6:31 AM and 5:59 PM, next access is today at 6:00 PM
+  if (currentTimeInMinutes > (6 * 60 + 30) && currentTimeInMinutes < (18 * 60)) {
     return nextAccess;
   }
   

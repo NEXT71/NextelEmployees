@@ -15,7 +15,7 @@ export const markAbsentEmployees = async () => {
     const now = new Date();
     const pktTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Karachi"}));
     
-    // For night shift (6 PM - 5:30 AM), the "attendance day" starts at 6 PM
+    // For night shift (6 PM - 6:30 AM), the "attendance day" starts at 6 PM
     // Set date to today at midnight for consistency
     const attendanceDate = new Date(Date.UTC(
       pktTime.getUTCFullYear(), 
@@ -24,7 +24,8 @@ export const markAbsentEmployees = async () => {
       0, 0, 0, 0
     ));
     
-    console.log(`📅 Marking absences for date: ${attendanceDate.toISOString()}`);
+    console.log(`📅 Creating absence records for date: ${attendanceDate.toISOString()}`);
+    console.log(`⏰ Current PKT Time: ${pktTime.toLocaleString()}`);
     
     // Get all active employees and populate user to check role
     const allEmployees = await Employee.find({ status: 'Active' }).populate('user', 'role');
@@ -109,17 +110,23 @@ export const markAbsentEmployees = async () => {
 };
 
 /**
- * Finalize attendance at end of shift window (5:30 AM PKT)
+ * Finalize attendance at end of shift window (6:30 AM PKT)
+ * Auto-clock out employees who forgot to clock out
  * Log final attendance status for reporting
+ * CRITICAL: This is where auto-reset happens to prevent employees being clocked out during their shift
  */
 export const finalizeAttendance = async () => {
   try {
-    console.log('🔄 Running attendance finalization job...');
+    console.log('🔄 Running attendance finalization job at shift end (6:30 AM PKT)...');
     
     const now = new Date();
     const pktTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Karachi"}));
+    console.log(`⏰ Current PKT Time: ${pktTime.toLocaleString()}`);
     
-    // Get yesterday's date (since shift ends at 5:30 AM, we're finalizing yesterday's shift)
+    // IMPORTANT: At 6:30 AM, we're finalizing TODAY's shift (which started yesterday at 6 PM)
+    // The shift that's ending is the one that started yesterday at 6 PM
+    // So we need to finalize YESTERDAY's date records
+    
     const yesterdayPKT = new Date(pktTime);
     yesterdayPKT.setDate(yesterdayPKT.getDate() - 1);
     
@@ -130,9 +137,38 @@ export const finalizeAttendance = async () => {
       0, 0, 0, 0
     ));
     
-    console.log(`📅 Finalizing attendance for date: ${attendanceDate.toISOString()}`);
+    console.log(`📅 Finalizing attendance for shift date: ${attendanceDate.toISOString()}`);
+    console.log(`📅 (This is the shift that started at 6 PM yesterday and ends now at 6:30 AM)`);
     
-    // Get all attendance records for the shift
+    // AUTO CLOCK-OUT: Find employees who are still clocked in from this shift
+    const stillClockedIn = await Attendance.find({
+      date: attendanceDate,
+      clockIn: { $ne: null },
+      clockOut: null
+    }).populate('employee', 'firstName lastName employeeId');
+    
+    if (stillClockedIn.length > 0) {
+      console.log(`🔄 Auto-clocking out ${stillClockedIn.length} employees who forgot to clock out`);
+      console.log(`⚠️ These employees clocked in during the shift but never clocked out`);
+      
+      for (const record of stillClockedIn) {
+        // Set clock-out to 6:30 AM today (end of current shift window)
+        const autoClockOut = new Date(pktTime);
+        autoClockOut.setHours(6, 30, 0, 0);
+        
+        record.clockOut = autoClockOut;
+        record.notes = (record.notes || '') + ' [Auto-clocked out at 6:30 AM - shift end, forgot to clock out]';
+        await record.save();
+        
+        console.log(`✅ Auto-clocked out: ${record.employee.firstName} ${record.employee.lastName} (${record.employee.employeeId})`);
+        console.log(`   Clock In: ${record.clockIn.toLocaleString('en-US', {timeZone: 'Asia/Karachi'})}`);
+        console.log(`   Clock Out: ${record.clockOut.toLocaleString('en-US', {timeZone: 'Asia/Karachi'})}`);
+      }
+    } else {
+      console.log('✅ All employees properly clocked out - no auto clock-outs needed');
+    }
+    
+    // Get all attendance records for the shift that just ended
     const records = await Attendance.find({ date: attendanceDate }).populate('employee');
     
     // Count statuses
@@ -146,12 +182,15 @@ export const finalizeAttendance = async () => {
     };
     
     console.log('📊 Attendance Summary:');
+    console.log(`   Shift Date: ${attendanceDate.toDateString()}`);
+    console.log(`   Shift Period: 6:00 PM (yesterday) - 6:30 AM (today)`);
     console.log(`   Total: ${summary.total}`);
     console.log(`   Present: ${summary.present}`);
     console.log(`   Absent: ${summary.absent}`);
     console.log(`   Late: ${summary.late}`);
     console.log(`   Half-day: ${summary.halfDay}`);
     console.log(`   Auto-marked: ${summary.autoMarked}`);
+    console.log('✅ Attendance finalization complete');
     
     return { success: true, summary, date: attendanceDate };
     
@@ -163,29 +202,41 @@ export const finalizeAttendance = async () => {
 
 /**
  * Schedule automated attendance jobs
- * - 6:00 PM PKT: Mark all employees absent (start of shift)
- * - 5:30 AM PKT: Finalize attendance (end of shift)
+ * - 6:00 PM PKT: Mark all employees absent (start of NEW shift) - NO AUTO-RESET HERE
+ * - 6:30 AM PKT: Finalize attendance (end of CURRENT shift) + Auto clock-out (SAFE - shift has ended)
+ * 
+ * CRITICAL: Auto-reset only happens at 6:30 AM when the shift ENDS
+ * This prevents employees from being auto-clocked out while still working
  */
 export const scheduleAttendanceJobs = () => {
   // Schedule absence marking at 6:00 PM PKT daily
-  // This runs when the attendance window opens
+  // This creates NEW attendance records for the shift starting NOW
+  // NO auto-reset here because the previous shift hasn't ended yet
   cron.schedule('0 18 * * *', async () => {
     console.log('⏰ Scheduled job triggered: Mark absences at shift start (6:00 PM PKT)');
+    console.log('📝 Creating absence records for NEW shift starting now');
+    console.log('⚠️ Previous shift is still ongoing (ends at 6:30 AM)');
     await markAbsentEmployees();
   }, {
     timezone: "Asia/Karachi"
   });
   
-  // Schedule attendance finalization at 5:30 AM PKT daily
-  // This runs when the attendance window closes
-  cron.schedule('30 5 * * *', async () => {
-    console.log('⏰ Scheduled job triggered: Finalize attendance at shift end (5:30 AM PKT)');
+  // Schedule attendance finalization at 6:30 AM PKT daily
+  // This finalizes the CURRENT shift that started yesterday at 6 PM
+  // Auto clock-out is SAFE here because the shift has ended
+  cron.schedule('30 6 * * *', async () => {
+    console.log('⏰ Scheduled job triggered: Finalize attendance at shift end (6:30 AM PKT)');
+    console.log('📝 Finalizing shift that started yesterday at 6:00 PM');
+    console.log('✅ SAFE to auto clock-out - shift has ended');
     await finalizeAttendance();
   }, {
     timezone: "Asia/Karachi"
   });
   
   console.log('✅ Attendance scheduling initialized:');
-  console.log('   - Absence marking: 6:00 PM PKT daily (shift start)');
-  console.log('   - Attendance finalization: 5:30 AM PKT daily (shift end)');
+  console.log('   - 6:00 PM PKT: Create absence records for NEW shift (no auto-reset)');
+  console.log('   - 6:30 AM PKT: Finalize CURRENT shift + Auto clock-out (safe)');
+  console.log('');
+  console.log('🔒 Security: Auto clock-out only at 6:30 AM when shift ends');
+  console.log('   This prevents employees from being clocked out during their shift');
 };

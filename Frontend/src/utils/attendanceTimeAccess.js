@@ -1,7 +1,7 @@
 // Attendance-specific time access utilities for frontend
-// Mirrors the backend logic for Pakistan Standard Time attendance access control (6:00 PM to 5:30 AM)
+// Mirrors the backend logic for Pakistan Standard Time attendance access control (6:00 PM to 6:30 AM)
 
-// Check if current time is within attendance access window (6:00 PM to 5:30 AM PKT)
+// Check if current time is within attendance access window (6:00 PM to 6:30 AM PKT)
 export const isWithinAttendanceWindow = () => {
   try {
     // Get current time in Pakistan Standard Time (UTC+5)
@@ -11,11 +11,11 @@ export const isWithinAttendanceWindow = () => {
     const currentHour = pktTime.getHours();
     const currentMinute = pktTime.getMinutes();
     
-    // 6:00 PM to 5:30 AM (18:00 to 05:30)
+    // 6:00 PM to 6:30 AM (18:00 to 06:30)
     const startHour = 18; // 6 PM
     const startMinute = 0;
-    const endHour = 5; // 5 AM
-    const endMinute = 30; // 30 minutes past 5 AM
+    const endHour = 6; // 6 AM
+    const endMinute = 30; // 30 minutes past 6 AM
     
     // Check if current time is within the allowed window
     let isWithinWindow = false;
@@ -71,9 +71,9 @@ export const getTimeUntilNextAttendanceAccess = () => {
   const currentMinute = now.getMinutes();
   const currentTimeInMinutes = (currentHour * 60) + currentMinute;
   
-  // If it's currently outside 6:00 PM - 5:30 AM window, next access is today at 6:00 PM or tomorrow
-  if (currentTimeInMinutes < (18 * 60) && currentTimeInMinutes > (5 * 60 + 30)) {
-    // Between 5:31 AM and 5:59 PM today, next access is today at 6:00 PM
+  // If it's currently outside 6:00 PM - 6:30 AM window, next access is today at 6:00 PM or tomorrow
+  if (currentTimeInMinutes < (18 * 60) && currentTimeInMinutes > (6 * 60 + 30)) {
+    // Between 6:31 AM and 5:59 PM today, next access is today at 6:00 PM
     return nextAccess;
   } else {
     // After 6:00 PM today or before 5:30 AM, next access is tomorrow at 6:00 PM
@@ -108,7 +108,7 @@ export const getAttendanceWindowInfo = () => {
   return {
     isAccessible: isWithin,
     currentTime,
-    accessWindow: '6:00 PM - 5:30 AM PKT',
+    accessWindow: '6:00 PM - 6:30 AM PKT',
     message: isWithin 
       ? 'Clock in/Clock out is currently available'
       : 'Clock in/Clock out is currently restricted',
@@ -127,7 +127,7 @@ export const validateAttendanceAction = (action = 'Clock in/Clock out') => {
   if (!isAllowed) {
     return {
       success: false,
-      message: `${action} is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time`,
+      message: `${action} is only allowed between 6:00 PM - 6:30 AM Pakistan Standard Time`,
       ...windowInfo
     };
   }
@@ -162,11 +162,11 @@ export const isApproachingAttendanceWindowEnd = (minutesBeforeEnd = 30) => {
   const currentMinute = now.getMinutes();
   const currentTimeInMinutes = (currentHour * 60) + currentMinute;
   
-  const endTime = (5 * 60) + 30; // 5:30 AM = 330 minutes
+  const endTime = (6 * 60) + 30; // 6:30 AM = 390 minutes
   const warningTime = endTime - minutesBeforeEnd;
   
-  // If we're in the early morning hours (0-5:30), check if we're close to 5:30 AM
-  if (currentHour >= 0 && currentHour <= 5) {
+  // If we're in the early morning hours (0-6:30), check if we're close to 6:30 AM
+  if (currentHour >= 0 && currentHour <= 6) {
     return currentTimeInMinutes >= warningTime && currentTimeInMinutes <= endTime;
   }
   
@@ -179,10 +179,10 @@ export const getAttendanceWindowWarning = (minutesBeforeEnd = 30) => {
   
   const now = getCurrentPKTTime();
   const endTime = new Date(now);
-  endTime.setHours(5, 30, 0, 0);
+  endTime.setHours(6, 30, 0, 0);
   
-  // If it's past midnight, the end time is today at 5:30 AM
-  if (now.getHours() >= 0 && now.getHours() <= 5) {
+  // If it's past midnight, the end time is today at 6:30 AM
+  if (now.getHours() >= 0 && now.getHours() <= 6) {
     // We're already in the correct day
   } else {
     // We're in the previous day, so end time should be tomorrow
@@ -193,7 +193,7 @@ export const getAttendanceWindowWarning = (minutesBeforeEnd = 30) => {
   
   return {
     warning: true,
-    message: `Attendance window closes in ${timeUntilEnd} minutes at 5:30 AM`,
+    message: `Attendance window closes in ${timeUntilEnd} minutes at 6:30 AM`,
     timeRemaining: timeUntilEnd,
     endTime: formatPKTTime(endTime)
   };

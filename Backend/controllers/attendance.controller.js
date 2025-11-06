@@ -44,9 +44,9 @@ export const clockIn = async (req, res) => {
       const timeInfo = getTimeUntilNextAttendanceWindow();
       return res.status(403).json({
         success: false,
-        message: 'Clock in is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time',
+        message: 'Clock in is only allowed between 6:00 PM - 6:30 AM Pakistan Standard Time',
         currentTime: formatPKTTime(getCurrentPKTTime()),
-        allowedWindow: '6:00 PM - 5:30 AM PKT',
+        allowedWindow: '6:00 PM - 6:30 AM PKT',
         nextAvailableTime: timeInfo.nextAccessTime ? formatPKTTime(timeInfo.nextAccessTime) : null,
         error: 'ATTENDANCE_TIME_RESTRICTED'
       });
@@ -70,14 +70,48 @@ export const clockIn = async (req, res) => {
       });
     }
 
-    // Get today's date at midnight UTC
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    // CRITICAL: Get the correct attendance date for night shift
+    // Shift runs 6 PM - 6:30 AM, so the date depends on current time
+    const pktTime = getCurrentPKTTime();
+    const currentHour = pktTime.getHours();
+    
+    let attendanceDate;
+    if (currentHour >= 0 && currentHour < 6) {
+      // It's 12 AM - 5:59 AM: This is part of YESTERDAY's shift
+      // Example: 2 AM on Nov 7 belongs to Nov 6 shift (started 6 PM Nov 6)
+      attendanceDate = new Date(Date.UTC(
+        pktTime.getUTCFullYear(),
+        pktTime.getUTCMonth(),
+        pktTime.getUTCDate() - 1, // Yesterday's date
+        0, 0, 0, 0
+      ));
+    } else if (currentHour >= 6 && currentHour < 18) {
+      // It's 6:00 AM - 5:59 PM: Outside shift window (shouldn't reach here due to time check)
+      return res.status(403).json({
+        success: false,
+        message: 'Clock in is only allowed between 6:00 PM - 6:30 AM'
+      });
+    } else {
+      // It's 6:00 PM - 11:59 PM: This is TODAY's shift
+      // Example: 7 PM on Nov 6 belongs to Nov 6 shift
+      attendanceDate = new Date(Date.UTC(
+        pktTime.getUTCFullYear(),
+        pktTime.getUTCMonth(),
+        pktTime.getUTCDate(), // Today's date
+        0, 0, 0, 0
+      ));
+    }
+
+    console.log(`🔍 Clock In Request:
+      Employee: ${employee.firstName} ${employee.lastName} (${employee.employeeId})
+      PKT Time: ${pktTime.toLocaleString('en-US', {timeZone: 'Asia/Karachi'})}
+      Attendance Date: ${attendanceDate.toISOString().split('T')[0]}
+    `);
 
     // Check if there's an existing attendance record (likely auto-marked as Absent)
     const existingAttendance = await Attendance.findOne({
       employee: employee._id,
-      date: today
+      date: attendanceDate
     });
 
     // If record exists and is auto-marked Absent, update it to Present
@@ -119,11 +153,13 @@ export const clockIn = async (req, res) => {
     // If no record exists, create new one (shouldn't happen if scheduler is working)
     const newAttendance = await Attendance.create({
       employee: employee._id,
-      date: today,
+      date: attendanceDate,
       clockIn: new Date(),
       status: 'Present',
       autoMarked: false
     });
+
+    console.log(`✅ Clock In Success - Created new record for ${employee.employeeId}`);
 
     return res.status(201).json({
       success: true,
@@ -166,9 +202,9 @@ export const clockOut = async (req, res) => {
       const timeInfo = getTimeUntilNextAttendanceWindow();
       return res.status(403).json({
         success: false,
-        message: 'Clock out is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time',
+        message: 'Clock out is only allowed between 6:00 PM - 6:30 AM Pakistan Standard Time',
         currentTime: formatPKTTime(getCurrentPKTTime()),
-        allowedWindow: '6:00 PM - 5:30 AM PKT',
+        allowedWindow: '6:00 PM - 6:30 AM PKT',
         nextAvailableTime: timeInfo.nextAccessTime ? formatPKTTime(timeInfo.nextAccessTime) : null,
         error: 'ATTENDANCE_TIME_RESTRICTED'
       });
@@ -192,14 +228,46 @@ export const clockOut = async (req, res) => {
       });
     }
 
-    // Get today's date at midnight UTC
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    // CRITICAL: Get the correct attendance date for night shift
+    // Must use same logic as clockIn to find the right record
+    const pktTime = getCurrentPKTTime();
+    const currentHour = pktTime.getHours();
+    
+    let attendanceDate;
+    if (currentHour >= 0 && currentHour < 6) {
+      // It's 12 AM - 5:59 AM: This is part of YESTERDAY's shift
+      attendanceDate = new Date(Date.UTC(
+        pktTime.getUTCFullYear(),
+        pktTime.getUTCMonth(),
+        pktTime.getUTCDate() - 1, // Yesterday's date
+        0, 0, 0, 0
+      ));
+    } else if (currentHour >= 6 && currentHour < 18) {
+      // It's 6:00 AM - 5:59 PM: Outside shift window (shouldn't reach here)
+      return res.status(403).json({
+        success: false,
+        message: 'Clock out is only allowed between 6:00 PM - 6:30 AM'
+      });
+    } else {
+      // It's 6:00 PM - 11:59 PM: This is TODAY's shift
+      attendanceDate = new Date(Date.UTC(
+        pktTime.getUTCFullYear(),
+        pktTime.getUTCMonth(),
+        pktTime.getUTCDate(), // Today's date
+        0, 0, 0, 0
+      ));
+    }
+
+    console.log(`🔍 Clock Out Request:
+      Employee: ${employee.firstName} ${employee.lastName} (${employee.employeeId})
+      PKT Time: ${pktTime.toLocaleString('en-US', {timeZone: 'Asia/Karachi'})}
+      Attendance Date: ${attendanceDate.toISOString().split('T')[0]}
+    `);
 
     // Find today's attendance record
     const existingAttendance = await Attendance.findOne({
       employee: employee._id,
-      date: today
+      date: attendanceDate
     });
 
     if (!existingAttendance) {
@@ -243,6 +311,8 @@ export const clockOut = async (req, res) => {
     existingAttendance.clockOut = new Date();
     existingAttendance.notes = existingAttendance.notes ? `${existingAttendance.notes}. Clocked out.` : 'Clocked out.';
     await existingAttendance.save();
+
+    console.log(`✅ Clock Out Success - ${employee.employeeId} clocked out`);
 
     return res.status(200).json({
       success: true,
@@ -761,7 +831,7 @@ export const getAttendanceTimeWindow = async (req, res) => {
       data: {
         isWithinAttendanceWindow: isWithinAttendanceWindow(),
         currentTime: formatPKTTime(currentTime),
-        allowedWindow: '7:00 PM - 5:30 AM PKT',
+        allowedWindow: '6:00 PM - 6:30 AM PKT',
         ...timeInfo
       }
     });

@@ -400,11 +400,13 @@ const AdminAttendance = () => {
             <span>Daily View</span>
           </button>
           <button
-            onClick={() => setActiveTab('monthly')}
-            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'monthly' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
+            disabled
+            className="px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base text-blue-200/30 cursor-not-allowed opacity-50"
+            title="Under Development"
           >
             <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Monthly Payroll</span>
+            <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded">Coming Soon</span>
           </button>
           <button
             onClick={() => setActiveTab('range')}
@@ -564,6 +566,7 @@ const AdminAttendance = () => {
                       />
                     </th>
                   )}
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Date</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Employee ID</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Employee Name</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Department</th>
@@ -581,7 +584,7 @@ const AdminAttendance = () => {
                       <React.Fragment key={dateGroup.date}>
                         {/* Date header row */}
                         <tr className="bg-blue-500/10">
-                          <td colSpan={isBulkEditing ? 8 : 7} className="px-6 py-3">
+                          <td colSpan={isBulkEditing ? 9 : 8} className="px-6 py-3">
                             <div className="flex items-center space-x-2">
                               <Calendar className="w-4 h-4 text-blue-300" />
                               <span className="text-sm font-medium text-blue-200">
@@ -622,6 +625,13 @@ const AdminAttendance = () => {
                                   />
                                 </td>
                               )}
+                              <td className="px-6 py-4 text-sm text-blue-100 font-medium">
+                                {new Date(record.date).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric', 
+                                  year: 'numeric' 
+                                })}
+                              </td>
                               <td className="px-6 py-4 text-sm text-blue-100">
                                 {record.employee?.employeeId || 'N/A'}
                               </td>
@@ -692,7 +702,7 @@ const AdminAttendance = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={isBulkEditing ? 8 : 7} className="px-6 py-4 text-center text-blue-200/70">
+                      <td colSpan={isBulkEditing ? 9 : 8} className="px-6 py-4 text-center text-blue-200/70">
                         No attendance records found
                       </td>
                     </tr>
@@ -712,6 +722,13 @@ const AdminAttendance = () => {
                             />
                           </td>
                         )}
+                        <td className="px-6 py-4 text-sm text-blue-100 font-medium">
+                          {new Date(record.date).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                          })}
+                        </td>
                         <td className="px-6 py-4 text-sm text-blue-100">
                           {record.employee?.employeeId || 'N/A'}
                         </td>
@@ -780,7 +797,7 @@ const AdminAttendance = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={isBulkEditing ? 8 : 7} className="px-6 py-4 text-center text-blue-200/70">
+                      <td colSpan={isBulkEditing ? 9 : 8} className="px-6 py-4 text-center text-blue-200/70">
                         {attendance.length === 0 ? 'No attendance records found' : 'No records match your filters'}
                       </td>
                     </tr>

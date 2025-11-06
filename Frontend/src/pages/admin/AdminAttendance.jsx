@@ -47,8 +47,30 @@ const AdminAttendance = () => {
     'Half-day': 0,
     totalEmployees: 0
   });
+  const [monthlyPayrollCycle, setMonthlyPayrollCycle] = useState('');
 
   const navigate = useNavigate();
+
+  // Generate monthly payroll cycle options (10th to 10th)
+  const getPayrollCycles = () => {
+    const cycles = [];
+    const currentDate = new Date();
+    
+    // Generate last 12 months of payroll cycles
+    for (let i = 0; i < 12; i++) {
+      const cycleEndDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 10);
+      const cycleStartDate = new Date(cycleEndDate);
+      cycleStartDate.setMonth(cycleStartDate.getMonth() - 1);
+      cycleStartDate.setDate(10);
+      
+      const label = `${cycleStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${cycleEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+      const value = `${cycleStartDate.toISOString().split('T')[0]}_${cycleEndDate.toISOString().split('T')[0]}`;
+      
+      cycles.push({ label, value, startDate: cycleStartDate, endDate: cycleEndDate });
+    }
+    
+    return cycles;
+  };
 
   // Core fetch attendance function
   const fetchAttendanceData = async () => {
@@ -62,6 +84,13 @@ const AdminAttendance = () => {
       
       if (activeTab === 'daily') {
         params.append('date', selectedDate.toISOString().split('T')[0]);
+      } else if (activeTab === 'monthly') {
+        // Handle monthly payroll cycle
+        if (monthlyPayrollCycle) {
+          const [start, end] = monthlyPayrollCycle.split('_');
+          params.append('startDate', start);
+          params.append('endDate', end);
+        }
       } else {
         params.append('startDate', startDate.toISOString().split('T')[0]);
         params.append('endDate', endDate.toISOString().split('T')[0]);
@@ -81,6 +110,12 @@ const AdminAttendance = () => {
       const summaryParams = new URLSearchParams();
       if (activeTab === 'daily') {
         summaryParams.append('date', selectedDate.toISOString().split('T')[0]);
+      } else if (activeTab === 'monthly') {
+        if (monthlyPayrollCycle) {
+          const [start, end] = monthlyPayrollCycle.split('_');
+          summaryParams.append('startDate', start);
+          summaryParams.append('endDate', end);
+        }
       } else {
         summaryParams.append('startDate', startDate.toISOString().split('T')[0]);
         summaryParams.append('endDate', endDate.toISOString().split('T')[0]);
@@ -135,7 +170,7 @@ const AdminAttendance = () => {
   useEffect(() => {
     fetchUser();
     fetchAttendanceData();
-  }, [activeTab, selectedDate, startDate, endDate, departmentFilter, statusFilter]);
+  }, [activeTab, selectedDate, startDate, endDate, departmentFilter, statusFilter, monthlyPayrollCycle]);
 
   const handleLogout = async () => {
     try {
@@ -250,7 +285,18 @@ const AdminAttendance = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `attendance_${activeTab === 'daily' ? selectedDate.toISOString().split('T')[0] : `${startDate.toISOString().split('T')[0]}_to_${endDate.toISOString().split('T')[0]}`}.csv`);
+    
+    let filename;
+    if (activeTab === 'daily') {
+      filename = `attendance_${selectedDate.toISOString().split('T')[0]}.csv`;
+    } else if (activeTab === 'monthly' && monthlyPayrollCycle) {
+      const [start, end] = monthlyPayrollCycle.split('_');
+      filename = `attendance_payroll_${start}_to_${end}.csv`;
+    } else {
+      filename = `attendance_${startDate.toISOString().split('T')[0]}_to_${endDate.toISOString().split('T')[0]}.csv`;
+    }
+    
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -354,6 +400,13 @@ const AdminAttendance = () => {
             <span>Daily View</span>
           </button>
           <button
+            onClick={() => setActiveTab('monthly')}
+            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'monthly' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
+          >
+            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>Monthly Payroll</span>
+          </button>
+          <button
             onClick={() => setActiveTab('range')}
             className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'range' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
           >
@@ -372,6 +425,22 @@ const AdminAttendance = () => {
                 onChange={(date) => setSelectedDate(date)}
                 className="bg-white/5 border border-white/10 rounded-lg py-2 px-3 sm:px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm sm:text-base w-full sm:w-auto"
               />
+            </div>
+          ) : activeTab === 'monthly' ? (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
+              <label className="text-sm text-blue-200/80 whitespace-nowrap">Payroll Cycle (10th to 10th):</label>
+              <select
+                value={monthlyPayrollCycle}
+                onChange={(e) => setMonthlyPayrollCycle(e.target.value)}
+                className="admin-attendance-select bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 w-full sm:w-auto min-w-[280px]"
+              >
+                <option value="">Select a payroll cycle...</option>
+                {getPayrollCycles().map((cycle) => (
+                  <option key={cycle.value} value={cycle.value}>
+                    {cycle.label}
+                  </option>
+                ))}
+              </select>
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full lg:w-auto">

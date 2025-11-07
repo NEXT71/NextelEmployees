@@ -618,7 +618,7 @@ export const getAdminAttendance = async (req, res) => {
 export const updateAdminAttendance = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, clockIn } = req.body;
+    const { status, clockIn, clockOut } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -628,8 +628,26 @@ export const updateAdminAttendance = async (req, res) => {
     }
 
     const updates = {};
-    if (status) updates.status = status;
-    if (clockIn) updates.clockIn = new Date(clockIn);
+    
+    // If status is being changed to Absent, clear clock-in and clock-out times
+    if (status) {
+      updates.status = status;
+      
+      if (status === 'Absent') {
+        updates.clockIn = null;
+        updates.clockOut = null;
+        console.log(`📝 Admin changed status to Absent for attendance ${id} - clearing clock times`);
+      }
+    }
+    
+    // Only update clock times if status is NOT Absent
+    if (clockIn && updates.status !== 'Absent') {
+      updates.clockIn = new Date(clockIn);
+    }
+    
+    if (clockOut && updates.status !== 'Absent') {
+      updates.clockOut = new Date(clockOut);
+    }
 
     const attendance = await Attendance.findByIdAndUpdate(
       id,
@@ -673,17 +691,31 @@ export const bulkUpdateAdminAttendance = async (req, res) => {
       });
     }
 
-    const bulkOps = updates.map(update => ({
-      updateOne: {
-        filter: { _id: update.id },
-        update: {
-          $set: {
-            status: update.status,
-            ...(update.clockIn && { clockIn: new Date(update.clockIn) })
-          }
+    const bulkOps = updates.map(update => {
+      const updateFields = { status: update.status };
+      
+      // If status is Absent, clear clock-in and clock-out times
+      if (update.status === 'Absent') {
+        updateFields.clockIn = null;
+        updateFields.clockOut = null;
+        console.log(`📝 Bulk update: Setting status to Absent for record ${update.id} - clearing clock times`);
+      } else {
+        // Only set clock times if status is NOT Absent
+        if (update.clockIn) {
+          updateFields.clockIn = new Date(update.clockIn);
+        }
+        if (update.clockOut) {
+          updateFields.clockOut = new Date(update.clockOut);
         }
       }
-    }));
+      
+      return {
+        updateOne: {
+          filter: { _id: update.id },
+          update: { $set: updateFields }
+        }
+      };
+    });
 
     const result = await Attendance.bulkWrite(bulkOps);
 

@@ -19,12 +19,13 @@ const attendanceTimeAccessControl = (req, res, next) => {
     // Convert current time to minutes since midnight for easier comparison
     const currentTimeInMinutes = (currentHour * 60) + currentMinute;
     
-    // Define attendance access window: 6:00 PM to 6:30 AM
+    // Define attendance access window: 6:00 PM to 6:00 AM (changed from 6:30 AM to prevent edge case)
+    // This prevents employees from clocking in close to shift end and being auto-clocked out immediately
     const startTime = (18 * 60); // 6:00 PM = 18:00 = 1080 minutes
-    const endTime = (6 * 60) + 30; // 6:30 AM = 06:30 = 390 minutes
+    const endTime = (6 * 60); // 6:00 AM = 06:00 = 360 minutes (changed from 6:30 to close at 6:00 AM)
     
     // Check if current time is within allowed window
-    // Since the window crosses midnight (6:00 PM to 5:30 AM), we need special logic
+    // Since the window crosses midnight (6:00 PM to 6:00 AM), we need special logic
     let isWithinAttendanceWindow = false;
     
     if (startTime > endTime) {
@@ -61,9 +62,9 @@ const attendanceTimeAccessControl = (req, res, next) => {
       
       return res.status(403).json({
         success: false,
-        message: 'Clock in/Clock out is only allowed between 6:00 PM - 6:30 AM Pakistan Standard Time',
+        message: 'Clock in/Clock out is only allowed between 6:00 PM - 6:00 AM Pakistan Standard Time',
         currentTime: currentTimeFormatted,
-        allowedWindow: '6:00 PM - 6:30 AM PKT',
+        allowedWindow: '6:00 PM - 6:00 AM PKT',
         nextAvailableTime: `${nextTimeFormatted} on ${nextDateFormatted}`,
         error: 'ATTENDANCE_TIME_RESTRICTED'
       });
@@ -94,7 +95,7 @@ const isWithinAttendanceWindow = () => {
     const currentTimeInMinutes = (currentHour * 60) + currentMinute;
     
     const startTime = (18 * 60); // 6:00 PM
-    const endTime = (6 * 60) + 30; // 6:30 AM
+    const endTime = (6 * 60); // 6:00 AM (changed from 6:30 AM)
     
     if (startTime > endTime) {
       return (currentTimeInMinutes >= startTime) || (currentTimeInMinutes <= endTime);

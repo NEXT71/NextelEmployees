@@ -11,11 +11,12 @@ export const markAbsentEmployees = async () => {
   try {
     console.log('🔄 Running auto-absence marking job...');
     
-    // Get current date in Pakistan Time and set to beginning of shift day
+    // Get current time in Pakistan Time using UTC offset (PKT is UTC+5)
     const now = new Date();
-    const pktTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Karachi"}));
+    const pktOffset = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
+    const pktTime = new Date(now.getTime() + pktOffset);
     
-    // For night shift (6 PM - 6:30 AM), the "attendance day" starts at 6 PM
+    // For night shift (6 PM - 6:00 AM), the "attendance day" starts at 6 PM
     // Set date to today at midnight for consistency
     const attendanceDate = new Date(Date.UTC(
       pktTime.getUTCFullYear(), 
@@ -25,16 +26,20 @@ export const markAbsentEmployees = async () => {
     ));
     
     console.log(`📅 Creating absence records for date: ${attendanceDate.toISOString()}`);
-    console.log(`⏰ Current PKT Time: ${pktTime.toLocaleString()}`);
+    console.log(`⏰ Current PKT Time: ${pktTime.toISOString()} (UTC+5)`);
     
     // Get all active employees and populate user to check role
     const allEmployees = await Employee.find({ status: 'Active' }).populate('user', 'role');
     console.log(`👥 Found ${allEmployees.length} active employees`);
     
-    // Filter out admin users from attendance tracking
-    const nonAdminEmployees = allEmployees.filter(emp => 
-      !emp.user || emp.user.role !== 'admin'
-    );
+    // Filter out admin users and employees without user accounts from attendance tracking
+    const nonAdminEmployees = allEmployees.filter(emp => {
+      if (!emp.user) {
+        console.warn(`⚠️ Employee ${emp.employeeId} (${emp.firstName} ${emp.lastName}) has no linked user account - excluding from attendance`);
+        return false; // Exclude employees without user accounts
+      }
+      return emp.user.role !== 'admin';
+    });
     
     console.log(`👤 Filtered to ${nonAdminEmployees.length} non-admin employees`);
     
@@ -74,6 +79,10 @@ export const markAbsentEmployees = async () => {
     
     // Create absent records for employees without records
     const absentRecords = [];
+    let successCount = 0;
+    let duplicateCount = 0;
+    let errorCount = 0;
+    
     for (const employee of employeesWithoutRecords) {
       try {
         const record = await Attendance.create({
@@ -86,20 +95,30 @@ export const markAbsentEmployees = async () => {
           notes: 'Auto-marked absent at shift start (6:00 PM PKT)'
         });
         absentRecords.push(record);
+        successCount++;
         console.log(`✅ Marked absent: ${employee.firstName} ${employee.lastName} (${employee.employeeId})`);
       } catch (err) {
-        console.error(`❌ Error marking absent for ${employee.employeeId}:`, err.message);
+        // Check if it's a duplicate key error (E11000)
+        if (err.code === 11000) {
+          duplicateCount++;
+          console.warn(`⚠️ Duplicate record skipped for ${employee.employeeId}: Record already exists`);
+        } else {
+          errorCount++;
+          console.error(`❌ Error marking absent for ${employee.employeeId}:`, err.message);
+        }
       }
     }
     
-    console.log(`✅ Successfully marked ${absentRecords.length} non-admin employees as absent`);
+    console.log(`✅ Absence marking complete: ${successCount} created, ${duplicateCount} duplicates skipped, ${errorCount} errors`);
     
     return { 
       success: true, 
       count: absentRecords.length,
       totalEmployees: nonAdminEmployees.length,
       withRecords: employeesWithRecords.size,
-      newAbsenceRecords: absentRecords.length,
+      newAbsenceRecords: successCount,
+      duplicatesSkipped: duplicateCount,
+      errors: errorCount,
       date: attendanceDate
     };
     
@@ -119,9 +138,11 @@ export const finalizeAttendance = async () => {
   try {
     console.log('🔄 Running attendance finalization job at shift end (6:30 AM PKT)...');
     
+    // Get current time in Pakistan Time using UTC offset (PKT is UTC+5)
     const now = new Date();
-    const pktTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Karachi"}));
-    console.log(`⏰ Current PKT Time: ${pktTime.toLocaleString()}`);
+    const pktOffset = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
+    const pktTime = new Date(now.getTime() + pktOffset);
+    console.log(`⏰ Current PKT Time: ${pktTime.toISOString()} (UTC+5)`);
     
     // IMPORTANT: At 6:30 AM, we're finalizing TODAY's shift (which started yesterday at 6 PM)
     // The shift that's ending is the one that started yesterday at 6 PM
@@ -151,19 +172,60 @@ export const finalizeAttendance = async () => {
       console.log(`🔄 Auto-clocking out ${stillClockedIn.length} employees who forgot to clock out`);
       console.log(`⚠️ These employees clocked in during the shift but never clocked out`);
       
+      let successCount = 0;
+      let skippedCount = 0;
+      const minWorkTime = 30 * 60 * 1000; // 30 minutes minimum work time
+      
       for (const record of stillClockedIn) {
-        // Set clock-out to 6:30 AM today (end of current shift window)
-        const autoClockOut = new Date(pktTime);
-        autoClockOut.setHours(6, 30, 0, 0);
-        
-        record.clockOut = autoClockOut;
-        record.notes = (record.notes || '') + ' [Auto-clocked out at 6:30 AM - shift end, forgot to clock out]';
-        await record.save();
-        
-        console.log(`✅ Auto-clocked out: ${record.employee.firstName} ${record.employee.lastName} (${record.employee.employeeId})`);
-        console.log(`   Clock In: ${record.clockIn.toLocaleString('en-US', {timeZone: 'Asia/Karachi'})}`);
-        console.log(`   Clock Out: ${record.clockOut.toLocaleString('en-US', {timeZone: 'Asia/Karachi'})}`);
+        try {
+          // Set clock-out to 6:30 AM today in PKT (end of current shift window)
+          // Create a proper UTC date that represents 6:30 AM PKT
+          const now = new Date();
+          const pktOffset = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
+          const pktNow = new Date(now.getTime() + pktOffset);
+          
+          // Create clock-out time: 6:30 AM PKT today
+          // PKT is UTC+5, so 6:30 AM PKT = 1:30 AM UTC
+          const targetHour = 6;
+          const targetMinute = 30;
+          const pktOffsetHours = 5;
+          
+          const autoClockOut = new Date(Date.UTC(
+            pktNow.getUTCFullYear(),
+            pktNow.getUTCMonth(),
+            pktNow.getUTCDate(),
+            targetHour - pktOffsetHours,  // 6 - 5 = 1 AM UTC
+            targetMinute,
+            0, 0
+          ));
+          
+          // CRITICAL: Check if employee clocked in too recently (edge case protection)
+          const timeSinceClockIn = autoClockOut - new Date(record.clockIn);
+          
+          if (timeSinceClockIn < minWorkTime) {
+            console.log(`⚠️ Skipping auto clock-out for ${record.employee.firstName} ${record.employee.lastName} (${record.employee.employeeId})`);
+            console.log(`   Reason: Clocked in too recently (${Math.round(timeSinceClockIn / 60000)} minutes ago)`);
+            console.log(`   Minimum work time: ${minWorkTime / 60000} minutes`);
+            skippedCount++;
+            continue;
+          }
+          
+          record.clockOut = autoClockOut;
+          record.notes = (record.notes || '') + ' [Auto-clocked out at 6:30 AM PKT - shift end, forgot to clock out]';
+          await record.save();
+          
+          successCount++;
+          console.log(`✅ Auto-clocked out: ${record.employee.firstName} ${record.employee.lastName} (${record.employee.employeeId})`);
+          console.log(`   Clock In (UTC): ${record.clockIn.toISOString()}`);
+          console.log(`   Clock Out (UTC): ${record.clockOut.toISOString()}`);
+          console.log(`   Work Duration: ${Math.round(timeSinceClockIn / 60000)} minutes`);
+        } catch (err) {
+          console.error(`❌ Failed to auto clock-out ${record.employee?.employeeId || 'unknown'}:`, err.message);
+          // Continue with next record despite error
+        }
       }
+      
+      console.log(`📊 Auto clock-out summary: ${successCount} successful, ${skippedCount} skipped, ${stillClockedIn.length - successCount - skippedCount} failed`);
     } else {
       console.log('✅ All employees properly clocked out - no auto clock-outs needed');
     }

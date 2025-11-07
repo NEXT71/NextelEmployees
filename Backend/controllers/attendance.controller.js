@@ -44,9 +44,9 @@ export const clockIn = async (req, res) => {
       const timeInfo = getTimeUntilNextAttendanceWindow();
       return res.status(403).json({
         success: false,
-        message: 'Clock in is only allowed between 6:00 PM - 6:30 AM Pakistan Standard Time',
+        message: 'Clock in is only allowed between 6:00 PM - 6:00 AM Pakistan Standard Time',
         currentTime: formatPKTTime(getCurrentPKTTime()),
-        allowedWindow: '6:00 PM - 6:30 AM PKT',
+        allowedWindow: '6:00 PM - 6:00 AM PKT',
         nextAvailableTime: timeInfo.nextAccessTime ? formatPKTTime(timeInfo.nextAccessTime) : null,
         error: 'ATTENDANCE_TIME_RESTRICTED'
       });
@@ -71,7 +71,7 @@ export const clockIn = async (req, res) => {
     }
 
     // CRITICAL: Get the correct attendance date for night shift
-    // Shift runs 6 PM - 6:30 AM, so the date depends on current time
+    // Shift runs 6 PM - 6:00 AM, so the date depends on current time
     const pktTime = getCurrentPKTTime();
     const currentHour = pktTime.getHours();
     
@@ -202,9 +202,9 @@ export const clockOut = async (req, res) => {
       const timeInfo = getTimeUntilNextAttendanceWindow();
       return res.status(403).json({
         success: false,
-        message: 'Clock out is only allowed between 6:00 PM - 6:30 AM Pakistan Standard Time',
+        message: 'Clock out is only allowed between 6:00 PM - 6:00 AM Pakistan Standard Time',
         currentTime: formatPKTTime(getCurrentPKTTime()),
-        allowedWindow: '6:00 PM - 6:30 AM PKT',
+        allowedWindow: '6:00 PM - 6:00 AM PKT',
         nextAvailableTime: timeInfo.nextAccessTime ? formatPKTTime(timeInfo.nextAccessTime) : null,
         error: 'ATTENDANCE_TIME_RESTRICTED'
       });

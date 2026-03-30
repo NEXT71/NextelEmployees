@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import AdminHeader from '../../components/common/AdminHeader';
 import { salaryAPI } from '../../utils/api';
-import { useAuth } from '../../contexts/AuthContext';
-import { Download, Loader, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
+import { Download, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 
 const EmployeeSalarySlips = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
   
   const [salarySlips, setSalarySlips] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -75,9 +75,6 @@ const AdminDashboard = () => {
     }
   });
 
-  const navigate = useNavigate();
-  const { user } = useAuth();
-
   // Calculate summary from current data
   const calculateSummary = useCallback((empList, fineList) => {
     const employeesCount = empList.length;

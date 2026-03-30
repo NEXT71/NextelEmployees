@@ -2,10 +2,13 @@
 // Allows access only from specified IP address(es)
 // Supports single IP or comma-separated list: "182.189.117.252,10.228.27.34"
 // EXCLUDES: health check and public endpoints
+// To disable: Leave ALLOWED_IP empty in .env
 
-const ALLOWED_IPS = (process.env.ALLOWED_IP || '182.189.117.252')
-  .split(',')
-  .map(ip => ip.trim());
+const ALLOWED_IPS = process.env.ALLOWED_IP
+  ? process.env.ALLOWED_IP.split(',').map(ip => ip.trim())
+  : []; // Empty array = IP restriction disabled
+
+const IP_RESTRICTION_ENABLED = ALLOWED_IPS.length > 0;
 
 // Endpoints that bypass IP restriction
 const EXEMPT_ENDPOINTS = [
@@ -14,6 +17,12 @@ const EXEMPT_ENDPOINTS = [
 ];
 
 export const ipRestriction = (req, res, next) => {
+  // If IP restriction is disabled, skip check
+  if (!IP_RESTRICTION_ENABLED) {
+    console.log(`⚪ [IP Restriction] DISABLED - All IPs allowed`);
+    return next();
+  }
+
   // Skip IP restriction for exempt endpoints
   if (EXEMPT_ENDPOINTS.some(endpoint => req.path === endpoint || req.path.startsWith(endpoint))) {
     console.log(`✅ [IP Restriction] Endpoint ${req.path} exempted from IP check`);

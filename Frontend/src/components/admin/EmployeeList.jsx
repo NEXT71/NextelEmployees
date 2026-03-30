@@ -7,6 +7,7 @@ const EmployeeList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [showActions, setShowActions] = useState(null);
 
   const fetchEmployees = useCallback(async () => {

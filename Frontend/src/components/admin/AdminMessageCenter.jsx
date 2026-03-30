@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   MessageSquare, X, CheckCircle, 
   Send, RefreshCw, User, Calendar,
-  AlertTriangle, MessageCircle
+  AlertTriangle, MessageCircle, Filter
 } from 'lucide-react';
 import { messageAPI } from '../../utils/api';
 

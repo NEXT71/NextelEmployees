@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Send, MessageCircle, X, AlertCircle, CheckCircle, 
-  MessageSquare, RefreshCw
+  Clock, MessageSquare, RefreshCw
 } from 'lucide-react';
 import { messageAPI } from '../../utils/api';
 

@@ -18,6 +18,7 @@ const AdminDashboard = () => {
   const [user, setUser] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [fines, setFines] = useState([]);
+  const [salaries, setSalaries] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('employees');

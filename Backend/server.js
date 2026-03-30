@@ -6,6 +6,7 @@ import compression from 'compression';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import errorHandler from './middlewares/errorHandler.js';
+import { ipRestriction } from './middlewares/ipRestriction.js';
 import authRouter from './routes/auth.routes.js';
 import employeeRouter from './routes/employee.routes.js';
 import attendanceRouter from './routes/attendance.routes.js';
@@ -20,6 +21,9 @@ const app = express();
 
 // Trust proxy for rate limiting (required for cloud deployments like Render)
 app.set('trust proxy', 1);
+
+// IP Restriction middleware - must be applied early
+app.use(ipRestriction);
 
 // Security middleware
 app.use(helmet({

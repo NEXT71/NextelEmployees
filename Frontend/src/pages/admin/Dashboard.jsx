@@ -14,6 +14,7 @@ import {
   User as UserIcon, Home, Phone, Mail, MessageSquare,
   RefreshCw, Download, UserCheck
 } from 'lucide-react';
+import { authAPI } from '../../utils/api';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();

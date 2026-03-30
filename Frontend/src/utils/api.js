@@ -169,9 +169,6 @@ export const authAPI = {
 
   // User login
   login: async (credentials) => {
-    // Clear cache immediately to prevent old token's /me request from surviving
-    apiCache.clear();
-    
     const response = await apiRequest('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),

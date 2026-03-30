@@ -1,16 +1,16 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';
 import AdminMessageCenter from '../../components/admin/AdminMessageCenter';
 import BulkFineModal from '../../components/admin/BulkFineModal';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
-import { authAPI, employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
+import { authAPI, employeeAPI, fineAPI, salaryAPI, messageAPI } from '../../utils/api';
 import { 
-  Users, CheckCircle, AlertTriangle, 
-  X, Edit, Trash2, AlertCircle,
-  Filter, Search, DollarSign, Calendar,
-  User as UserIcon, Home, Phone, Mail, MessageSquare,
+  Users, CheckCircle, XCircle, AlertTriangle, 
+  X, UserPlus, Edit, Trash2, AlertCircle,
+  Filter, Search, List, DollarSign, Clock, Calendar,
+  ChevronDown, ChevronUp, User as UserIcon, Home, Phone, Mail, MessageSquare,
   RefreshCw, Download, UserCheck
 } from 'lucide-react';
 
@@ -18,6 +18,7 @@ const AdminDashboard = () => {
   const [user, setUser] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [fines, setFines] = useState([]);
+  const [salaries, setSalaries] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('employees');
@@ -37,6 +38,7 @@ const AdminDashboard = () => {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [fineFilter, setFineFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -75,7 +77,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
 
   // Refresh summary stats
-  const refreshSummary = useCallback(async () => {
+  const refreshSummary = async () => {
     try {
       const summaryResponse = await fineAPI.getEmployeeSummary();
       setSummary(summaryResponse.data || {});
@@ -93,7 +95,7 @@ const AdminDashboard = () => {
         totalFineAmount
       });
     }
-  }, [employees, fines]);
+  };
 
   // Refresh all dashboard data
   const refreshDashboard = async () => {
@@ -211,7 +213,7 @@ const AdminDashboard = () => {
       }
     };
     fetchData();
-  }, [navigate, activeTab, refreshSummary]);
+  }, [navigate, activeTab]);
 
   const handleLogout = async () => {
     try {

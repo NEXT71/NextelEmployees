@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   CheckCircle, XCircle, DollarSign, Calendar,
-  Mail, AlertTriangle, X, ChevronDown, ChevronUp, AlertCircle, RefreshCw, MessageCircle
+  User, Mail, AlertTriangle, X, ChevronDown, ChevronUp, Home, AlertCircle, RefreshCw, MessageCircle
 } from 'lucide-react';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import AttendanceTimeStatus from '../../components/common/AttendanceTimeStatus';
 import MessageCenter from '../../components/common/MessageCenter';
-import { authAPI, employeeAPI, attendanceAPI, fineAPI, isAuthenticated, clearAuth } from '../../utils/api';
+import { authAPI, employeeAPI, attendanceAPI, fineAPI, messageAPI, isAuthenticated, clearAuth } from '../../utils/api';
 import { isWithinAttendanceWindow } from '../../utils/attendanceTimeAccess';
 
 const EmployeeDashboard = () => {

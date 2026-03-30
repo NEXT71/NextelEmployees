@@ -94,15 +94,28 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-// Health check route
+// Health check route - must respond quickly for Render deployment
 app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    message: 'Nextel Employees API is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    uptime: process.uptime()
-  });
+  try {
+    // Check database connection state
+    const dbConnected = mongoose.connection.readyState === 1; // 1 = connected
+    
+    res.status(dbConnected ? 200 : 503).json({
+      status: dbConnected ? 'OK' : 'DEGRADED',
+      message: 'Nextel Employees API',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      uptime: process.uptime(),
+      database: dbConnected ? 'Connected' : 'Connecting...',
+      dbState: mongoose.connection.readyState
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'ERROR',
+      message: 'Health check failed',
+      error: error.message
+    });
+  }
 });
 
 // Basic API info route

@@ -1,12 +1,25 @@
 // IP Restriction Middleware
 // Allows access only from specified IP address(es)
 // Supports single IP or comma-separated list: "182.189.117.252,10.228.27.34"
+// EXCLUDES: health check and public endpoints
 
 const ALLOWED_IPS = (process.env.ALLOWED_IP || '182.189.117.252')
   .split(',')
   .map(ip => ip.trim());
 
+// Endpoints that bypass IP restriction
+const EXEMPT_ENDPOINTS = [
+  '/health',
+  '/health/',
+];
+
 export const ipRestriction = (req, res, next) => {
+  // Skip IP restriction for exempt endpoints
+  if (EXEMPT_ENDPOINTS.some(endpoint => req.path === endpoint || req.path.startsWith(endpoint))) {
+    console.log(`✅ [IP Restriction] Endpoint ${req.path} exempted from IP check`);
+    return next();
+  }
+
   // Get client IP from various headers
   // This handles proxies and cloud deployments
   const clientIp = 

@@ -13,7 +13,6 @@ export const isWithinAttendanceWindow = () => {
     
     // 6:00 PM to 6:30 AM (18:00 to 06:30)
     const startHour = 18; // 6 PM
-    const startMinute = 0;
     const endHour = 6; // 6 AM
     const endMinute = 30; // 30 minutes past 6 AM
     

@@ -43,8 +43,10 @@ const attendanceSchema = new mongoose.Schema({
   toJSON: { getters: true }
 });
 
-// Add compound index
+// Add compound indexes for optimal query performance
 attendanceSchema.index({ employee: 1, date: 1 }, { unique: true });
+attendanceSchema.index({ date: 1, status: 1 }); // For date range + status queries
+attendanceSchema.index({ employee: 1, date: -1 }); // For employee history queries
 
 const Attendance = mongoose.model('Attendance', attendanceSchema);
 

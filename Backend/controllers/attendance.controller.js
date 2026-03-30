@@ -407,7 +407,7 @@ const userId = req.user?._id || req.user?.userId;
 };
 export const getAdminAttendance = async (req, res) => {
   try {
-    const { date, startDate, endDate, department, status } = req.query;
+    const { date, startDate, endDate, department, status, page = 1, limit = 100 } = req.query;
     const query = {};
 
     let selectedDate;
@@ -464,13 +464,25 @@ export const getAdminAttendance = async (req, res) => {
     
     console.log('📊 Query employee IDs:', nonAdminEmployeeIds.length);
 
+    // Get total count for pagination
+    const totalCount = await Attendance.countDocuments(query);
+
+    // For date range queries, add pagination to limit data size
+    let skip = 0;
+    let pageLimit = parseInt(limit) || 100;
+    if (isDateRange) {
+      skip = (parseInt(page) - 1) * pageLimit;
+    }
+
     let attendance = await Attendance.find(query)
       .populate({
         path: 'employee',
         select: 'firstName lastName employeeId department',
         model: 'Employee'
       })
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .skip(isDateRange ? skip : 0)
+      .limit(isDateRange ? pageLimit : 0);
 
     // If we're fetching for a specific date, ensure all employees have records
     if (selectedDate && !isDateRange) {
@@ -513,8 +525,9 @@ export const getAdminAttendance = async (req, res) => {
 
     // For date range queries, group by date
     let responseData;
+    let paginationInfo = null;
     if (isDateRange) {
-      // Group attendance records by date
+      // Group attendance records by date (DO NOT auto-create missing records to avoid performance issues)
       const groupedByDate = {};
       
       attendance.forEach(record => {
@@ -525,62 +538,6 @@ export const getAdminAttendance = async (req, res) => {
         groupedByDate[dateKey].push(record);
       });
 
-      // Ensure all dates in the range have records for all employees
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dateKey = d.toISOString().split('T')[0];
-        
-        if (!groupedByDate[dateKey]) {
-          groupedByDate[dateKey] = [];
-        }
-        
-        // Check which employees don't have records for this date
-        const employeesWithRecords = new Set(groupedByDate[dateKey].map(record => record.employee._id.toString()));
-        const employeesWithoutRecords = nonAdminEmployees.filter(
-          emp => !employeesWithRecords.has(emp._id.toString())
-        );
-        
-        // Create absent records for missing employees
-        if (employeesWithoutRecords.length > 0) {
-          console.log(`📝 Creating absent records for ${employeesWithoutRecords.length} employees on ${dateKey}`);
-          
-          for (const employee of employeesWithoutRecords) {
-            try {
-              const record = await Attendance.create({
-                employee: employee._id,
-                date: d,
-                status: 'Absent',
-                clockIn: null,
-                clockOut: null,
-                autoMarked: true,
-                notes: 'Auto-marked absent for date range view'
-              });
-              
-              // Add the populated record to the group
-              const populatedRecord = await Attendance.findById(record._id)
-                .populate({
-                  path: 'employee',
-                  select: 'firstName lastName employeeId department',
-                  model: 'Employee'
-                });
-              
-              groupedByDate[dateKey].push(populatedRecord);
-            } catch (err) {
-              console.error(`❌ Error creating absent record for ${employee.employeeId} on ${dateKey}:`, err.message);
-            }
-          }
-        }
-        
-        // Sort records within each date by employee name
-        groupedByDate[dateKey].sort((a, b) => {
-          const nameA = `${a.employee?.firstName || ''} ${a.employee?.lastName || ''}`.trim();
-          const nameB = `${b.employee?.firstName || ''} ${b.employee?.lastName || ''}`.trim();
-          return nameA.localeCompare(nameB);
-        });
-      }
-      
       // Convert to array format sorted by date (newest first)
       responseData = Object.keys(groupedByDate)
         .sort((a, b) => new Date(b) - new Date(a))
@@ -588,6 +545,14 @@ export const getAdminAttendance = async (req, res) => {
           date: dateKey,
           records: groupedByDate[dateKey]
         }));
+
+      // Add pagination info
+      paginationInfo = {
+        total: totalCount,
+        page: parseInt(page) || 1,
+        limit: pageLimit,
+        pages: Math.ceil(totalCount / pageLimit)
+      };
       
     } else {
       // For single date queries, return flat array
@@ -604,7 +569,8 @@ export const getAdminAttendance = async (req, res) => {
         responseData.reduce((total, group) => total + group.records.length, 0) : 
         attendance.length,
       data: responseData,
-      isDateRange
+      isDateRange,
+      ...(paginationInfo && { pagination: paginationInfo })
     });
   } catch (error) {
     console.error('AdminGetAttendance Error:', error);

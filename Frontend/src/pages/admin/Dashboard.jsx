@@ -203,7 +203,7 @@ const AdminDashboard = () => {
       }
     };
     fetchData();
-  }, [navigate, activeTab]);
+  }, [activeTab]);
 
   const handleLogout = async () => {
     try {

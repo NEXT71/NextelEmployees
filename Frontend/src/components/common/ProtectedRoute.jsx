@@ -43,7 +43,7 @@ const ProtectedRoute = ({ children, adminOnly }) => {
     };
 
     checkAuth();
-  }, [adminOnly]);
+  }, [navigate, adminOnly]);
 
   if (isChecking) {
     return (

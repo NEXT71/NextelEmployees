@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "env": {
-    "CI": "false"
-  },
   "builds": [
     {
       "src": "Frontend/package.json",

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Search, Users, Filter, MoreVertical, UserCheck, UserX, Edit3, Eye, Calendar } from 'lucide-react';
+import { Search, Users, Filter, MoreVertical, UserCheck, UserX, Calendar } from 'lucide-react';
 import { employeeAPI } from '../../utils/api';
 
 const EmployeeList = () => {
@@ -7,7 +7,6 @@ const EmployeeList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
   const [showActions, setShowActions] = useState(null);
 
   const fetchEmployees = useCallback(async () => {
@@ -25,19 +24,6 @@ const EmployeeList = () => {
   // Fetch employees on component mount
   React.useEffect(() => {
     fetchEmployees();
-  }, [fetchEmployees]);
-
-  const handleStatusToggle = useCallback(async (employeeId, currentStatus) => {
-    try {
-      await employeeAPI.updateEmployee(employeeId, {
-        status: currentStatus === 'Active' ? 'Inactive' : 'Active'
-      });
-      
-      fetchEmployees(); // Refresh list
-      setShowActions(null);
-    } catch (error) {
-      console.error('Error updating employee status:', error);
-    }
   }, [fetchEmployees]);
 
   // Memoized filtered employees for better performance

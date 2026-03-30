@@ -1,5 +1,5 @@
 // Header.jsx
-import { User, LogOut, UserPlus, UserCog } from 'lucide-react';
+import { User, LogOut, UserPlus } from 'lucide-react';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 
 const Header = ({ 

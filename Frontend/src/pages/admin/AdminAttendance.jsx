@@ -5,8 +5,7 @@ import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';
 import { 
   Users, CheckCircle, XCircle, Clock, Calendar,
-  X, Filter, Search, List, Download, RefreshCw,
-  Edit, Save
+  X, Filter, Search, List, Download, RefreshCw
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';

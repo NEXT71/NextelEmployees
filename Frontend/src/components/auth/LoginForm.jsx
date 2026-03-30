@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { User, Lock, Eye, EyeOff } from 'lucide-react';
-import { Navigate, useNavigate } from 'react-router-dom';
 
 const LoginForm = ({ onSubmit, isLoading, error }) => {
   const [showPassword, setShowPassword] = useState(false);
@@ -8,7 +7,6 @@ const LoginForm = ({ onSubmit, isLoading, error }) => {
     email: '',
     password: ''
   });
-  const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();

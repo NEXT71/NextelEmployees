@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd Frontend && npm run build",
+  "outputDirectory": "Frontend/build",
+  "env": {
+    "CI": "false"
+  }
+}

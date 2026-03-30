@@ -177,8 +177,6 @@ export const authAPI = {
     // Store token if login successful
     if (response && response.token) {
       setToken(response.token);
-      // Clear cache after new token is set to ensure fresh auth state
-      apiCache.clear();
     }
     
     return response;

@@ -167,6 +167,7 @@ const AdminAttendance = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     fetchUser();
     fetchAttendanceData();
   }, [activeTab, selectedDate, startDate, endDate, departmentFilter, statusFilter, monthlyPayrollCycle]);
@@ -203,36 +204,6 @@ const AdminAttendance = () => {
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update record');
-    }
-  };
-
-  // Bulk update attendance records
-  const handleBulkUpdate = async () => {
-    if (!bulkStatus || selectedRecords.length === 0) return;
-    
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        'https://nextelemployees-1.onrender.com/api/attendance/admin/bulk',
-        { 
-          updates: selectedRecords.map(id => ({
-            id,
-            status: bulkStatus
-          }))
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      if (response.data.success) {
-        // Refresh data
-        fetchAttendanceData();
-        // Clear selection
-        setSelectedRecords([]);
-        setIsBulkEditing(false);
-        setBulkStatus('');
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to perform bulk update');
     }
   };
 

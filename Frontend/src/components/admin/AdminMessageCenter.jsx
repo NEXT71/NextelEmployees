@@ -91,6 +91,7 @@ const AdminMessageCenter = ({ isOpen, onClose }) => {
     if (isOpen) {
       fetchMessages();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, filters]);
 
   const getPriorityColor = (priority) => {

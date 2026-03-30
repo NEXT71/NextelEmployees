@@ -18,7 +18,6 @@ const AdminDashboard = () => {
   const [user, setUser] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [fines, setFines] = useState([]);
-  const [salaries, setSalaries] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('employees');
@@ -129,10 +128,6 @@ const AdminDashboard = () => {
       
       setEmployees(filteredEmployees);
 
-      // Get all salaries
-      const salariesResponse = await salaryAPI.getAllSalaries();
-      setSalaries(salariesResponse.data);
-
       // Get all fines (always load for summary and fines tab)
       const finesResponse = await fineAPI.getAllFines();
       setFines(finesResponse.data || []);
@@ -190,10 +185,6 @@ const AdminDashboard = () => {
         
         setEmployees(filteredEmployees);
 
-        // Get all salaries
-        const salariesResponse = await salaryAPI.getAllSalaries();
-        setSalaries(salariesResponse.data);
-
         // Get all fines (always load for summary and fines tab)
         const finesResponse = await fineAPI.getAllFines();
         setFines(finesResponse.data || []);
@@ -212,7 +203,7 @@ const AdminDashboard = () => {
       }
     };
     fetchData();
-  }, [navigate, activeTab]);
+  }, [navigate, activeTab, refreshSummary]);
 
   const handleLogout = async () => {
     try {

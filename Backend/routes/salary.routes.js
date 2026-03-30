@@ -1,20 +1,25 @@
 import express from 'express';
 import {
-  createSalary,
-  getEmployeeSalaries,
+  generateMonthlySalary,
+  getMySalarySlips,
   getAllSalaries,
   updateSalary,
-  deleteSalary
+  deleteSalary,
+  getSalarySummary
 } from '../controllers/salary.controller.js';
 import auth from '../middlewares/auth.js';
-import roles from '../middlewares/roles.js';
+import admin from '../middlewares/admin.js';
 
 const salaryRouter = express.Router();
 
-salaryRouter.post('/', auth, roles('admin'), createSalary);
-salaryRouter.get('/', auth, roles('admin'), getAllSalaries);
-salaryRouter.get('/employee/:employeeId', auth, getEmployeeSalaries);
-salaryRouter.put('/:id', auth, roles('admin'), updateSalary);
-salaryRouter.delete('/:id', auth, roles('admin'), deleteSalary);
+// Employee routes
+salaryRouter.get('/my-slips', auth, getMySalarySlips);
+
+// Admin routes
+salaryRouter.post('/generate', auth, admin, generateMonthlySalary);
+salaryRouter.get('/all', auth, admin, getAllSalaries);
+salaryRouter.get('/summary', auth, admin, getSalarySummary);
+salaryRouter.put('/:id', auth, admin, updateSalary);
+salaryRouter.delete('/:id', auth, admin, deleteSalary);
 
 export default salaryRouter;

@@ -22,7 +22,9 @@ const AdminDashboard = () => {
   
   const [employees, setEmployees] = useState([]);
   const [fines, setFines] = useState([]);
+  const [salaries, setSalaries] = useState([]);
   const [summary, setSummary] = useState({});
+  const [salarySummary, setSalarySummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('employees');
   
@@ -46,6 +48,7 @@ const AdminDashboard = () => {
   const [dateFilter, setDateFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [fineSearchTerm, setFineSearchTerm] = useState('');
+  const [salarySearchTerm, setSalarySearchTerm] = useState('');
   
   // Applied filters (for fines tab)
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
@@ -180,6 +183,20 @@ const AdminDashboard = () => {
         const finesResponse = await fineAPI.getAllFines();
         const allFines = finesResponse.data || [];
         setFines(allFines);
+
+        // Get all salaries
+        try {
+          const salariesResponse = await salaryAPI.getAllSalaries();
+          setSalaries(salariesResponse.data || []);
+          
+          // Get salary summary
+          const salarySummaryResponse = await salaryAPI.getSalarySummary();
+          setSalarySummary(salarySummaryResponse.data || {});
+        } catch (salaryErr) {
+          console.warn('Salary data not available:', salaryErr);
+          setSalaries([]);
+          setSalarySummary({});
+        }
 
         // Get summary stats with the fetched data
         try {
@@ -463,6 +480,20 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDownloadSalaryReport = async () => {
+    try {
+      const response = await salaryAPI.generateSalaryReport();
+      if (response.success && response.data) {
+        const headers = ['employeeId', 'employeeName', 'baseSalary', 'bonuses', 'deductions', 'netSalary', 'month'];
+        const csvContent = convertToCSV(response.data, headers);
+        const filename = `salary-report-${new Date().toISOString().split('T')[0]}.csv`;
+        downloadCSV(csvContent, filename);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to generate salary report');
+    }
+  };
+
   // Clear fines filters
   const clearFinesFilters = () => {
     setFineSearchTerm('');
@@ -524,6 +555,18 @@ const AdminDashboard = () => {
     groups[employeeId].push(fine);
     return groups;
   }, {});
+
+  // Filter salaries based on search term
+  const filteredSalaries = salaries.filter(salary => {
+    if (!salary.employee) return false;
+    
+    const matchesSearch = salarySearchTerm ? 
+      `${salary.employee.firstName} ${salary.employee.lastName}`.toLowerCase().includes(salarySearchTerm.toLowerCase()) ||
+      salary.employee.employeeId?.toLowerCase().includes(salarySearchTerm.toLowerCase()) ||
+      salary.employee.email?.toLowerCase().includes(salarySearchTerm.toLowerCase()) : true;
+    
+    return matchesSearch;
+  });
 
   if (loading) {
     return (
@@ -637,6 +680,14 @@ const AdminDashboard = () => {
             <span>Fines</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab('salaries')}
+            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'salaries' ? 'text-green-300 border-b-2 border-green-400' : 'text-blue-200/70 hover:text-green-300'}`}
+          >
+            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>Salaries</span>
+          </button>
+
         </div>
 
         {/* Search and Filters - Responsive */}
@@ -647,9 +698,9 @@ const AdminDashboard = () => {
             </div>
             <input
               type="text"
-              placeholder={`Search ${activeTab === 'employees' ? 'employees' : 'fines'}...`}
-              value={activeTab === 'fines' ? fineSearchTerm : searchTerm}
-              onChange={(e) => activeTab === 'fines' ? setFineSearchTerm(e.target.value) : setSearchTerm(e.target.value)}
+              placeholder={`Search ${activeTab === 'employees' ? 'employees' : activeTab === 'fines' ? 'fines' : 'salaries'}...`}
+              value={activeTab === 'employees' ? searchTerm : activeTab === 'fines' ? fineSearchTerm : salarySearchTerm}
+              onChange={(e) => activeTab === 'employees' ? setSearchTerm(e.target.value) : activeTab === 'fines' ? setFineSearchTerm(e.target.value) : setSalarySearchTerm(e.target.value)}
               className="pl-9 sm:pl-10 w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 sm:px-4 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm sm:text-base"
             />
           </div>
@@ -777,6 +828,18 @@ const AdminDashboard = () => {
             >
               <Download className="w-5 h-5" />
               Download Fine Report
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'salaries' && (
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleDownloadSalaryReport}
+              className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-green-500/50"
+            >
+              <Download className="w-5 h-5" />
+              Download Salary Report
             </button>
           </div>
         )}
@@ -1022,6 +1085,127 @@ const AdminDashboard = () => {
                   No fines found matching your criteria
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Salaries Table */}
+      {activeTab === 'salaries' && (
+        <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-green-500/5 to-emerald-500/5 blur-sm"></div>
+          
+          <div className="relative z-10">
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold bg-gradient-to-r from-green-100 to-emerald-100 bg-clip-text text-transparent">
+                  Salary Management
+                </h3>
+                <div className="text-sm text-blue-200/70">
+                  Total Records: {filteredSalaries.length}
+                </div>
+              </div>
+            </div>
+            
+            {/* Salary Statistics Cards */}
+            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-white/10">
+              <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="text-sm text-green-200/70 mb-1">Total Monthly Payroll</div>
+                <div className="text-2xl font-bold text-green-300">
+                  RS{filteredSalaries.reduce((sum, s) => sum + (s.baseSalary || 0), 0).toLocaleString()}
+                </div>
+              </div>
+              <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="text-sm text-green-200/70 mb-1">Average Salary</div>
+                <div className="text-2xl font-bold text-green-300">
+                  RS{filteredSalaries.length > 0 ? Math.round(filteredSalaries.reduce((sum, s) => sum + (s.baseSalary || 0), 0) / filteredSalaries.length).toLocaleString() : '0'}
+                </div>
+              </div>
+              <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="text-sm text-green-200/70 mb-1">Bonus Payouts</div>
+                <div className="text-2xl font-bold text-green-300">
+                  RS{filteredSalaries.reduce((sum, s) => sum + (s.bonuses || 0), 0).toLocaleString()}
+                </div>
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-white/5">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Employee</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Base Salary</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Bonuses</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Deductions</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Net Salary</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Month</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {filteredSalaries.length > 0 ? (
+                    filteredSalaries.map((salary) => {
+                      const netSalary = (salary.baseSalary || 0) + (salary.bonuses || 0) - (salary.deductions || 0);
+                      return (
+                        <tr key={salary._id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
+                                <span className="text-white text-sm font-medium">
+                                  {salary.employee?.firstName?.charAt(0) || 'U'}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-white">
+                                  {salary.employee?.firstName} {salary.employee?.lastName}
+                                </div>
+                                <div className="text-xs text-blue-200/70">
+                                  {salary.employee?.employeeId || 'N/A'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-green-100 font-medium">
+                            RS{(salary.baseSalary || 0).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-green-300">
+                            RS{(salary.bonuses || 0).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-red-300">
+                            RS{(salary.deductions || 0).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 text-sm font-bold text-green-300">
+                            RS{netSalary.toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-blue-100">
+                            {salary.month ? new Date(salary.month).toLocaleDateString('default', { month: 'short', year: 'numeric' }) : 'N/A'}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => {
+                                  setEmployeeToEdit(salary.employee);
+                                  setShowEmployeeDetails(true);
+                                }}
+                                className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <UserIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="px-6 py-8 text-center text-blue-200/70">
+                        No salary records found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

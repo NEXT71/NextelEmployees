@@ -118,7 +118,7 @@ const BonusModal = ({ isOpen, onClose, onSuccess, salary = null }) => {
               value={bonusAmount}
               onChange={(e) => setBonusAmount(e.target.value)}
               placeholder="Enter bonus amount"
-              className="w-full bg-white/10 border border-white/20 rounded-lg py-2 px-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-yellow-500/50"
+              className="w-full bg-blue-800/80 border border-blue-500/50 rounded-lg py-2 px-3 text-white font-medium placeholder-blue-300/70 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-yellow-500/50"
               min="0"
               step="100"
             />
@@ -134,7 +134,7 @@ const BonusModal = ({ isOpen, onClose, onSuccess, salary = null }) => {
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g., Performance bonus, Incentive, etc."
               rows="3"
-              className="w-full bg-white/10 border border-white/20 rounded-lg py-2 px-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-yellow-500/50 resize-none"
+              className="w-full bg-blue-800/80 border border-blue-500/50 rounded-lg py-2 px-3 text-white font-medium placeholder-blue-300/70 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-yellow-500/50 resize-none"
             />
           </div>
 

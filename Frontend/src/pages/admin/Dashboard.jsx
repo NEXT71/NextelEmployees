@@ -483,8 +483,19 @@ const AdminDashboard = () => {
     try {
       const response = await salaryAPI.generateSalaryReport();
       if (response.success && response.data) {
+        // Map the salary data to include flattened employee name
+        const formattedData = (Array.isArray(response.data) ? response.data : response.data.data || []).map(salary => ({
+          employeeId: salary.employee?.employeeId || 'N/A',
+          employeeName: `${salary.employee?.firstName || ''} ${salary.employee?.lastName || ''}`.trim(),
+          baseSalary: salary.baseSalary || 0,
+          bonuses: salary.bonuses || 0,
+          deductions: salary.deductions || 0,
+          netSalary: (salary.baseSalary || 0) + (salary.bonuses || 0) - (salary.deductions || 0),
+          month: new Date(salary.month).toLocaleDateString('default', { month: 'short', year: 'numeric' })
+        }));
+        
         const headers = ['employeeId', 'employeeName', 'baseSalary', 'bonuses', 'deductions', 'netSalary', 'month'];
-        const csvContent = convertToCSV(response.data, headers);
+        const csvContent = convertToCSV(formattedData, headers);
         const filename = `salary-report-${new Date().toISOString().split('T')[0]}.csv`;
         downloadCSV(csvContent, filename);
       }

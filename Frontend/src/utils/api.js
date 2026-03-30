@@ -392,6 +392,12 @@ export const salaryAPI = {
     apiRequest(`/salaries/${id}`, {
       method: 'DELETE',
     }),
+
+  // Generate salary report (admin-only)
+  generateSalaryReport: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/salaries/all${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 // Message API calls

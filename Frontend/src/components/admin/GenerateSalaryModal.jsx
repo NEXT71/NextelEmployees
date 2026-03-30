@@ -117,7 +117,7 @@ const GenerateSalaryModal = ({ isOpen, onClose, onSuccess, employees = [] }) => 
                 <select
                   value={selectedEmployee}
                   onChange={(e) => setSelectedEmployee(e.target.value)}
-                  className="w-full bg-white/10 border border-white/20 rounded-lg py-2 px-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50"
+                  className="w-full bg-blue-800/80 border border-blue-500/50 rounded-lg py-2 px-3 text-white font-medium focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50"
                 >
                   <option value="">-- Choose Employee --</option>
                   {employees.map((employee) => (
@@ -137,7 +137,7 @@ const GenerateSalaryModal = ({ isOpen, onClose, onSuccess, employees = [] }) => 
                   <select
                     value={month}
                     onChange={(e) => setMonth(e.target.value)}
-                    className="w-full bg-white/10 border border-white/20 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                    className="w-full bg-blue-800/80 border border-blue-500/50 rounded-lg py-2 px-3 text-white font-medium focus:outline-none focus:ring-2 focus:ring-green-500/50"
                   >
                     {Array.from({ length: 12 }, (_, i) => {
                       const m = String(i + 1).padStart(2, '0');
@@ -158,7 +158,7 @@ const GenerateSalaryModal = ({ isOpen, onClose, onSuccess, employees = [] }) => 
                   <select
                     value={year}
                     onChange={(e) => setYear(Number(e.target.value))}
-                    className="w-full bg-white/10 border border-white/20 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                    className="w-full bg-blue-800/80 border border-blue-500/50 rounded-lg py-2 px-3 text-white font-medium focus:outline-none focus:ring-2 focus:ring-green-500/50"
                   >
                     {Array.from({ length: 5 }, (_, i) => {
                       const y = new Date().getFullYear() - 2 + i;

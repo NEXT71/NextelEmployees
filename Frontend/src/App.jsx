@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import ProtectedRoute from './components/common/ProtectedRoute.jsx';
 import PerformanceMonitor from './components/common/PerformanceMonitor.jsx';
 import { ToastProvider } from './contexts/ToastContext.jsx';
+import { AuthProvider } from './contexts/AuthContext.jsx';
 
 // Lazy load components for better performance
 const LoginPage = lazy(() => import('./pages/auth/LoginPage.jsx'));
@@ -24,8 +25,9 @@ const LoadingSpinner = () => (
 const App = () => {
   return (
     <ToastProvider>
-      <Router>
-        <Suspense fallback={<LoadingSpinner />}>
+      <AuthProvider>
+        <Router>
+          <Suspense fallback={<LoadingSpinner />}>
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<LoginPage />} />
@@ -80,6 +82,7 @@ const App = () => {
         {/* Performance Monitor - only show in development */}
         <PerformanceMonitor enabled={process.env.NODE_ENV === 'development'} />
       </Router>
+    </AuthProvider>
     </ToastProvider>
   );
 };

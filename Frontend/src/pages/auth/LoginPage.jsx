@@ -1,53 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LoginForm from '../../components/auth/LoginForm';
-import { authAPI, isAuthenticated, clearAuth } from '../../utils/api';
+import { authAPI, clearAuth } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  // Check for existing user session on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      setIsLoading(true);
-      try {
-        if (isAuthenticated()) {
-          const response = await authAPI.getCurrentUser();
-          
-          // Check if response indicates authentication error
-          if (response?.error && response?.status === 401) {
-            clearAuth();
-          } else if (response?.data?.isLoggedIn) {
-            navigate(response.data.role === 'admin' ? '/admindashboard' : '/employeedashboard');
-          }
-        }
-      } catch (err) {
-        // Clear any existing token if unauthorized or connection fails
-        console.log('Auth check failed:', err.message);
-        clearAuth();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-        
-    checkAuth();
-  }, [navigate]);
 
   const handleSubmit = async (credentials) => {
     setIsLoading(true);
     setError(null);
         
     try {
-      console.log('Attempting login with:', { email: credentials.email });
-      
       const response = await authAPI.login({
         email: credentials.email,
         password: credentials.password
       });
-      
-      console.log('Login response:', response);
       
       if (response?.error) {
         setError(response.message || 'Login failed. Please try again.');
@@ -55,9 +26,11 @@ const LoginPage = () => {
       }
       
       if (response?.success && response?.user) {
-        console.log('Login successful, user role:', response.user.role);
+        // Update global auth context
+        login(response.user);
+        
+        // Redirect based on role
         const redirectPath = response.user.role === 'admin' ? '/admindashboard' : '/employeedashboard';
-        console.log('Redirecting to:', redirectPath);
         navigate(redirectPath);
       } else {
         setError(response?.message || 'Login failed. Please try again.');

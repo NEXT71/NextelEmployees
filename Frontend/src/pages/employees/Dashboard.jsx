@@ -718,6 +718,17 @@ const calculateSummary = () => {
           error={finesError}
           onRefresh={refreshFinesData}
         />
+
+        {/* View Salary Slips Button */}
+        <div className="flex justify-center mt-8">
+          <button
+            onClick={() => navigate('/employee/salary-slips')}
+            className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-green-500/50"
+          >
+            <DollarSign className="w-5 h-5" />
+            View My Salary Slips
+          </button>
+        </div>
       </div>
 
       {/* Floating Message Button */}

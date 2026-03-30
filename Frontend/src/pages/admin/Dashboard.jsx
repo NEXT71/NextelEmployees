@@ -4,6 +4,8 @@ import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';
 import AdminMessageCenter from '../../components/admin/AdminMessageCenter';
 import BulkFineModal from '../../components/admin/BulkFineModal';
+import GenerateSalaryModal from '../../components/admin/GenerateSalaryModal';
+import BonusModal from '../../components/admin/BonusModal';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
 import { employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -31,6 +33,9 @@ const AdminDashboard = () => {
   const [showFineModal, setShowFineModal] = useState(false);
   const [showBulkFineModal, setShowBulkFineModal] = useState(false);
   const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
+  const [showGenerateSalaryModal, setShowGenerateSalaryModal] = useState(false);
+  const [showBonusModal, setShowBonusModal] = useState(false);
+  const [selectedSalary, setSelectedSalary] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeeFines, setEmployeeFines] = useState([]);
   const [employeeSalaries, setEmployeeSalaries] = useState([]);
@@ -829,8 +834,15 @@ const AdminDashboard = () => {
         {activeTab === 'salaries' && (
           <div className="flex flex-wrap gap-3">
             <button
-              onClick={handleDownloadSalaryReport}
+              onClick={() => setShowGenerateSalaryModal(true)}
               className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-green-500/50"
+            >
+              <DollarSign className="w-5 h-5" />
+              Generate Monthly Salary
+            </button>
+            <button
+              onClick={handleDownloadSalaryReport}
+              className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-blue-500/50"
             >
               <Download className="w-5 h-5" />
               Download Salary Report
@@ -1176,6 +1188,16 @@ const AdminDashboard = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedSalary(salary);
+                                  setShowBonusModal(true);
+                                }}
+                                className="p-2 text-yellow-300 hover:text-white hover:bg-yellow-500/20 rounded-lg transition-colors"
+                                title="Add Bonus"
+                              >
+                                <DollarSign className="w-4 h-4" />
+                              </button>
                               <button
                                 onClick={() => {
                                   setEmployeeToEdit(salary.employee);
@@ -1700,6 +1722,47 @@ const AdminDashboard = () => {
       <AdminMessageCenter 
         isOpen={showMessageCenter}
         onClose={() => setShowMessageCenter(false)}
+      />
+
+      {/* Generate Salary Modal */}
+      <GenerateSalaryModal
+        isOpen={showGenerateSalaryModal}
+        onClose={() => setShowGenerateSalaryModal(false)}
+        onSuccess={() => {
+          // Refresh salary list
+          const fetchData = async () => {
+            try {
+              const salariesResponse = await salaryAPI.getAllSalaries();
+              setSalaries(salariesResponse.data || []);
+            } catch (err) {
+              console.error('Error refreshing salaries:', err);
+            }
+          };
+          fetchData();
+        }}
+        employees={employees}
+      />
+
+      {/* Bonus Modal */}
+      <BonusModal
+        isOpen={showBonusModal}
+        onClose={() => {
+          setShowBonusModal(false);
+          setSelectedSalary(null);
+        }}
+        onSuccess={() => {
+          // Refresh salary list
+          const fetchData = async () => {
+            try {
+              const salariesResponse = await salaryAPI.getAllSalaries();
+              setSalaries(salariesResponse.data || []);
+            } catch (err) {
+              console.error('Error refreshing salaries:', err);
+            }
+          };
+          fetchData();
+        }}
+        salary={selectedSalary}
       />
     </div>
   );

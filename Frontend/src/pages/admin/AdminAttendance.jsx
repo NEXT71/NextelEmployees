@@ -36,8 +36,6 @@ const AdminAttendance = () => {
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
   const [selectedRecords, setSelectedRecords] = useState([]);
-  const [bulkStatus, setBulkStatus] = useState('');
-  const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [isDateRange, setIsDateRange] = useState(false);
   const [summary, setSummary] = useState({
     Present: 0,

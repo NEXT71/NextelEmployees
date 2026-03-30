@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';
@@ -75,7 +75,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
 
   // Refresh summary stats
-  const refreshSummary = async () => {
+  const refreshSummary = useCallback(async () => {
     try {
       const summaryResponse = await fineAPI.getEmployeeSummary();
       setSummary(summaryResponse.data || {});
@@ -93,7 +93,7 @@ const AdminDashboard = () => {
         totalFineAmount
       });
     }
-  };
+  }, [employees, fines]);
 
   // Refresh all dashboard data
   const refreshDashboard = async () => {

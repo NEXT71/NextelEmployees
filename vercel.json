@@ -1,8 +1,18 @@
 {
-  "projectSettings": {
-    "rootDirectory": "Frontend"
-  },
-  "env": {
-    "CI": "false"
-  }
+  "version": 2,
+  "builds": [
+    {
+      "src": "Frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "Frontend/build"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 }

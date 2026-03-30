@@ -28,61 +28,61 @@ const App = () => {
       <AuthProvider>
         <Router>
           <Suspense fallback={<LoadingSpinner />}>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<LoginPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            
-            {/* Employee routes */}
-            <Route
-              path="/employeedashboard"
-              element={
-                <ProtectedRoute>
-                  <EmployeeDashboard />
-                </ProtectedRoute>
-              }
-            />
-            
-            {/* Admin routes */}
-            <Route
-              path="/admindashboard"
-              element={
-                <ProtectedRoute adminOnly>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admindashboard/attendance"
-              element={
-                <ProtectedRoute adminOnly>
-                  <AdminAttendance />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admindashboard/employees"
-              element={
-                <ProtectedRoute adminOnly>
-                  <EmployeeManagement />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admindashboard/stats"
-              element={
-                <ProtectedRoute adminOnly>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </Suspense>
-        
-        {/* Performance Monitor - only show in development */}
-        <PerformanceMonitor enabled={process.env.NODE_ENV === 'development'} />
-      </Router>
-    </AuthProvider>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<LoginPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              
+              {/* Employee routes */}
+              <Route
+                path="/employeedashboard"
+                element={
+                  <ProtectedRoute>
+                    <EmployeeDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              
+              {/* Admin routes */}
+              <Route
+                path="/admindashboard"
+                element={
+                  <ProtectedRoute adminOnly>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admindashboard/attendance"
+                element={
+                  <ProtectedRoute adminOnly>
+                    <AdminAttendance />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admindashboard/employees"
+                element={
+                  <ProtectedRoute adminOnly>
+                    <EmployeeManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admindashboard/stats"
+                element={
+                  <ProtectedRoute adminOnly>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </Suspense>
+          
+          {/* Performance Monitor - only show in development */}
+          <PerformanceMonitor enabled={process.env.NODE_ENV === 'development'} />
+        </Router>
+      </AuthProvider>
     </ToastProvider>
   );
 };

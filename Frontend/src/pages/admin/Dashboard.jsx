@@ -5,7 +5,8 @@ import StatsCard from '../../components/common/StatsCard';
 import AdminMessageCenter from '../../components/admin/AdminMessageCenter';
 import BulkFineModal from '../../components/admin/BulkFineModal';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
-import { authAPI, employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
+import { employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 import { 
   Users, CheckCircle, AlertTriangle, 
   X, Edit, Trash2, AlertCircle,
@@ -15,7 +16,9 @@ import {
 } from 'lucide-react';
 
 const AdminDashboard = () => {
-  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  
   const [employees, setEmployees] = useState([]);
   const [fines, setFines] = useState([]);
   const [summary, setSummary] = useState({});
@@ -73,27 +76,34 @@ const AdminDashboard = () => {
   });
 
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  // Refresh summary stats
-  const refreshSummary = useCallback(async () => {
+  // Calculate summary from current data
+  const calculateSummary = useCallback((empList, fineList) => {
+    const employeesCount = empList.length;
+    const activeCount = empList.filter(emp => emp.status === 'Active').length;
+    const totalFinesCount = fineList.length;
+    const totalFineAmount = fineList.reduce((sum, fine) => sum + (fine.amount || 0), 0);
+    
+    setSummary({
+      totalEmployees: employeesCount,
+      activeEmployees: activeCount,
+      totalFinesCount,
+      totalFineAmount
+    });
+  }, []);
+
+  // Refresh summary stats - no dependencies on employees/fines to avoid loops
+  const refreshSummary = useCallback(async (empList, fineList) => {
     try {
       const summaryResponse = await fineAPI.getEmployeeSummary();
       setSummary(summaryResponse.data || {});
     } catch (summaryErr) {
       console.warn('Summary endpoint not available:', summaryErr);
-      // Fallback: calculate basic stats from current data
-      const employeesCount = employees.length;
-      const activeCount = employees.filter(emp => emp.status === 'Active').length;
-      const totalFinesCount = fines.length;
-      const totalFineAmount = fines.reduce((sum, fine) => sum + (fine.amount || 0), 0);
-      setSummary({
-        totalEmployees: employeesCount,
-        activeEmployees: activeCount,
-        totalFinesCount,
-        totalFineAmount
-      });
+      // Use provided data or fall back to current state
+      calculateSummary(empList, fineList);
     }
-  }, [employees, fines]);
+  }, [calculateSummary]);
 
   // Refresh all dashboard data
   const refreshDashboard = async () => {
@@ -101,39 +111,33 @@ const AdminDashboard = () => {
       setLoading(true);
       setError('');
 
-      // Get current user data
-      const userResponse = await authAPI.getCurrentUser();
-      setUser(userResponse.data);
-
-      // Get all employees (backend should filter out admins, but add frontend backup)
+      // Get all employees
       const employeesResponse = await employeeAPI.getAllEmployees();
       const allEmployees = employeesResponse.data || [];
       
-      // Additional frontend filtering as backup to ensure admin doesn't see themselves
+      // Filter out the current user
       const filteredEmployees = allEmployees.filter(employee => {
-        const currentUser = userResponse.data;
-        
-        // Filter out by multiple criteria to be safe
         return (
-          // Different email
-          employee.email !== currentUser.email &&
-          // Different user ID if linked
-          employee.user?._id !== currentUser._id &&
-          // Not admin role if populated
+          employee.email !== user?.email &&
+          employee.user?._id !== user?._id &&
           employee.user?.role !== 'admin' &&
-          // Different username if available
-          employee.user?.username !== currentUser.username
+          employee.user?.username !== user?.username
         );
       });
       
       setEmployees(filteredEmployees);
 
-      // Get all fines (always load for summary and fines tab)
+      // Get all fines
       const finesResponse = await fineAPI.getAllFines();
       setFines(finesResponse.data || []);
 
       // Get summary stats
-      await refreshSummary();
+      try {
+        const summaryResponse = await fineAPI.getEmployeeSummary();
+        setSummary(summaryResponse.data || {});
+      } catch (err) {
+        calculateSummary(filteredEmployees, finesResponse.data || []);
+      }
 
     } catch (err) {
       console.error("Error refreshing dashboard:", err);
@@ -154,43 +158,39 @@ const AdminDashboard = () => {
       try {
         setLoading(true);
         
-        // Get current user data
-        const userResponse = await authAPI.getCurrentUser();
-        setUser(userResponse.data);
-
-        // Get all employees (backend should filter out admins, but add frontend backup)
+        // Get all employees (backend should filter out admins)
         const employeesResponse = await employeeAPI.getAllEmployees();
         const allEmployees = employeesResponse.data || [];
         
-        // Additional frontend filtering as backup to ensure admin doesn't see themselves
+        // Additional frontend filtering to ensure admin doesn't see themselves
         const filteredEmployees = allEmployees.filter(employee => {
-          const currentUser = userResponse.data;
-          
-          // Filter out by multiple criteria to be safe
           return (
             // Different email
-            employee.email !== currentUser.email &&
+            employee.email !== user?.email &&
             // Different user ID if linked
-            employee.user?._id !== currentUser._id &&
+            employee.user?._id !== user?._id &&
             // Not admin role if populated
             employee.user?.role !== 'admin' &&
             // Different username if available
-            employee.user?.username !== currentUser.username
+            employee.user?.username !== user?.username
           );
         });
         
-        console.log('Current user:', userResponse.data);
-        console.log('All employees from backend:', allEmployees.length);
-        console.log('Filtered employees:', filteredEmployees.length);
-        
         setEmployees(filteredEmployees);
 
-        // Get all fines (always load for summary and fines tab)
+        // Get all fines
         const finesResponse = await fineAPI.getAllFines();
-        setFines(finesResponse.data || []);
+        const allFines = finesResponse.data || [];
+        setFines(allFines);
 
-        // Get summary stats
-        await refreshSummary();
+        // Get summary stats with the fetched data
+        try {
+          const summaryResponse = await fineAPI.getEmployeeSummary();
+          setSummary(summaryResponse.data || {});
+        } catch (err) {
+          // Fallback: calculate from fetched data
+          calculateSummary(filteredEmployees, allFines);
+        }
 
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -202,8 +202,11 @@ const AdminDashboard = () => {
         setLoading(false);
       }
     };
-    fetchData();
-  }, [navigate, activeTab, refreshSummary]);
+    
+    if (user) {
+      fetchData();
+    }
+  }, [activeTab, user, navigate, calculateSummary]);
 
   const handleLogout = async () => {
     try {

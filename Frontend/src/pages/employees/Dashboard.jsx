@@ -8,11 +8,14 @@ import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import AttendanceTimeStatus from '../../components/common/AttendanceTimeStatus';
 import MessageCenter from '../../components/common/MessageCenter';
-import { authAPI, employeeAPI, attendanceAPI, fineAPI, isAuthenticated, clearAuth } from '../../utils/api';
+import { employeeAPI, attendanceAPI, fineAPI, clearAuth, authAPI } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 import { isWithinAttendanceWindow } from '../../utils/attendanceTimeAccess';
 
 const EmployeeDashboard = () => {
-  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  
   const [employee, setEmployee] = useState({
     firstName: '',
     lastName: '',
@@ -36,7 +39,6 @@ const EmployeeDashboard = () => {
   const [attendanceError, setAttendanceError] = useState(null);
   const [finesError, setFinesError] = useState(null);
   const [showMessageCenter, setShowMessageCenter] = useState(false);
-  const navigate = useNavigate();
 
 const fetchAttendanceData = async (employeeId) => {
   setLoadingAttendance(true);
@@ -103,27 +105,11 @@ const checkClockInStatus = async (employeeId) => {
       try {
         setLoading(true);
         
-        if (!isAuthenticated()) {
-          navigate('/login');
+        if (!user?._id) {
           return;
         }
 
-        // Get user data first
-        const userResponse = await authAPI.getCurrentUser();
-        
-        // Check if the response indicates an authentication error
-        if (userResponse?.error && userResponse?.status === 401) {
-          clearAuth();
-          navigate('/login');
-          return;
-        }
-        
-        if (!userResponse?.data?._id) {
-          throw new Error('Invalid user data received');
-        }
-
-        setUser(userResponse.data);
-        const userId = userResponse.data._id;
+        const userId = user._id;
 
         // Fetch employee data using the new API
         const employeeResponse = await employeeAPI.getEmployeeByUserId(userId);
@@ -160,14 +146,16 @@ const checkClockInStatus = async (employeeId) => {
       }
     };
 
-    fetchData();
+    if (user) {
+      fetchData();
+    }
 
-  const timer = setInterval(() => {
-    setCurrentTime(new Date());
-  }, 60000);
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
 
-  return () => clearInterval(timer);
-}, [navigate]);
+    return () => clearInterval(timer);
+  }, [user, navigate]);
 
   const refreshAttendanceData = async () => {
     if (employee._id) {

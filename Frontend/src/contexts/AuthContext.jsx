@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }) => {
   // Check auth only on mount
   useEffect(() => {
     checkAuth();
-  }, []); // Empty dependency array - runs only once
+  }, [checkAuth]);
 
   const logout = useCallback(async () => {
     try {

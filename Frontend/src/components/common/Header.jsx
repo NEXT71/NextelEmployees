@@ -5,9 +5,7 @@ import { LazyLoadImage } from 'react-lazy-load-image-component';
 const Header = ({ 
   userName, 
   onLogout, 
-  onRegisterEmployee, 
-  onProfileClick,
-  showProfileButton = true 
+  onRegisterEmployee
 }) => {
   return (
     <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">

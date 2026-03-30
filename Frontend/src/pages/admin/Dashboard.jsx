@@ -128,10 +128,6 @@ const AdminDashboard = () => {
       
       setEmployees(filteredEmployees);
 
-      // Get all salaries
-      const salariesResponse = await salaryAPI.getAllSalaries();
-      setSalaries(salariesResponse.data);
-
       // Get all fines (always load for summary and fines tab)
       const finesResponse = await fineAPI.getAllFines();
       setFines(finesResponse.data || []);
@@ -188,10 +184,6 @@ const AdminDashboard = () => {
         console.log('Filtered employees:', filteredEmployees.length);
         
         setEmployees(filteredEmployees);
-
-        // Get all salaries
-        const salariesResponse = await salaryAPI.getAllSalaries();
-        setSalaries(salariesResponse.data);
 
         // Get all fines (always load for summary and fines tab)
         const finesResponse = await fineAPI.getAllFines();

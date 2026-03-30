@@ -24,7 +24,6 @@ const AdminDashboard = () => {
   const [fines, setFines] = useState([]);
   const [salaries, setSalaries] = useState([]);
   const [summary, setSummary] = useState({});
-  const [salarySummary, setSalarySummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('employees');
   
@@ -188,14 +187,9 @@ const AdminDashboard = () => {
         try {
           const salariesResponse = await salaryAPI.getAllSalaries();
           setSalaries(salariesResponse.data || []);
-          
-          // Get salary summary
-          const salarySummaryResponse = await salaryAPI.getSalarySummary();
-          setSalarySummary(salarySummaryResponse.data || {});
         } catch (salaryErr) {
           console.warn('Salary data not available:', salaryErr);
           setSalaries([]);
-          setSalarySummary({});
         }
 
         // Get summary stats with the fetched data

@@ -36,8 +36,7 @@ const AdminAttendance = () => {
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
   const [selectedRecords, setSelectedRecords] = useState([]);
-  const [bulkStatus, setBulkStatus] = useState('');
-  const [isBulkEditing, setIsBulkEditing] = useState(false);
+  const isBulkEditing = false; // Remains false as it's not being modified
   const [isDateRange, setIsDateRange] = useState(false);
   const [summary, setSummary] = useState({
     Present: 0,
@@ -167,9 +166,9 @@ const AdminAttendance = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     fetchUser();
     fetchAttendanceData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedDate, startDate, endDate, departmentFilter, statusFilter, monthlyPayrollCycle]);
 
   const handleLogout = async () => {

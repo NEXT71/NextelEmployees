@@ -430,50 +430,54 @@ export const getAdminAttendance = async (req, res) => {
       query.status = status;
     }
 
-    // Get all employees and filter out admins
-    let employeeFilter = {};
-    if (department) {
-      employeeFilter.department = department;
-    }
+    console.log('⏱️ Starting attendance query:', { isDateRange, date, startDate, endDate });
+
+    // ====== KEY OPTIMIZATION: Different logic for date ranges vs single dates ======
+    // For date ranges: Skip employee filtering - just return existing records (FAST)
+    // For single dates: Fetch all non-admin employees and create missing records
     
-    // Find all employees with their user role
-    const employees = await Employee.find(employeeFilter)
-      .populate('user', 'role username');
+    let nonAdminEmployeeIds = [];
     
-    console.log('🔍 DEBUG: Total employees found:', employees.length);
-    employees.forEach(emp => {
-      console.log(`   - ${emp.employeeId} (${emp.firstName} ${emp.lastName}):`, 
-        emp.user ? `User: ${emp.user.username}, Role: ${emp.user.role}` : 'NO USER LINKED');
-    });
-    
-    // Filter out employees who have admin role
-    const nonAdminEmployees = employees.filter(emp => {
-      const isAdmin = emp.user && emp.user.role === 'admin';
-      if (isAdmin) {
-        console.log(`   ❌ EXCLUDING ADMIN: ${emp.employeeId} (${emp.firstName} ${emp.lastName})`);
+    if (!isDateRange) {
+      // SINGLE DATE PATH: Fetch all non-admin employees
+      console.log('📋 Single date query - fetching all non-admin employees');
+      
+      let employeeFilter = {};
+      if (department) {
+        employeeFilter.department = department;
       }
-      return !isAdmin;
-    });
-    
-    console.log('✅ Non-admin employees after filtering:', nonAdminEmployees.length);
-    
-    const nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);
-    
-    // Add employee filter to query
-    query.employee = { $in: nonAdminEmployeeIds };
-    
-    console.log('📊 Query employee IDs:', nonAdminEmployeeIds.length);
+      
+      // Find all employees and filter out admins
+      const employees = await Employee.find(employeeFilter)
+        .populate('user', 'role username')
+        .lean();
+      
+      console.log('🔍 Total employees found:', employees.length);
+      
+      // Filter out admin users
+      const nonAdminEmployees = employees.filter(emp => emp.user?.role !== 'admin');
+      console.log('✅ Non-admin employees:', nonAdminEmployees.length);
+      
+      nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);
+      query.employee = { $in: nonAdminEmployeeIds };
+    } else {
+      // DATE RANGE PATH: Don't filter by employees - just get all records
+      console.log('⚡ Date range query - fetching ALL attendance records (no employee filtering)');
+    }
 
     // Get total count for pagination
     const totalCount = await Attendance.countDocuments(query);
+    console.log('📊 Total records matching query:', totalCount);
 
-    // For date range queries, add pagination to limit data size
+    // Calculate pagination
     let skip = 0;
     let pageLimit = parseInt(limit) || 100;
     if (isDateRange) {
       skip = (parseInt(page) - 1) * pageLimit;
     }
 
+    // FETCH ATTENDANCE WITH TIMEOUT
+    console.log('🔍 Fetching attendance records...');
     let attendance = await Attendance.find(query)
       .populate({
         path: 'employee',
@@ -482,23 +486,23 @@ export const getAdminAttendance = async (req, res) => {
       })
       .sort({ date: -1 })
       .skip(isDateRange ? skip : 0)
-      .limit(isDateRange ? pageLimit : 0);
+      .limit(isDateRange ? pageLimit : 0)
+      .maxTimeMS(30000) // 30 second timeout
 
     // If we're fetching for a specific date, ensure all employees have records
-    if (selectedDate && !isDateRange) {
+    if (selectedDate && !isDateRange && nonAdminEmployeeIds.length > 0) {
       const employeesWithRecords = new Set(attendance.map(record => record.employee._id.toString()));
-      const employeesWithoutRecords = nonAdminEmployees.filter(
-        emp => !employeesWithRecords.has(emp._id.toString())
+      const employeesWithoutRecords = nonAdminEmployeeIds.filter(
+        empId => !employeesWithRecords.has(empId.toString())
       );
 
       if (employeesWithoutRecords.length > 0) {
-        console.log(`📝 Creating absent records for ${employeesWithoutRecords.length} employees without records`);
+        console.log(`📝 Creating absent records for ${employeesWithoutRecords.length} employees`);
         
-        const absentRecords = [];
-        for (const employee of employeesWithoutRecords) {
+        for (const employeeId of employeesWithoutRecords) {
           try {
-            const record = await Attendance.create({
-              employee: employee._id,
+            await Attendance.create({
+              employee: employeeId,
               date: selectedDate,
               status: 'Absent',
               clockIn: null,
@@ -506,9 +510,10 @@ export const getAdminAttendance = async (req, res) => {
               autoMarked: true,
               notes: 'Auto-marked absent for admin view'
             });
-            absentRecords.push(record);
           } catch (err) {
-            console.error(`❌ Error creating absent record for ${employee.employeeId}:`, err.message);
+            if (err.code !== 11000) { // Ignore duplicate key errors
+              console.error(`❌ Error creating absent record:`, err.message);
+            }
           }
         }
 
@@ -519,7 +524,8 @@ export const getAdminAttendance = async (req, res) => {
             select: 'firstName lastName employeeId department',
             model: 'Employee'
           })
-          .sort({ date: -1 });
+          .sort({ date: -1 })
+          .maxTimeMS(30000);
       }
     }
 
@@ -559,24 +565,29 @@ export const getAdminAttendance = async (req, res) => {
       responseData = attendance;
     }
 
-    console.log('📝 Attendance records returned:', isDateRange ? 
-      responseData.reduce((total, group) => total + group.records.length, 0) : 
-      attendance.length);
+    console.log('✅ Attendance query completed:', {
+      recordCount: isDateRange ? 
+        responseData.reduce((sum, d) => sum + d.records.length, 0) : 
+        attendance.length,
+      responseType: isDateRange ? 'grouped by date' : 'flat array',
+      pagination: paginationInfo
+    });
 
     res.json({
       success: true,
       count: isDateRange ? 
-        responseData.reduce((total, group) => total + group.records.length, 0) : 
+        responseData.reduce((sum, d) => sum + d.records.length, 0) : 
         attendance.length,
       data: responseData,
       isDateRange,
       ...(paginationInfo && { pagination: paginationInfo })
     });
   } catch (error) {
-    console.error('AdminGetAttendance Error:', error);
+    console.error('❌ AdminGetAttendance Error:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Server error fetching attendance records'
+      message: 'Server error fetching attendance records',
+      error: error.message
     });
   }
 };

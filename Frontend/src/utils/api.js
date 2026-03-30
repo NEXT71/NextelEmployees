@@ -110,8 +110,9 @@ const makeApiCall = async (endpoint, options = {}, cacheKey) => {
     
     // Handle 401 specifically - user is not authenticated
     if (response.status === 401) {
-      // Clear invalid token
+      // Clear invalid token and cache
       setToken(null);
+      apiCache.clear();
       // Don't throw error for auth endpoints, let components handle gracefully
       if (endpoint.includes('/auth/')) {
         const data = await response.json().catch(() => ({ message: 'Authentication failed' }));
@@ -168,6 +169,9 @@ export const authAPI = {
 
   // User login
   login: async (credentials) => {
+    // Clear cache immediately to prevent old token's /me request from surviving
+    apiCache.clear();
+    
     const response = await apiRequest('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
@@ -188,8 +192,8 @@ export const authAPI = {
         method: 'POST',
       });
     } finally {
-      // Always clear token on logout, even if API call fails
-      setToken(null);
+      // Always clear token and cache on logout, even if API call fails
+      clearAuth();
     }
   },
 
@@ -345,15 +349,34 @@ export const fineAPI = {
 
 // Salary API calls
 export const salaryAPI = {
-  // Get all salaries
-  getAllSalaries: () =>
-    apiRequest('/salaries'),
+  // Get my salary slips (employee-only endpoint)
+  getMySalarySlips: () =>
+    apiRequest('/salaries/my-slips'),
+
+  // Generate monthly salary (admin-only endpoint)
+  generateMonthlySalary: (salaryData) =>
+    apiRequest('/salaries/generate', {
+      method: 'POST',
+      body: JSON.stringify(salaryData),
+    }),
+
+  // Get all salaries (admin-only with filters)
+  getAllSalaries: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/salaries/all${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get salary summary (admin-only)
+  getSalarySummary: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/salaries/summary${queryString ? `?${queryString}` : ''}`);
+  },
 
   // Get salaries by employee ID
   getSalariesByEmployee: (employeeId) =>
     apiRequest(`/salaries/employee/${employeeId}`),
 
-  // Create salary record
+  // Create salary record (deprecated - use generateMonthlySalary instead)
   createSalary: (salaryData) =>
     apiRequest('/salaries', {
       method: 'POST',
@@ -365,6 +388,12 @@ export const salaryAPI = {
     apiRequest(`/salaries/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updateData),
+    }),
+
+  // Delete salary record (admin-only)
+  deleteSalary: (id) =>
+    apiRequest(`/salaries/${id}`, {
+      method: 'DELETE',
     }),
 };
 
@@ -424,6 +453,7 @@ export const isAuthenticated = () => {
 
 export const clearAuth = () => {
   setToken(null);
+  apiCache.clear();
 };
 
 // Export all APIs as a single object

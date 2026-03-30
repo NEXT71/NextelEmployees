@@ -33,7 +33,7 @@ const LoginPage = () => {
     };
         
     checkAuth();
-  }, [navigate]);
+  }, []);
 
   const handleSubmit = async (credentials) => {
     setIsLoading(true);

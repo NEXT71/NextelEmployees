@@ -167,7 +167,7 @@ const checkClockInStatus = async (employeeId) => {
   }, 60000);
 
   return () => clearInterval(timer);
-}, [navigate]);
+}, []);
 
   const refreshAttendanceData = async () => {
     if (employee._id) {

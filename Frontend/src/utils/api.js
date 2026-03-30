@@ -169,9 +169,6 @@ export const authAPI = {
 
   // User login
   login: async (credentials) => {
-    // Clear cache immediately to prevent old token's /me request from surviving
-    apiCache.clear();
-    
     const response = await apiRequest('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
@@ -180,6 +177,8 @@ export const authAPI = {
     // Store token if login successful
     if (response && response.token) {
       setToken(response.token);
+      // Clear cache after new token is set to ensure fresh auth state
+      apiCache.clear();
     }
     
     return response;

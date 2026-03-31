@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Check, X, AlertCircle, Loader, ChevronDown, ChevronUp } from 'lucide-react';
-import { salaryAPI } from '../../utils/api';
 
 const PendingSalesReview = () => {
   const [submissions, setSubmissions] = useState([]);
@@ -12,7 +11,7 @@ const PendingSalesReview = () => {
   const [showRejectForm, setShowRejectForm] = useState(null);
 
   // Fetch submissions
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(
@@ -36,11 +35,11 @@ const PendingSalesReview = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
   useEffect(() => {
     fetchSubmissions();
-  }, [filter]);
+  }, [fetchSubmissions]);
 
   // Single approve
   const handleApprove = async (id) => {

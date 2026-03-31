@@ -366,3 +366,37 @@ export const getSalarySummary = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get salaries for a specific employee
+export const getSalariesByEmployee = async (req, res, next) => {
+  try {
+    const { employeeId } = req.params;
+
+    if (!employeeId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Employee ID is required'
+      });
+    }
+
+    const salaries = await Salary.find({ employee: employeeId })
+      .populate('employee', 'firstName lastName employeeId email')
+      .sort({ month: -1 });
+
+    if (salaries.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        message: 'No salary records found for this employee'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: salaries
+    });
+  } catch (error) {
+    console.error('Error fetching employee salaries:', error);
+    next(error);
+  }
+};

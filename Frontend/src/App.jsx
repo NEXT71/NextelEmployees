@@ -9,6 +9,7 @@ import { AuthProvider } from './contexts/AuthContext.jsx';
 const LoginPage = lazy(() => import('./pages/auth/LoginPage.jsx'));
 const EmployeeDashboard = lazy(() => import('./pages/employees/Dashboard.jsx'));
 const EmployeeSalarySlips = lazy(() => import('./pages/employees/SalarySlips.jsx'));
+const SalesDashboard = lazy(() => import('./pages/employees/SalesDashboard.jsx'));
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard.jsx'));
 const EmployeeManagement = lazy(() => import('./pages/admin/EmployeeManagement.jsx'));
 const AdminAttendance = lazy(() => import('./pages/admin/AdminAttendance.jsx'));
@@ -48,6 +49,14 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <EmployeeSalarySlips />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/employee/sales-dashboard"
+                element={
+                  <ProtectedRoute>
+                    <SalesDashboard />
                   </ProtectedRoute>
                 }
               />

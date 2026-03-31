@@ -6,6 +6,8 @@ import AdminMessageCenter from '../../components/admin/AdminMessageCenter';
 import BulkFineModal from '../../components/admin/BulkFineModal';
 import GenerateSalaryModal from '../../components/admin/GenerateSalaryModal';
 import BonusModal from '../../components/admin/BonusModal';
+import SalesRecordingModal from '../../components/admin/SalesRecordingModal';
+import SalesAnalytics from '../../components/admin/SalesAnalytics';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
 import { employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,7 +16,7 @@ import {
   X, Edit, Trash2, AlertCircle,
   Filter, Search, DollarSign, Calendar,
   User as UserIcon, Home, Phone, Mail, MessageSquare,
-  RefreshCw, Download, UserCheck
+  RefreshCw, Download, UserCheck, TrendingUp
 } from 'lucide-react';
 import { authAPI } from '../../utils/api';
 
@@ -35,6 +37,7 @@ const AdminDashboard = () => {
   const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
   const [showGenerateSalaryModal, setShowGenerateSalaryModal] = useState(false);
   const [showBonusModal, setShowBonusModal] = useState(false);
+  const [showSalesRecordingModal, setShowSalesRecordingModal] = useState(false);
   const [selectedSalary, setSelectedSalary] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeeFines, setEmployeeFines] = useState([]);
@@ -698,6 +701,14 @@ const AdminDashboard = () => {
             <span>Salaries</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab('sales')}
+            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'sales' ? 'text-purple-300 border-b-2 border-purple-400' : 'text-blue-200/70 hover:text-purple-300'}`}
+          >
+            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>Sales</span>
+          </button>
+
         </div>
 
         {/* Search and Filters - Responsive */}
@@ -708,7 +719,7 @@ const AdminDashboard = () => {
             </div>
             <input
               type="text"
-              placeholder={`Search ${activeTab === 'employees' ? 'employees' : activeTab === 'fines' ? 'fines' : 'salaries'}...`}
+              placeholder={`Search ${activeTab === 'employees' ? 'employees' : activeTab === 'fines' ? 'fines' : activeTab === 'salaries' ? 'salaries' : 'sales'}...`}
               value={activeTab === 'employees' ? searchTerm : activeTab === 'fines' ? fineSearchTerm : salarySearchTerm}
               onChange={(e) => activeTab === 'employees' ? setSearchTerm(e.target.value) : activeTab === 'fines' ? setFineSearchTerm(e.target.value) : setSalarySearchTerm(e.target.value)}
               className="pl-9 sm:pl-10 w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 sm:px-4 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm sm:text-base"
@@ -857,6 +868,18 @@ const AdminDashboard = () => {
             >
               <Download className="w-5 h-5" />
               Download Salary Report
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'sales' && (
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setShowSalesRecordingModal(true)}
+              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-purple-500/50"
+            >
+              <TrendingUp className="w-5 h-5" />
+              Record Sales
             </button>
           </div>
         )}
@@ -1236,6 +1259,11 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Sales Analytics */}
+      {activeTab === 'sales' && (
+        <SalesAnalytics />
       )}
 
       {/* Employee Details Modal */}
@@ -1717,6 +1745,16 @@ const AdminDashboard = () => {
         onClose={() => setShowBulkFineModal(false)}
         employees={employees}
         onApply={handleBulkFine}
+      />
+
+      {/* Sales Recording Modal */}
+      <SalesRecordingModal
+        isOpen={showSalesRecordingModal}
+        onClose={() => setShowSalesRecordingModal(false)}
+        onSuccess={() => {
+          // Refresh is handled by the analytics component via API
+          setShowSalesRecordingModal(false);
+        }}
       />
 
       {/* Floating Message Button */}

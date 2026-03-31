@@ -79,8 +79,7 @@ connectDB();
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001', 
-  'https://nextel-employees.vercel.app',  // Vercel frontend
-  'https://nextelemployees-1.onrender.com',  // For any frontend at same domain
+  'https://nextel-employees.vercel.app',
   process.env.CLIENT_URL
 ].filter(Boolean);
 
@@ -122,19 +121,6 @@ app.get('/health', (req, res) => {
       error: error.message
     });
   }
-});
-
-// Diagnostic endpoint for Render deployment
-app.get('/api/diagnose', (req, res) => {
-  res.json({
-    message: '✅ Backend API is responding (not React app)',
-    service: 'Nextel Employees Backend',
-    isBackend: true,
-    hostname: req.hostname,
-    origin: req.hostname + ':' + (process.env.PORT || 5000),
-    timestamp: new Date().toISOString(),
-    note: 'If you see this, your backend is working correctly!'
-  });
 });
 
 // Basic API info route

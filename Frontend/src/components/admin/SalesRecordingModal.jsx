@@ -70,6 +70,7 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
 
       const response = await salesTargetAPI.recordDailySales({
         employeeId: selectedEmployee,
+        salesCount: 1,  // Each record = 1 sale
         date: date  // Backend will convert to Date object
       });
 

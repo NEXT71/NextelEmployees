@@ -449,6 +449,40 @@ export const messageAPI = {
     apiRequest('/messages/available-admins'),
 };
 
+// Sales Target API
+export const salesTargetAPI = {
+  // Record daily sales (Admin)
+  recordDailySales: (salesData) =>
+    apiRequest('/sales-targets/record', {
+      method: 'POST',
+      body: JSON.stringify(salesData),
+    }),
+
+  // Get CSR daily sales report (Employee/Admin)
+  getCsrDailySalesReport: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/sales-targets/my-sales-report${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get CSR monthly earnings (Employee/Admin)
+  getCsrMonthlyEarnings: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/sales-targets/my-monthly-earnings${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get all CSR sales (Admin)
+  getAllCsrSales: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/sales-targets/all${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Delete sales record (Admin)
+  deleteSalesRecord: (id) =>
+    apiRequest(`/sales-targets/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
 // Utility functions for authentication
 export const isAuthenticated = () => {
   return !!getToken();
@@ -467,6 +501,7 @@ export const api = {
   fines: fineAPI,
   salaries: salaryAPI,
   messages: messageAPI,
+  salesTargets: salesTargetAPI,
 };
 
 export default api;

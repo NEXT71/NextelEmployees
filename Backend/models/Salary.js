@@ -28,5 +28,12 @@ const salarySchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+// Add indexes for optimal query performance
+salarySchema.index({ employee: 1, month: -1 }); // For employee salary history
+salarySchema.index({ month: 1 }); // For monthly reports
+salarySchema.index({ createdAt: -1 }); // For recent salary records
+salarySchema.index({ employee: 1, createdAt: -1 }); // For employee creation time sorting
+salarySchema.index({ baseSalary: 1 }); // For salary range queries
+
 const Salary = mongoose.model('Salary', salarySchema);
 export default Salary;

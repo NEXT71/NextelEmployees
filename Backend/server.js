@@ -13,6 +13,10 @@ import attendanceRouter from './routes/attendance.routes.js';
 import fineRouter from './routes/fine.routes.js';
 import salaryRouter from './routes/salary.routes.js';
 import messageRouter from './routes/message.routes.js';
+import salesTargetRouter from './routes/salesTarget.routes.js';
+import { initializeCache, closeCache } from './utils/cache.js';
+import { ensureArchiveCollections } from './utils/archive.js';
+import { scheduleArchiveJobs } from './jobs/archiveJobs.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -129,7 +133,8 @@ app.get('/api', (req, res) => {
       attendance: '/api/attendance',
       fines: '/api/fines',
       salaries: '/api/salaries',
-      messages: '/api/messages'
+      messages: '/api/messages',
+      'sales-targets': '/api/sales-targets'
     }
   });
 });
@@ -141,12 +146,32 @@ app.use('/api/attendance', attendanceRouter);
 app.use('/api/fines', fineRouter);
 app.use('/api/salaries', salaryRouter);
 app.use('/api/messages', messageRouter);
+app.use('/api/sales-targets', salesTargetRouter);
 
 // Error handling
 app.use(errorHandler);
 
 // Initialize scheduled jobs
 scheduleAttendanceJobs();
+
+// Initialize cache (with graceful fallback if Redis unavailable)
+initializeCache()
+  .then(connected => {
+    if (connected) {
+      console.log('✅ Redis cache initialized');
+    } else {
+      console.warn('⚠️  Redis cache unavailable - running without caching');
+    }
+  })
+  .catch(err => console.warn('Cache initialization warning:', err));
+
+// Initialize archive collections and scheduling
+ensureArchiveCollections()
+  .then(() => {
+    console.log('✅ Archive system initialized');
+    scheduleArchiveJobs(); // Schedule daily archive operations
+  })
+  .catch(err => console.warn('Archive initialization warning:', err));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

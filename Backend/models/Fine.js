@@ -63,5 +63,14 @@ fineSchema.pre('save', function(next) {
   next();
 });
 
+// Add indexes for optimal query performance
+fineSchema.index({ employee: 1, date: -1 }); // For employee fine history
+fineSchema.index({ approved: 1, createdAt: -1 }); // For pending fines
+fineSchema.index({ type: 1 }); // For fine type analysis
+fineSchema.index({ date: 1 }); // For date range queries
+fineSchema.index({ employee: 1, approved: 1 }); // For employee pending fines
+fineSchema.index({ amount: 1 }); // For high-value fines
+fineSchema.index({ createdAt: -1 }); // For recent fines
+
 const Fine = mongoose.model('Fine', fineSchema);
 export default Fine;

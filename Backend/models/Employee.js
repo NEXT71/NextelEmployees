@@ -69,12 +69,17 @@ user: {
   }
 }, { timestamps: true });
 
-// Ensure the user field has a proper sparse unique index
+// Add comprehensive indexes for optimal query performance
 employeeSchema.index({ user: 1 }, { unique: true, sparse: true });
-
-// Ensure email and employeeId are unique
 employeeSchema.index({ email: 1 }, { unique: true });
 employeeSchema.index({ employeeId: 1 }, { unique: true });
+employeeSchema.index({ department: 1 }); // For department queries
+employeeSchema.index({ status: 1 }); // For active/inactive queries
+employeeSchema.index({ hireDate: 1 }); // For hire date range queries
+employeeSchema.index({ department: 1, status: 1 }); // For department staff list
+employeeSchema.index({ 'salary.baseSalary': 1 }); // For salary range queries
+employeeSchema.index({ createdAt: -1 }); // For recent hires
+employeeSchema.index({ lastSeen: -1 }); // For recent activity
 
 const Employee = mongoose.model('Employee', employeeSchema);
 export default Employee;

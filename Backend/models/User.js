@@ -54,6 +54,15 @@ const userSchema = new mongoose.Schema({
   lastLogin: Date
 }, { timestamps: true });
 
+// Add indexes for optimal query performance
+userSchema.index({ username: 1 }, { unique: true });
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ role: 1 }); // For role-based queries
+userSchema.index({ isActive: 1 }); // For active user queries
+userSchema.index({ lastLogin: -1 }); // For recent login tracking
+userSchema.index({ employeeId: 1 }); // For employee user mapping
+userSchema.index({ createdAt: -1 }); // For recent accounts
+
 // Hash password before saving
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();

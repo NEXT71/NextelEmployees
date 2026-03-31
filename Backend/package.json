@@ -8,7 +8,8 @@
     "cleanup:orphaned": "node scripts/cleanupOrphanedRecords.js",
     "fix:index": "node scripts/fixEmployeeUserIndex.js",
     "reset:employees": "node scripts/resetEmployeeData.js",
-    "check:admin": "node scripts/checkAdminRole.js"
+    "check:admin": "node scripts/checkAdminRole.js",
+    "archive:run": "node scripts/runArchive.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

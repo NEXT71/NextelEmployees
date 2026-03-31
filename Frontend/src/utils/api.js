@@ -208,12 +208,8 @@ export const employeeAPI = {
   // Get employees with optional filters
   getEmployees: async (params = {}) => {
     const response = await apiRequest('/employees');
-    // Filter by department on client side if needed
-    if (params.department && response.data) {
-      response.data = response.data.filter(emp => 
-        emp.department && (emp.department.name === params.department || emp.department._id === params.department)
-      );
-    }
+    // All employees are already filtered on backend to exclude admins
+    // Just return the full list
     return response;
   },
 

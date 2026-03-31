@@ -17,10 +17,17 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
   const loadEmployees = useCallback(async () => {
     try {
       setLoading(true);
+      setError('');
       const response = await employeeAPI.getEmployees({ department });
-      setEmployees(response.data || []);
+      if (response && response.data) {
+        setEmployees(response.data);
+      } else {
+        console.warn('No employee data in response:', response);
+        setError('No employees returned from server');
+      }
     } catch (err) {
-      setError('Failed to load employees');
+      console.error('Failed to load employees:', err);
+      setError(`Failed to load employees: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -116,21 +123,39 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
           <div className="p-6 space-y-4">
             {!preview ? (
               <>
+                {/* Error Display */}
+                {error && (
+                  <div className="flex items-center gap-2 bg-red-900/60 border border-red-600/50 rounded-lg p-3">
+                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                    <span className="text-sm text-red-200">{error}</span>
+                  </div>
+                )}
+
                 {/* Employee Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-200 mb-2">Select CSR</label>
-                  <select
-                    value={selectedEmployee}
-                    onChange={(e) => setSelectedEmployee(e.target.value)}
-                    className="w-full bg-blue-800/80 border border-blue-600/50 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  >
-                    <option value="">Choose an employee...</option>
-                    {employees.map(emp => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.firstName} {emp.lastName} ({emp.employeeId})
-                      </option>
-                    ))}
-                  </select>
+                  {loading ? (
+                    <div className="w-full bg-blue-800/80 border border-blue-600/50 text-white rounded-lg px-3 py-2 text-sm text-gray-400">
+                      Loading employees...
+                    </div>
+                  ) : employees.length === 0 ? (
+                    <div className="w-full bg-blue-800/80 border border-red-600/50 text-white rounded-lg px-3 py-2 text-sm text-red-300">
+                      No employees found
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedEmployee}
+                      onChange={(e) => setSelectedEmployee(e.target.value)}
+                      className="w-full bg-blue-800/80 border border-blue-600/50 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                      <option value="">Choose an employee...</option>
+                      {employees.map(emp => (
+                        <option key={emp._id} value={emp._id}>
+                          {emp.firstName} {emp.lastName} ({emp.employeeId})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 {/* Date */}

@@ -139,9 +139,9 @@ salesTargetSchema.post('save', async function(doc) {
       tierBonus = TIER_CONFIG.tier1.bonus;
     }
     
-    // Calculate total earning: base salary + flat bonus
+    // Calculate total earning: (daily sales count × base salary) + flat daily bonus
     const baseSalary = doc.baseSalary;
-    const totalEarning = baseSalary + tierBonus;
+    const totalEarning = (dailySalesCount * baseSalary) + tierBonus;
     
     // Update this record and all records for the day with calculated bonus
     await this.constructor.updateMany(

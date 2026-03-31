@@ -205,6 +205,18 @@ export const employeeAPI = {
   getAllEmployees: () =>
     apiRequest('/employees'),
 
+  // Get employees with optional filters
+  getEmployees: async (params = {}) => {
+    const response = await apiRequest('/employees');
+    // Filter by department on client side if needed
+    if (params.department && response.data) {
+      response.data = response.data.filter(emp => 
+        emp.department && (emp.department.name === params.department || emp.department._id === params.department)
+      );
+    }
+    return response;
+  },
+
   // Get employee by ID
   getEmployeeById: (id) =>
     apiRequest(`/employees/${id}`),

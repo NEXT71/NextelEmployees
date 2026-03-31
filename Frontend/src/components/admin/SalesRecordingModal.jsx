@@ -6,9 +6,7 @@ import Toast from '../common/Toast';
 const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' }) => {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState('');
-  const [salesCount, setSalesCount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -35,49 +33,24 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
   }, [isOpen, loadEmployees]);
 
   const handlePreview = async () => {
-    if (!selectedEmployee || !salesCount) {
-      setError('Please select employee and enter sales count');
+    if (!selectedEmployee) {
+      setError('Please select an employee');
       return;
     }
 
-    const count = parseInt(salesCount);
-    if (count < 0 || count > 50) {
-      setError('Sales count must be between 0 and 50');
-      return;
-    }
-
-    // Calculate tier and earnings locally for preview
-    const baseSalary = count * 1000;
-    let tier = 0;
-    let bonus = 0;
-    let tierName = 'No Tier';
-
-    if (count >= 10) {
-      tier = 3;
-      bonus = baseSalary * 0.5; // 50% bonus
-      tierName = 'Tier 3 (10+ sales)';
-    } else if (count >= 7) {
-      tier = 2;
-      bonus = baseSalary * 0.2; // 20% bonus
-      tierName = 'Tier 2 (7-9 sales)';
-    } else if (count >= 5) {
-      tier = 1;
-      bonus = 0; // No bonus
-      tierName = 'Tier 1 (5-6 sales)';
-    }
-
+    // With the new schema, each record = 1 sale
+    const baseSalary = 1000;  // Fixed base per sale
     const employee = employees.find(e => e._id === selectedEmployee);
     
     setPreview({
       employee,
-      salesCount: count,
+      salesCount: 1,
       baseSalary,
-      bonus,
-      total: baseSalary + bonus,
-      tier,
-      tierName,
-      date,
-      notes
+      bonus: 0,  // Calculated daily at aggregation level
+      total: baseSalary,
+      tier: 0,   // Will be calculated based on daily total
+      tierName: 'Tier calculated from daily total',
+      date
     });
 
     setError('');
@@ -90,13 +63,11 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
 
       const response = await salesTargetAPI.recordDailySales({
         employeeId: selectedEmployee,
-        salesCount: parseInt(salesCount),
-        date: new Date(date),
-        notes
+        date: date  // Backend will convert to Date object
       });
 
       if (response.success) {
-        setSuccess(`Sales recorded! Earned RS${response.data.totalEarningForDay} (${response.data.tierInfo.tierName})`);
+        setSuccess(`Sale recorded! Earned RS${response.data.totalEarning} (${response.data.tierInfo.tierName})`);
         setTimeout(() => {
           resetModal();
           onSuccess?.();
@@ -111,8 +82,6 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
 
   const resetModal = () => {
     setSelectedEmployee('');
-    setSalesCount('');
-    setNotes('');
     setDate(new Date().toISOString().split('T')[0]);
     setError('');
     setSuccess('');
@@ -164,23 +133,6 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
                   </select>
                 </div>
 
-                {/* Sales Count */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Sales Count</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="50"
-                    value={salesCount}
-                    onChange={(e) => setSalesCount(e.target.value)}
-                    placeholder="Enter number of sales"
-                    className="w-full bg-blue-800/80 border border-blue-600/50 text-white placeholder-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    • 1-4 sales: No tier  • 5-6 sales: Tier 1  • 7-9 sales: Tier 2 (+20%)  • 10+ sales: Tier 3 (+50%)
-                  </p>
-                </div>
-
                 {/* Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-200 mb-2">Date</label>
@@ -189,18 +141,6 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                     className="w-full bg-blue-800/80 border border-blue-600/50 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Notes (Optional)</label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add any notes about this sales record..."
-                    rows="2"
-                    className="w-full bg-blue-800/80 border border-blue-600/50 text-white placeholder-gray-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
                   />
                 </div>
               </>

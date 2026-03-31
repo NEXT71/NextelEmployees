@@ -17,14 +17,11 @@ const CSRSalesDashboard = () => {
   const [error, setError] = useState('');
   const [showMessageCenter, setShowMessageCenter] = useState(false);
 
-  const employeeId = user?.employeeId;
-
   const loadMonthlyData = useCallback(async () => {
     try {
       setError('');
 
       const response = await salesTargetAPI.getCsrMonthlyEarnings({
-        employeeId,
         year: activeYear,
         month: activeMonth
       });
@@ -36,13 +33,13 @@ const CSRSalesDashboard = () => {
     } catch (err) {
       setError(err.message || 'Failed to load sales data');
     }
-  }, [employeeId, activeYear, activeMonth]);
+  }, [activeYear, activeMonth]);
 
   useEffect(() => {
-    if (employeeId) {
+    if (user) {
       loadMonthlyData();
     }
-  }, [employeeId, loadMonthlyData]);
+  }, [user, loadMonthlyData]);
 
   const getTierColor = (tier) => {
     const colors = {

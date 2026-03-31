@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle, Send } from 'lucide-react';
+import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle } from 'lucide-react';
 import { salesTargetAPI, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import CSRSalesSubmission from '../../components/employees/CSRSalesSubmission';

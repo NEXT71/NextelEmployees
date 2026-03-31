@@ -489,6 +489,13 @@ export const salesTargetAPI = {
     apiRequest(`/sales-targets/${id}`, {
       method: 'DELETE',
     }),
+  
+  // Submit sales form (CSR - for Google Form equivalent)
+  submitSalesForm: (formData) =>
+    apiRequest('/sales-targets/submit-form', {
+      method: 'POST',
+      body: JSON.stringify(formData),
+    }),
 };
 
 // Utility functions for authentication

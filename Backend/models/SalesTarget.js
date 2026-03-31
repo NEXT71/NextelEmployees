@@ -67,15 +67,15 @@ const salesTargetSchema = new mongoose.Schema({
   // Tier and bonus calculated at daily aggregation level
   achievedTier: {
     type: Number,
-    default: 0  // 0, 1, 2, or 3 - calculated from daily total
+    default: 0  // 0, 1, 2, 3, or 4 - calculated from daily total (3, 5, 8, 12 sales)
   },
   tierBonus: {
     type: Number,
-    default: 0  // Bonus calculated at daily aggregation
+    default: 0  // Flat bonus amount: 500, 1000, 3000, or 5000 RS
   },
   totalEarning: {
     type: Number,
-    default: 1000  // baseSalary + tierBonus
+    default: 1000  // baseSalary + tierBonus (flat)
   },
   
   // When was this sale made
@@ -114,30 +114,33 @@ salesTargetSchema.post('save', async function(doc) {
       }
     });
     
-    // Tier definitions: At what sales count does agent achieve each tier
+    // Tier definitions: Flat bonus based on daily sales count
     const TIER_CONFIG = {
-      tier1: { minSales: 5, multiplier: 1 },      // 5-6 sales: base rate
-      tier2: { minSales: 7, multiplier: 1.2 },    // 7-9 sales: 20% bonus
-      tier3: { minSales: 10, multiplier: 1.5 }    // 10+ sales: 50% bonus
+      tier1: { minSales: 3, bonus: 500 },       // 3-4 sales: 500 RS bonus
+      tier2: { minSales: 5, bonus: 1000 },      // 5-7 sales: 1000 RS bonus
+      tier3: { minSales: 8, bonus: 3000 },      // 8-11 sales: 3000 RS bonus
+      tier4: { minSales: 12, bonus: 5000 }      // 12+ sales: 5000 RS bonus
     };
     
     let achievedTier = 0;
-    let tierMultiplier = 1;
+    let tierBonus = 0;
     
-    if (dailySalesCount >= TIER_CONFIG.tier3.minSales) {
+    if (dailySalesCount >= TIER_CONFIG.tier4.minSales) {
+      achievedTier = 4;
+      tierBonus = TIER_CONFIG.tier4.bonus;
+    } else if (dailySalesCount >= TIER_CONFIG.tier3.minSales) {
       achievedTier = 3;
-      tierMultiplier = TIER_CONFIG.tier3.multiplier;
+      tierBonus = TIER_CONFIG.tier3.bonus;
     } else if (dailySalesCount >= TIER_CONFIG.tier2.minSales) {
       achievedTier = 2;
-      tierMultiplier = TIER_CONFIG.tier2.multiplier;
+      tierBonus = TIER_CONFIG.tier2.bonus;
     } else if (dailySalesCount >= TIER_CONFIG.tier1.minSales) {
       achievedTier = 1;
-      tierMultiplier = TIER_CONFIG.tier1.multiplier;
+      tierBonus = TIER_CONFIG.tier1.bonus;
     }
     
-    // Calculate bonus for this individual sale
+    // Calculate total earning: base salary + flat bonus
     const baseSalary = doc.baseSalary;
-    const tierBonus = baseSalary * (tierMultiplier - 1);
     const totalEarning = baseSalary + tierBonus;
     
     // Update this record and all records for the day with calculated bonus
@@ -151,7 +154,7 @@ salesTargetSchema.post('save', async function(doc) {
       },
       {
         achievedTier,
-        tierBonus: Math.round(tierBonus),
+        tierBonus,
         totalEarning: Math.round(totalEarning)
       }
     );

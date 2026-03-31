@@ -22,6 +22,38 @@ router.get('/debug/health', (req, res) => {
   });
 });
 
+// DEBUG: Show all sales records (no auth required - for debugging)
+router.get('/debug/all-records', async (req, res) => {
+  try {
+    const SalesTarget = (await import('../models/SalesTarget.js')).default;
+    const records = await SalesTarget.find()
+      .populate('agent', 'firstName lastName employeeId')
+      .sort({ createdAt: -1 })
+      .limit(100);
+    
+    const byStatus = {};
+    records.forEach(r => {
+      byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+    });
+    
+    res.json({
+      success: true,
+      totalRecords: records.length,
+      byStatus,
+      records: records.map(r => ({
+        _id: r._id,
+        agent: r.agent,
+        agentName: r.agentName,
+        status: r.status,
+        saleDate: r.saleDate,
+        createdAt: r.createdAt
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Public endpoint - Google Form webhook
 router.post('/create', createSubmission);
 

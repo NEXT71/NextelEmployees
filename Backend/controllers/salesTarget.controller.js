@@ -58,7 +58,16 @@ export const recordDailySales = async (req, res, next) => {
       dids: 'ADMIN-MANUAL',
       closer: 'Admin',
       salesCount: 1,  // Always 1 per transaction
+      status: 'pending',  // Explicitly set as pending
       saleDate
+    });
+
+    console.log('✅ Created sales record:', {
+      _id: salesRecord._id,
+      agent: salesRecord.agent,
+      status: salesRecord.status,
+      saleDate: salesRecord.saleDate,
+      createdAt: salesRecord.createdAt
     });
 
     // Populate agent details

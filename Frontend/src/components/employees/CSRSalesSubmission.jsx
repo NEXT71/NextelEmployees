@@ -42,7 +42,7 @@ const CSRSalesSubmission = () => {
     if (!closer?.trim()) return 'Closer name is required';
     
     // Phone validation - basic check
-    if (!/^[0-9+\-\s()]{7,}$/.test(phone)) {
+    if (!/^[0-9\+\-\s\(\)]{7,}$/.test(phone)) {
       return 'Please enter a valid phone number';
     }
     

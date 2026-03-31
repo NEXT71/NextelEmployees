@@ -190,21 +190,28 @@ export const getCsrDailySalesReport = async (req, res, next) => {
 export const getCsrMonthlyEarnings = async (req, res, next) => {
   try {
     const { year, month } = req.query;
-    const employeeId = req.user.employeeId;
 
     if (!year || !month) {
       return res.status(400).json({
         success: false,
-        message: 'year, and month are required'
+        message: 'year and month are required'
       });
     }
 
-    // Verify employee exists
-    const employee = await Employee.findById(employeeId);
+    // Admins don't have employee records or earnings
+    if (req.user.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admins do not have sales earnings'
+      });
+    }
+
+    // Find employee record linked to user
+    const employee = await Employee.findOne({ user: req.user._id });
     if (!employee) {
       return res.status(404).json({
         success: false,
-        message: 'Employee not found'
+        message: 'Employee record not found for current user'
       });
     }
 
@@ -213,7 +220,7 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
     const endDate = new Date(year, month, 0);
 
     const salesRecords = await SalesTarget.find({
-      agent: employeeId,
+      agent: employee._id,
       saleDate: { $gte: startDate, $lte: endDate }
     }).sort({ saleDate: 1 });
 

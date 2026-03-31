@@ -71,7 +71,12 @@ const getSubmissions = async (req, res, next) => {
       }
     });
   } catch (error) {
-    next(error);
+    console.error('Error in getSubmissions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching submissions',
+      error: error.message
+    });
   }
 };
 

@@ -9,11 +9,15 @@ const PendingSalesReview = () => {
   const [filter, setFilter] = useState('pending');
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 15;
 
   // Fetch submissions
   const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true);
+      setCurrentPage(1); // Reset to first page
       const response = await fetch(
         `/api/sales-submissions?status=${filter}&limit=100`,
         {
@@ -40,6 +44,18 @@ const PendingSalesReview = () => {
   useEffect(() => {
     fetchSubmissions();
   }, [fetchSubmissions]);
+
+  // Filter submissions by selected date
+  const filteredByDate = submissions.filter(submission => {
+    const submissionDate = new Date(submission.saleDate).toISOString().split('T')[0];
+    return submissionDate === selectedDate;
+  });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredByDate.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedSubmissions = filteredByDate.slice(startIndex, endIndex);
 
   // Single approve
   const handleApprove = async (id) => {
@@ -163,10 +179,10 @@ const PendingSalesReview = () => {
 
   // Toggle all
   const toggleSelectAll = () => {
-    if (selectedIds.size === submissions.length) {
+    if (selectedIds.size === paginatedSubmissions.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(submissions.map(s => s._id)));
+      setSelectedIds(new Set(paginatedSubmissions.map(s => s._id)));
     }
   };
 
@@ -178,8 +194,27 @@ const PendingSalesReview = () => {
           <AlertCircle className="w-6 h-6 text-orange-400" />
           <h2 className="text-2xl font-bold text-white">Pending Sales Review</h2>
           <span className="ml-2 px-3 py-1 bg-orange-500/20 border border-orange-500/30 rounded-full text-orange-300 text-sm font-semibold">
-            {submissions.filter(s => s.status === 'pending').length} Pending
+            {filteredByDate.filter(s => s.status === 'pending').length} Pending
           </span>
+        </div>
+      </div>
+
+      {/* Date Filter */}
+      <div className="mb-6 flex items-center gap-4">
+        <div className="flex-1 max-w-xs">
+          <label className="block text-sm text-blue-300 font-medium mb-2">Filter by Date</label>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => {
+              setSelectedDate(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          />
+        </div>
+        <div className="text-sm text-blue-300 pt-6">
+          Showing {filteredByDate.length} submissions for {new Date(selectedDate).toLocaleDateString()}
         </div>
       </div>
 
@@ -195,7 +230,7 @@ const PendingSalesReview = () => {
                 : 'bg-white/10 text-blue-200 hover:bg-white/20'
             }`}
           >
-            {status} ({submissions.filter(s => s.status === status).length})
+            {status} ({filteredByDate.filter(s => s.status === status).length})
           </button>
         ))}
       </div>
@@ -237,25 +272,26 @@ const PendingSalesReview = () => {
       )}
 
       {/* Submissions List */}
-      {!loading && submissions.length === 0 ? (
+      {!loading && filteredByDate.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-blue-200 text-lg">No submissions to review</p>
+          <p className="text-blue-200 text-lg">No submissions to review for this date</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {/* Select All */}
-          <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg border border-white/10">
-            <input
-              type="checkbox"
-              checked={selectedIds.size === submissions.length && submissions.length > 0}
-              onChange={toggleSelectAll}
-              className="w-5 h-5 rounded border-white/30 text-blue-600"
-            />
-            <span className="text-white font-medium">Select All on this page</span>
-          </div>
+        <>
+          <div className="space-y-3">
+            {/* Select All */}
+            <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg border border-white/10">
+              <input
+                type="checkbox"
+                checked={selectedIds.size === paginatedSubmissions.length && paginatedSubmissions.length > 0}
+                onChange={toggleSelectAll}
+                className="w-5 h-5 rounded border-white/30 text-blue-600"
+              />
+              <span className="text-white font-medium">Select All on this page ({paginatedSubmissions.length})</span>
+            </div>
 
-          {/* Submissions */}
-          {submissions.map(submission => (
+            {/* Submissions */}
+            {paginatedSubmissions.map(submission => (
             <div
               key={submission._id}
               className="bg-white/5 border border-white/10 rounded-lg overflow-hidden"
@@ -418,7 +454,68 @@ const PendingSalesReview = () => {
               )}
             </div>
           ))}
-        </div>
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                ← Previous
+              </button>
+
+              <div className="flex gap-1">
+                {Array.from({ length: totalPages }).map((_, idx) => {
+                  const pageNum = idx + 1;
+                  const isEllipsis = 
+                    (pageNum > currentPage + 2 && pageNum < totalPages - 1) ||
+                    (pageNum < currentPage - 2 && pageNum > 2);
+                  
+                  if (isEllipsis) {
+                    return <span key={pageNum} className="px-2 py-2 text-blue-300">...</span>;
+                  }
+                  
+                  if (
+                    pageNum === 1 ||
+                    pageNum === totalPages ||
+                    (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)
+                  ) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-10 h-10 rounded-lg font-medium transition-all ${
+                          currentPage === pageNum
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white/10 text-blue-300 hover:bg-white/20'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+                  
+                  return null;
+                })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Next →
+              </button>
+
+              <span className="ml-4 text-blue-300 text-sm font-medium">
+                Page {currentPage} of {totalPages} • {filteredByDate.length} total submissions
+              </span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

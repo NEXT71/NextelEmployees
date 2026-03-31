@@ -68,11 +68,14 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
       setSubmitting(true);
       setError('');
 
-      const response = await salesTargetAPI.recordDailySales({
+      const payload = {
         employeeId: selectedEmployee,
         salesCount: 1,  // Each record = 1 sale
         date: date  // Backend will convert to Date object
-      });
+      };
+
+      console.log('📤 Submitting sales record with payload:', payload);
+      const response = await salesTargetAPI.recordDailySales(payload);
 
       if (response.success) {
         setSuccess(`Sale recorded! Earned RS${response.data.totalEarning} (${response.data.tierInfo.tierName})`);

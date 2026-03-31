@@ -11,8 +11,15 @@ export const recordDailySales = async (req, res, next) => {
   try {
     const { employeeId, salesCount, date, notes } = req.body;
 
+    console.log('=== recordDailySales ===');
+    console.log('Body received:', req.body);
+    console.log('employeeId:', employeeId);
+    console.log('salesCount:', salesCount);
+    console.log('date:', date);
+
     // Validation
     if (!employeeId || salesCount === undefined) {
+      console.error('❌ Missing required fields:', { employeeId, salesCount });
       return res.status(400).json({
         success: false,
         message: 'employeeId and salesCount are required'

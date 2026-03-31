@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, Calendar, Users, Award, DollarSign, AlertCircle, BarChart3 } from 'lucide-react';
+import { TrendingUp, Users, Award, DollarSign, AlertCircle, BarChart3 } from 'lucide-react';
 import { salesTargetAPI } from '../../utils/api';
 import StatsCard from '../common/StatsCard';
 import LoadingSkeleton from '../common/LoadingSkeleton';

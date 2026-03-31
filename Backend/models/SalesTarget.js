@@ -64,6 +64,38 @@ const salesTargetSchema = new mongoose.Schema({
     default: 1000  // 1 sale × 1000 RS
   },
   
+  // Approval workflow
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'disapproved'],
+    default: 'pending'
+  },
+  
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Employee',
+    default: null
+  },
+  approvedAt: {
+    type: Date,
+    default: null
+  },
+  
+  disapprovedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Employee',
+    default: null
+  },
+  disapprovedAt: {
+    type: Date,
+    default: null
+  },
+  
+  rejectionReason: {
+    type: String,
+    default: ''
+  },
+  
   // Tier and bonus calculated at daily aggregation level
   achievedTier: {
     type: Number,
@@ -88,6 +120,8 @@ const salesTargetSchema = new mongoose.Schema({
 
 // Indexes for efficient querying
 salesTargetSchema.index({ agent: 1, saleDate: 1 });
+salesTargetSchema.index({ agent: 1, status: 1 });
+salesTargetSchema.index({ status: 1, createdAt: -1 });
 salesTargetSchema.index({ saleDate: 1 });
 salesTargetSchema.index({ agent: 1, createdAt: -1 });
 salesTargetSchema.index({ 'customer.phone': 1 });
@@ -95,9 +129,14 @@ salesTargetSchema.index({ 'customer.state': 1 });
 salesTargetSchema.index({ closer: 1 });
 salesTargetSchema.index({ createdAt: -1 });
 
-// Post-save hook to calculate daily tier bonuses
+// Post-save hook to calculate daily tier bonuses (only for approved sales)
 salesTargetSchema.post('save', async function(doc) {
   try {
+    // Only calculate bonuses for approved sales
+    if (doc.status !== 'approved') {
+      return;
+    }
+
     // Get the start and end of the sale date (same day)
     const startOfDay = new Date(doc.saleDate);
     startOfDay.setHours(0, 0, 0, 0);
@@ -105,9 +144,10 @@ salesTargetSchema.post('save', async function(doc) {
     const endOfDay = new Date(doc.saleDate);
     endOfDay.setHours(23, 59, 59, 999);
     
-    // Count total sales for this agent on this day
+    // Count ONLY APPROVED sales for this agent on this day
     const dailySalesCount = await this.constructor.countDocuments({
       agent: doc.agent,
+      status: 'approved',  // Only count approved sales
       saleDate: {
         $gte: startOfDay,
         $lte: endOfDay
@@ -143,10 +183,11 @@ salesTargetSchema.post('save', async function(doc) {
     const baseSalary = doc.baseSalary;
     const totalEarning = (dailySalesCount * baseSalary) + tierBonus;
     
-    // Update this record and all records for the day with calculated bonus
+    // Update ONLY APPROVED records for the day with calculated bonus
     await this.constructor.updateMany(
       {
         agent: doc.agent,
+        status: 'approved',  // Only update approved sales
         saleDate: {
           $gte: startOfDay,
           $lte: endOfDay

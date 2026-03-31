@@ -391,7 +391,8 @@ export const submitGoogleFormData = async (req, res, next) => {
       closer,
       agentName,
       selectedAgentId,
-      submissionDate = new Date()
+      submissionDate = new Date(),
+      googleFormResponseId = ''
     } = req.body;
 
     // Validation
@@ -415,10 +416,10 @@ export const submitGoogleFormData = async (req, res, next) => {
       });
     }
 
-    // Create new sales record
-    const salesRecord = await SalesTarget.create({
+    // Create pending submission (will be approved/disapproved by admin)
+    const submission = await SalesTarget.create({
       agent: selectedAgentId,
-      agentName,
+      agentName: agentName.trim(),
       customer: {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -428,34 +429,28 @@ export const submitGoogleFormData = async (req, res, next) => {
       },
       dids: dids.trim(),
       closer: closer.trim(),
-      salesCount: 1,  // Always 1 per form submission
-      saleDate: new Date(submissionDate)
+      saleDate: new Date(submissionDate),
+      status: 'pending',  // Start as pending - awaiting admin approval
+      baseSalary: 1000,
+      pricePerSale: 1000
     });
 
-    // The post-save hook will automatically calculate tier and bonus for the day
-    await salesRecord.populate('agent', 'firstName lastName employeeId');
+    await submission.populate('agent', 'firstName lastName employeeId');
 
     return res.status(201).json({
       success: true,
-      message: 'Sale recorded successfully from Google Form',
+      message: 'Sales submission received and queued for approval',
       data: {
-        _id: salesRecord._id,
-        agent: salesRecord.agent,
-        agentName: salesRecord.agentName,
-        customer: salesRecord.customer,
-        dids: salesRecord.dids,
-        closer: salesRecord.closer,
-        salesCount: salesRecord.salesCount,
-        baseSalary: salesRecord.baseSalary,
-        achievedTier: salesRecord.achievedTier,
-        tierBonus: salesRecord.tierBonus,
-        totalEarning: salesRecord.totalEarning,
-        saleDate: salesRecord.saleDate,
-        tierInfo: {
-          tier: salesRecord.achievedTier,
-          tierName: getTierName(salesRecord.achievedTier),
-          earnedSoFarToday: salesRecord.totalEarning
-        }
+        _id: submission._id,
+        status: submission.status,
+        agent: submission.agent,
+        agentName: submission.agentName,
+        customer: submission.customer,
+        dids: submission.dids,
+        closer: submission.closer,
+        saleDate: submission.saleDate,
+        submittedAt: submission.createdAt,
+        message: 'Your submission is pending admin approval. Once approved, it will be added to your sales record.'
       }
     });
 

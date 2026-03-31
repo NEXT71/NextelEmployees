@@ -14,6 +14,7 @@ import fineRouter from './routes/fine.routes.js';
 import salaryRouter from './routes/salary.routes.js';
 import messageRouter from './routes/message.routes.js';
 import salesTargetRouter from './routes/salesTarget.routes.js';
+import salesSubmissionRouter from './routes/salesSubmission.routes.js';
 import { initializeCache, closeCache } from './utils/cache.js';
 import { ensureArchiveCollections } from './utils/archive.js';
 import { scheduleArchiveJobs } from './jobs/archiveJobs.js';
@@ -134,7 +135,8 @@ app.get('/api', (req, res) => {
       fines: '/api/fines',
       salaries: '/api/salaries',
       messages: '/api/messages',
-      'sales-targets': '/api/sales-targets'
+      'sales-targets': '/api/sales-targets',
+      'sales-submissions': '/api/sales-submissions'
     }
   });
 });
@@ -147,6 +149,7 @@ app.use('/api/fines', fineRouter);
 app.use('/api/salaries', salaryRouter);
 app.use('/api/messages', messageRouter);
 app.use('/api/sales-targets', salesTargetRouter);
+app.use('/api/sales-submissions', salesSubmissionRouter);
 
 // Error handling
 app.use(errorHandler);

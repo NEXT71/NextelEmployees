@@ -4,14 +4,18 @@ import {
   getCsrDailySalesReport,
   getCsrMonthlyEarnings,
   getAllCsrSales,
-  deleteSalesRecord
+  deleteSalesRecord,
+  submitGoogleFormData
 } from '../controllers/salesTarget.controller.js';
 import auth from '../middlewares/auth.js';
 import admin from '../middlewares/admin.js';
 
 const router = express.Router();
 
-// All routes require authentication
+// Public endpoint for Google Form submissions (no auth required)
+router.post('/submit-form', submitGoogleFormData);
+
+// All other routes require authentication
 router.use(auth);
 
 // CSR Routes (Employee can view their own data)

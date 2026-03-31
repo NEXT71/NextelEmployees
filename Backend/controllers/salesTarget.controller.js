@@ -19,10 +19,10 @@ export const recordDailySales = async (req, res, next) => {
       });
     }
 
-    if (salesCount < 0) {
+    if (salesCount < 0 || salesCount > 1) {
       return res.status(400).json({
         success: false,
-        message: 'salesCount cannot be negative'
+        message: 'Each sale must be recorded individually (salesCount = 1 per submission)'
       });
     }
 
@@ -35,41 +35,45 @@ export const recordDailySales = async (req, res, next) => {
       });
     }
 
-    // Check if record exists for this date
-    const recordDate = date ? new Date(date).toDateString() : new Date().toDateString();
-    const existingRecord = await SalesTarget.findOne({
-      employee: employeeId,
-      date: recordDate
+    // Create new sales record with the transaction-based schema
+    const saleDate = date ? new Date(date) : new Date();
+    
+    const salesRecord = await SalesTarget.create({
+      agent: employeeId,
+      agentName: `${employee.firstName} ${employee.lastName}`,
+      customer: {
+        firstName: 'Admin',
+        lastName: 'Recorded',
+        phone: '0000000000',
+        state: 'Admin',
+        zipCode: '00000'
+      },
+      dids: 'ADMIN-MANUAL',
+      closer: 'Admin',
+      salesCount: 1,  // Always 1 per transaction
+      saleDate
     });
 
-    let salesRecord;
-    if (existingRecord) {
-      // Update existing record
-      existingRecord.salesCount = salesCount;
-      if (notes) existingRecord.notes = notes;
-      salesRecord = await existingRecord.save();
-    } else {
-      // Create new record
-      salesRecord = await SalesTarget.create({
-        employee: employeeId,
-        date: recordDate,
-        salesCount,
-        notes
-      });
-    }
-
-    // Populate employee details
-    await salesRecord.populate('employee', 'firstName lastName employeeId');
+    // Populate agent details
+    await salesRecord.populate('agent', 'firstName lastName employeeId');
 
     return res.status(201).json({
       success: true,
-      message: 'Sales recorded successfully',
+      message: 'Sale recorded successfully',
       data: {
-        ...salesRecord.toObject(),
+        _id: salesRecord._id,
+        agent: salesRecord.agent,
+        agentName: salesRecord.agentName,
+        salesCount: salesRecord.salesCount,
+        baseSalary: salesRecord.baseSalary,
+        achievedTier: salesRecord.achievedTier,
+        tierBonus: salesRecord.tierBonus,
+        totalEarning: salesRecord.totalEarning,
+        saleDate: salesRecord.saleDate,
         tierInfo: {
           tier: salesRecord.achievedTier,
           tierName: getTierName(salesRecord.achievedTier),
-          description: getTierDescription(salesRecord.achievedTier, salesRecord)
+          totalEarning: salesRecord.totalEarning
         }
       }
     });
@@ -88,14 +92,8 @@ export const recordDailySales = async (req, res, next) => {
  */
 export const getCsrDailySalesReport = async (req, res, next) => {
   try {
-    const { employeeId, startDate, endDate } = req.query;
-
-    if (!employeeId) {
-      return res.status(400).json({
-        success: false,
-        message: 'employeeId is required'
-      });
-    }
+    const { startDate, endDate } = req.query;
+    const employeeId = req.user.employeeId;
 
     // Verify employee exists
     const employee = await Employee.findById(employeeId);
@@ -106,18 +104,18 @@ export const getCsrDailySalesReport = async (req, res, next) => {
       });
     }
 
-    let filter = { employee: employeeId };
+    let filter = { agent: employeeId };
 
     if (startDate && endDate) {
-      filter.date = {
+      filter.saleDate = {
         $gte: new Date(startDate),
         $lte: new Date(endDate)
       };
     }
 
     const salesRecords = await SalesTarget.find(filter)
-      .populate('employee', 'firstName lastName employeeId')
-      .sort({ date: -1 });
+      .populate('agent', 'firstName lastName employeeId')
+      .sort({ saleDate: -1 });
 
     // Calculate summary
     const summary = {
@@ -131,7 +129,7 @@ export const getCsrDailySalesReport = async (req, res, next) => {
 
     salesRecords.forEach(record => {
       summary.totalSales += record.salesCount;
-      summary.totalEarnings += record.totalEarningForDay;
+      summary.totalEarnings += record.totalEarning;
       
       // Count tiers
       if (record.achievedTier === 1) summary.tiers.tier1++;
@@ -142,9 +140,9 @@ export const getCsrDailySalesReport = async (req, res, next) => {
       // Find top day
       if (!summary.topDay || record.salesCount > summary.topDay.salesCount) {
         summary.topDay = {
-          date: record.date,
+          date: record.saleDate,
           sales: record.salesCount,
-          earning: record.totalEarningForDay
+          earning: record.totalEarning
         };
       }
     });
@@ -167,13 +165,12 @@ export const getCsrDailySalesReport = async (req, res, next) => {
         } : { from: 'All time' },
         summary,
         records: salesRecords.map(r => ({
-          date: r.date,
+          date: r.saleDate,
           sales: r.salesCount,
           tier: getTierName(r.achievedTier),
-          baseSalary: r.baseSalaryForDay,
+          baseSalary: r.baseSalary,
           tierBonus: r.tierBonus,
-          totalEarning: r.totalEarningForDay,
-          notes: r.notes
+          totalEarning: r.totalEarning
         }))
       }
     });
@@ -192,12 +189,13 @@ export const getCsrDailySalesReport = async (req, res, next) => {
  */
 export const getCsrMonthlyEarnings = async (req, res, next) => {
   try {
-    const { employeeId, year, month } = req.query;
+    const { year, month } = req.query;
+    const employeeId = req.user.employeeId;
 
-    if (!employeeId || !year || !month) {
+    if (!year || !month) {
       return res.status(400).json({
         success: false,
-        message: 'employeeId, year, and month are required'
+        message: 'year, and month are required'
       });
     }
 
@@ -215,9 +213,9 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
     const endDate = new Date(year, month, 0);
 
     const salesRecords = await SalesTarget.find({
-      employee: employeeId,
-      date: { $gte: startDate, $lte: endDate }
-    }).sort({ date: 1 });
+      agent: employeeId,
+      saleDate: { $gte: startDate, $lte: endDate }
+    }).sort({ saleDate: 1 });
 
     // Calculate monthly stats
     const monthlyStats = {
@@ -235,9 +233,9 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
 
     salesRecords.forEach(record => {
       monthlyStats.totalSales += record.salesCount;
-      monthlyStats.totalBaseSalary += record.baseSalaryForDay;
+      monthlyStats.totalBaseSalary += record.baseSalary;
       monthlyStats.totalTierBonus += record.tierBonus;
-      monthlyStats.totalEarnings += record.totalEarningForDay;
+      monthlyStats.totalEarnings += record.totalEarning;
 
       // Count by tier
       if (record.achievedTier === 1) monthlyStats.daysPerTier.tier1++;
@@ -248,16 +246,16 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
       // Best and worst days
       if (!monthlyStats.bestDay || record.salesCount > monthlyStats.bestDay.sales) {
         monthlyStats.bestDay = {
-          date: record.date,
+          date: record.saleDate,
           sales: record.salesCount,
-          earning: record.totalEarningForDay
+          earning: record.totalEarning
         };
       }
       if (!monthlyStats.worstDay || record.salesCount < monthlyStats.worstDay.sales) {
         monthlyStats.worstDay = {
-          date: record.date,
+          date: record.saleDate,
           sales: record.salesCount,
-          earning: record.totalEarningForDay
+          earning: record.totalEarning
         };
       }
     });
@@ -276,12 +274,12 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
         },
         monthlyStats,
         dailyBreakdown: salesRecords.map(r => ({
-          date: r.date,
+          date: r.saleDate,
           sales: r.salesCount,
           tier: getTierName(r.achievedTier),
-          baseSalary: r.baseSalaryForDay,
+          baseSalary: r.baseSalary,
           tierBonus: r.tierBonus,
-          totalEarning: r.totalEarningForDay
+          totalEarning: r.totalEarning
         }))
       }
     });
@@ -374,6 +372,99 @@ export const deleteSalesRecord = async (req, res, next) => {
   }
 };
 
+/**
+ * Submit Google Form Data
+ * Public endpoint for Google Form webhook integration
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ */
+export const submitGoogleFormData = async (req, res, next) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      phone,
+      state,
+      zipCode,
+      dids,
+      closer,
+      agentName,
+      selectedAgentId,
+      submissionDate = new Date()
+    } = req.body;
+
+    // Validation
+    if (!firstName || !lastName || !phone || !state || !zipCode || !dids || !closer || !agentName || !selectedAgentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        requiredFields: [
+          'firstName', 'lastName', 'phone', 'state', 'zipCode', 
+          'dids', 'closer', 'agentName', 'selectedAgentId'
+        ]
+      });
+    }
+
+    // Verify employee exists
+    const employee = await Employee.findById(selectedAgentId);
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: 'Employee not found with provided ID'
+      });
+    }
+
+    // Create new sales record
+    const salesRecord = await SalesTarget.create({
+      agent: selectedAgentId,
+      agentName,
+      customer: {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phone.trim(),
+        state: state.trim(),
+        zipCode: zipCode.trim()
+      },
+      dids: dids.trim(),
+      closer: closer.trim(),
+      salesCount: 1,  // Always 1 per form submission
+      saleDate: new Date(submissionDate)
+    });
+
+    // The post-save hook will automatically calculate tier and bonus for the day
+    await salesRecord.populate('agent', 'firstName lastName employeeId');
+
+    return res.status(201).json({
+      success: true,
+      message: 'Sale recorded successfully from Google Form',
+      data: {
+        _id: salesRecord._id,
+        agent: salesRecord.agent,
+        agentName: salesRecord.agentName,
+        customer: salesRecord.customer,
+        dids: salesRecord.dids,
+        closer: salesRecord.closer,
+        salesCount: salesRecord.salesCount,
+        baseSalary: salesRecord.baseSalary,
+        achievedTier: salesRecord.achievedTier,
+        tierBonus: salesRecord.tierBonus,
+        totalEarning: salesRecord.totalEarning,
+        saleDate: salesRecord.saleDate,
+        tierInfo: {
+          tier: salesRecord.achievedTier,
+          tierName: getTierName(salesRecord.achievedTier),
+          earnedSoFarToday: salesRecord.totalEarning
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error submitting Google Form data:', error);
+    next(error);
+  }
+};
+
 // Helper functions
 function getTierName(tier) {
   switch(tier) {
@@ -387,9 +478,9 @@ function getTierName(tier) {
 function getTierDescription(tier, record) {
   const pricePerSale = record.pricePerSale || 1000;
   switch(tier) {
-    case 1: return `Base rate: RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalaryForDay}`;
-    case 2: return `Base (RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalaryForDay}) + 20% bonus (RS${record.tierBonus})`;
-    case 3: return `Base (RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalaryForDay}) + 50% bonus (RS${record.tierBonus})`;
-    default: return `Below minimum target (${record.salesCount}/${record.targetTiers.tier1.minSales} sales)`;
+    case 1: return `Base rate: RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalary}`;
+    case 2: return `Base (RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalary}) + 20% bonus (RS${record.tierBonus})`;
+    case 3: return `Base (RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalary}) + 50% bonus (RS${record.tierBonus})`;
+    default: return `Below minimum target (${record.salesCount} sales)`;
   }
 }

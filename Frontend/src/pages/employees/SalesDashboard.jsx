@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, Calendar, Target, Award, DollarSign, Loader, AlertCircle } from 'lucide-react';
 import { salesTargetAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
-import StatsCard from '../common/StatsCard';
-import LoadingSkeleton from '../common/LoadingSkeleton';
+import StatsCard from '../../components/common/StatsCard';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton';
 
 const CSRSalesDashboard = () => {
   const { user } = useAuth();

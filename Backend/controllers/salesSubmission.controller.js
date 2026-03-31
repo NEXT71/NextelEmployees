@@ -42,6 +42,10 @@ const createSubmission = async (req, res, next) => {
 // Get all submissions with optional status filter
 const getSubmissions = async (req, res, next) => {
   try {
+    console.log('=== GET /api/sales-submissions ===');
+    console.log('User:', req.user);
+    console.log('Query:', req.query);
+
     const { status, agentId, page = 1, limit = 50 } = req.query;
 
     // Validate limit and page are numbers
@@ -54,7 +58,7 @@ const getSubmissions = async (req, res, next) => {
 
     const skip = (pageNum - 1) * limitNum;
 
-    console.log('Fetching submissions with filter:', filter, 'Skip:', skip, 'Limit:', limitNum);
+    console.log('Filter:', filter, 'Skip:', skip, 'Limit:', limitNum);
 
     const submissions = await SalesTarget.find(filter)
       .populate('agent', 'firstName lastName employeeId')

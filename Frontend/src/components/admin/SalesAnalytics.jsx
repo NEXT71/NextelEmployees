@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { TrendingUp, Calendar, Users, Award, DollarSign, Loader, AlertCircle, BarChart3 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { TrendingUp, Calendar, Users, Award, DollarSign, AlertCircle, BarChart3 } from 'lucide-react';
 import { salesTargetAPI } from '../../utils/api';
 import StatsCard from '../common/StatsCard';
 import LoadingSkeleton from '../common/LoadingSkeleton';
@@ -15,17 +15,11 @@ const SalesAnalytics = ({ month = 3, year = 2026 }) => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [page, setPage] = useState(1);
 
   const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
   const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-  useEffect(() => {
-    loadSalesData();
-  }, [month, year, filter, page]);
-
-  const loadSalesData = async () => {
+  const loadSalesData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -33,7 +27,6 @@ const SalesAnalytics = ({ month = 3, year = 2026 }) => {
       const response = await salesTargetAPI.getAllCsrSales({
         startDate,
         endDate,
-        page,
         limit: 20
       });
 
@@ -49,7 +42,11 @@ const SalesAnalytics = ({ month = 3, year = 2026 }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    loadSalesData();
+  }, [loadSalesData]);
 
   const calculateStats = (data) => {
     if (!data || data.length === 0) {

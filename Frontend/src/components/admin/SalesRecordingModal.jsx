@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, TrendingUp, AlertCircle, CheckCircle, Loader, Award } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, TrendingUp, AlertCircle, CheckCircle, Award } from 'lucide-react';
 import { salesTargetAPI, employeeAPI } from '../../utils/api';
 import Toast from '../common/Toast';
 
@@ -16,13 +16,7 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
   const [preview, setPreview] = useState(null);
 
   // Load CSR employees on mount
-  useEffect(() => {
-    if (isOpen) {
-      loadEmployees();
-    }
-  }, [isOpen]);
-
-  const loadEmployees = async () => {
+  const loadEmployees = useCallback(async () => {
     try {
       setLoading(true);
       const response = await employeeAPI.getEmployees({ department });
@@ -32,7 +26,13 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
     } finally {
       setLoading(false);
     }
-  };
+  }, [department]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadEmployees();
+    }
+  }, [isOpen, loadEmployees]);
 
   const handlePreview = async () => {
     if (!selectedEmployee || !salesCount) {

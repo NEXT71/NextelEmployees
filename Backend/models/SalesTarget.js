@@ -19,22 +19,22 @@ const salesTargetSchema = new mongoose.Schema({
   // Target tiers: At what sales count does CSR enter each tier
   targetTiers: {
     tier1: {
-      minSales: 5,
-      multiplier: 1      // 5-6 sales get base rate
+      minSales: { type: Number, default: 5 },
+      multiplier: { type: Number, default: 1 }
     },
     tier2: {
-      minSales: 7,
-      multiplier: 1.2    // 7-9 sales get 20% bonus
+      minSales: { type: Number, default: 7 },
+      multiplier: { type: Number, default: 1.2 }
     },
     tier3: {
-      minSales: 10,
-      multiplier: 1.5    // 10+ sales get 50% bonus
+      minSales: { type: Number, default: 10 },
+      multiplier: { type: Number, default: 1.5 }
     }
   },
   // Per-sale rate: 1 sale = 1000 RS
   pricePerSale: {
     type: Number,
-    default: 1000       // 1 sale = 1000 RS
+    default: 1000
   },
   achievedTier: {
     type: Number,       // 1, 2, 3, or 0 if no tier achieved

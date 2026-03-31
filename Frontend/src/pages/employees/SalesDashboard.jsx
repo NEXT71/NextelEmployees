@@ -1,17 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle, Send } from 'lucide-react';
+import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle } from 'lucide-react';
 import { salesTargetAPI, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import MessageCenter from '../../components/common/MessageCenter';
-import CSRSalesSubmission from '../../components/employees/CSRSalesSubmission';
 
 const CSRSalesDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'submit'
   const [activeMonth, setActiveMonth] = useState(new Date().getMonth() + 1);
   const [activeYear, setActiveYear] = useState(new Date().getFullYear());
   const [monthlyData, setMonthlyData] = useState(null);
@@ -97,38 +95,7 @@ const CSRSalesDashboard = () => {
       {/* Header */}
       <Header userName={user?.username} onLogout={handleLogout} />
 
-      {/* Tab Navigation */}
-      <div className="container mx-auto p-4 sm:p-6 lg:p-8 relative z-10">
-        <div className="flex gap-2 mb-6 bg-blue-900/40 backdrop-blur-md border border-blue-600/30 rounded-lg p-1 w-fit">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
-              activeTab === 'dashboard'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white'
-            }`}
-          >
-            <TrendingUp size={20} />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('submit')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
-              activeTab === 'submit'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white'
-            }`}
-          >
-            <Send size={20} />
-            Submit Sale
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
-      {activeTab === 'submit' ? (
-        <CSRSalesSubmission />
-      ) : (
+      {/* Main Content */}
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">
         <div className="space-y-6">
           {/* Month/Year Selector */}
@@ -324,7 +291,6 @@ const CSRSalesDashboard = () => {
       )}
         </div>
       </div>
-      )}
 
       {/* Floating Message Button */}
       <button

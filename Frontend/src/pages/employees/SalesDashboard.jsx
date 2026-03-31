@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle } from 'lucide-react';
-import { salesTargetAPI } from '../../utils/api';
+import { useNavigate } from 'react-router-dom';
+import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle } from 'lucide-react';
+import { salesTargetAPI, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton';
+import MessageCenter from '../../components/common/MessageCenter';
 
 const CSRSalesDashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [activeMonth, setActiveMonth] = useState(new Date().getMonth() + 1);
   const [activeYear, setActiveYear] = useState(new Date().getFullYear());
@@ -13,6 +17,7 @@ const CSRSalesDashboard = () => {
   const [dailyRecords, setDailyRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showMessageCenter, setShowMessageCenter] = useState(false);
 
   const employeeId = user?.employeeId;
 
@@ -78,12 +83,31 @@ const CSRSalesDashboard = () => {
     );
   };
 
-  if (loading) return <LoadingSkeleton rows={5} />;
+  const handleLogout = async () => {
+    try {
+      await authAPI.logout();
+      navigate('/');
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Month/Year Selector */}
-      <div className="flex items-center gap-4 bg-gradient-to-r from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-lg p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 relative overflow-hidden">
+      {/* Background elements */}
+      <div className="absolute inset-0">
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      </div>
+
+      {/* Header */}
+      <Header userName={user?.username} onLogout={handleLogout} />
+
+      {/* Main Content */}
+      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">
+        <div className="space-y-6">
+          {/* Month/Year Selector */}
+          <div className="flex items-center gap-4 bg-gradient-to-r from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-lg p-4">
         <Calendar className="w-5 h-5 text-blue-400 flex-shrink-0" />
         <div className="flex items-center gap-2">
           <select
@@ -271,8 +295,24 @@ const CSRSalesDashboard = () => {
               </div>
             )}
           </div>
-        </>
-      )}
+        </div>
+        </div>
+
+      {/* Floating Message Button */}
+      <button
+        onClick={() => setShowMessageCenter(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-40 group"
+        title="Contact Admins"
+      >
+        <MessageCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
+        <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
+      </button>
+
+      {/* Message Center Modal */}
+      <MessageCenter 
+        isOpen={showMessageCenter}
+        onClose={() => setShowMessageCenter(false)}
+      />
     </div>
   );
 };

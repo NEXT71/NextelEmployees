@@ -7,6 +7,7 @@ import redis from 'redis';
 
 let redisClient = null;
 let isConnected = false;
+let hasErrorLogged = false;  // Prevent repeated error logging
 
 /**
  * Initialize Redis connection (optional - graceful fallback if Redis unavailable)
@@ -17,26 +18,59 @@ export const initializeCache = async () => {
       socket: {
         host: process.env.REDIS_HOST || 'localhost',
         port: process.env.REDIS_PORT || 6379,
+        connectTimeout: 5000,  // 5 second timeout for cloud deployments
+        reconnectStrategy: (retries) => {
+          if (retries > 1) {
+            // After first retry, stop trying - Redis is not available
+            return new Error('Max Redis reconnection attempts reached');
+          }
+          return 1000;  // Wait 1 second before retry
+        }
       },
       password: process.env.REDIS_PASSWORD || undefined,
       db: process.env.REDIS_DB || 0,
     });
 
     redisClient.on('error', (err) => {
-      console.warn('Redis Client Error:', err);
+      // Only log error once during initial connection failure
+      if (!hasErrorLogged && isConnected === false) {
+        console.log('ℹ Redis unavailable - app will work without cache:', err.code || err.message);
+        hasErrorLogged = true;
+      }
       isConnected = false;
     });
 
     redisClient.on('connect', () => {
-      console.log('Connected to Redis cache');
+      console.log('✓ Connected to Redis cache');
       isConnected = true;
+      hasErrorLogged = false;
     });
 
-    await redisClient.connect();
+    // Set a timeout for connection
+    const connectionPromise = redisClient.connect();
+    
+    // Race between connect and timeout
+    await Promise.race([
+      connectionPromise,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Redis connection timeout')), 3000)
+      )
+    ]);
+    
     return true;
   } catch (error) {
-    console.warn('Redis initialization failed - caching disabled:', error.message);
+    console.log('ℹ Redis caching disabled - app will work without cache:', error.message);
     isConnected = false;
+    hasErrorLogged = true;
+    // Disconnect the client to prevent repeated error events
+    if (redisClient) {
+      try {
+        await redisClient.quit();
+      } catch (e) {
+        // Ignore errors when quitting failed connection
+      }
+      redisClient = null;
+    }
     return false;
   }
 };

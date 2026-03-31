@@ -123,10 +123,19 @@ const makeApiCall = async (endpoint, options = {}, cacheKey) => {
       return { error: true, message: 'Please log in to continue', status: 401 };
     }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => {
+      console.error('Failed to parse JSON from response');
+      console.error('Response status:', response.status);
+      console.error('Response statusText:', response.statusText);
+      return null;
+    });
 
     if (!response.ok) {
-      throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      throw new Error(data?.message || `HTTP error! status: ${response.status}`);
+    }
+
+    if (!data) {
+      throw new Error('Server returned an empty response');
     }
 
     // Cache successful GET responses
@@ -488,6 +497,13 @@ export const salesTargetAPI = {
   deleteSalesRecord: (id) =>
     apiRequest(`/sales-targets/${id}`, {
       method: 'DELETE',
+    }),
+
+  // Submit sales form (CSR - for Google Form equivalent)
+  submitSalesForm: (formData) =>
+    apiRequest('/sales-targets/submit-form', {
+      method: 'POST',
+      body: JSON.stringify(formData),
     }),
 };
 

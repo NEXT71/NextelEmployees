@@ -13,6 +13,15 @@ import {
 import auth from '../middlewares/auth.js';
 import admin from '../middlewares/admin.js';
 
+// DEBUG: Health check endpoint (no auth)
+router.get('/debug/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Sales submissions API is online',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Public endpoint - Google Form webhook
 router.post('/create', createSubmission);
 

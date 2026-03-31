@@ -18,32 +18,53 @@ const PendingSalesReview = () => {
     try {
       setLoading(true);
       setCurrentPage(1); // Reset to first page
-      const response = await fetch(
-        `/api/sales-submissions?status=${filter}&limit=100`,
-        {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
+      
+      const queryUrl = `/api/sales-submissions?status=${filter}&limit=100`;
+      console.log('📤 Fetching from URL:', queryUrl);
+      console.log('Cookie available:', document.cookie ? '✓ Yes' : '✗ No');
+      
+      const response = await fetch(queryUrl, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
-      );
+      });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
+      console.log('📥 Response Status:', response.status, response.statusText);
+      console.log('Response Headers:', {
+        contentType: response.headers.get('content-type'),
+        contentLength: response.headers.get('content-length')
+      });
+
+      // Check if response is HTML (error page)
+      const contentType = response.headers.get('content-type');
+      const isHTML = contentType && contentType.includes('text/html');
+      
+      if (isHTML) {
+        const htmlContent = await response.text();
+        console.error('❌ Received HTML instead of JSON:', htmlContent.substring(0, 200));
+        throw new Error(`Server returned HTML (Status ${response.status}). This usually means: 401 Unauthorized, 403 Forbidden, or 404 Not Found`);
+      }
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        let errorData;
+        try {
+          errorData = await response.json();
+          console.error('❌ Error response:', errorData);
+        } catch (e) {
+          errorData = { message: `HTTP ${response.status}` };
+        }
         throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch submissions`);
       }
 
       const data = await response.json();
-      console.log('Received submissions:', data);
+      console.log('✓ Received submissions:', data.data?.length, 'Total:', data.pagination?.total);
       setSubmissions(data.data || []);
     } catch (error) {
-      console.error('Error fetching submissions:', error);
-      alert(`Failed to fetch submissions: ${error.message}`);
+      console.error('❌ Error fetching submissions:', error.message);
+      alert(`Failed to fetch submissions:\n\n${error.message}\n\nCheck browser console for details.`);
     } finally {
       setLoading(false);
     }

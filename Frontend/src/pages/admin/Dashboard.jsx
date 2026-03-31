@@ -8,6 +8,7 @@ import GenerateSalaryModal from '../../components/admin/GenerateSalaryModal';
 import BonusModal from '../../components/admin/BonusModal';
 import SalesRecordingModal from '../../components/admin/SalesRecordingModal';
 import SalesAnalytics from '../../components/admin/SalesAnalytics';
+import PendingSalesReview from '../../components/admin/PendingSalesReview';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
 import { employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,6 +31,7 @@ const AdminDashboard = () => {
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('employees');
+  const [salesSubTab, setSalesSubTab] = useState('pending');
   
   // Modals
   const [showFineModal, setShowFineModal] = useState(false);
@@ -873,14 +875,37 @@ const AdminDashboard = () => {
         )}
 
         {activeTab === 'sales' && (
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setShowSalesRecordingModal(true)}
-              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-purple-500/50"
-            >
-              <TrendingUp className="w-5 h-5" />
-              Record Sales
-            </button>
+          <div className="space-y-4">
+            {/* Sales Sub-Tabs */}
+            <div className="flex gap-2 border-b border-white/10 pb-0">
+              <button
+                onClick={() => setSalesSubTab('pending')}
+                className={`px-4 py-3 font-medium flex items-center space-x-2 text-sm ${salesSubTab === 'pending' ? 'text-purple-300 border-b-2 border-purple-400' : 'text-blue-200/70 hover:text-purple-300'}`}
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span>Pending Review</span>
+              </button>
+              <button
+                onClick={() => setSalesSubTab('analytics')}
+                className={`px-4 py-3 font-medium flex items-center space-x-2 text-sm ${salesSubTab === 'analytics' ? 'text-purple-300 border-b-2 border-purple-400' : 'text-blue-200/70 hover:text-purple-300'}`}
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span>Analytics</span>
+              </button>
+            </div>
+            
+            {/* Sales Sub-Tab Actions */}
+            <div className="flex flex-wrap gap-3">
+              {salesSubTab === 'analytics' && (
+                <button
+                  onClick={() => setShowSalesRecordingModal(true)}
+                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-purple-500/50"
+                >
+                  <TrendingUp className="w-5 h-5" />
+                  Record Sales
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -1262,8 +1287,12 @@ const AdminDashboard = () => {
       )}
 
       {/* Sales Analytics */}
-      {activeTab === 'sales' && (
+      {activeTab === 'sales' && salesSubTab === 'analytics' && (
         <SalesAnalytics />
+      )}
+
+      {activeTab === 'sales' && salesSubTab === 'pending' && (
+        <PendingSalesReview />
       )}
 
       {/* Employee Details Modal */}

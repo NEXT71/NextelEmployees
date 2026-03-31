@@ -5,7 +5,6 @@ import { salesTargetAPI, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
-import LoadingSkeleton from '../../components/common/LoadingSkeleton';
 import MessageCenter from '../../components/common/MessageCenter';
 
 const CSRSalesDashboard = () => {
@@ -15,7 +14,6 @@ const CSRSalesDashboard = () => {
   const [activeYear, setActiveYear] = useState(new Date().getFullYear());
   const [monthlyData, setMonthlyData] = useState(null);
   const [dailyRecords, setDailyRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showMessageCenter, setShowMessageCenter] = useState(false);
 
@@ -23,7 +21,6 @@ const CSRSalesDashboard = () => {
 
   const loadMonthlyData = useCallback(async () => {
     try {
-      setLoading(true);
       setError('');
 
       const response = await salesTargetAPI.getCsrMonthlyEarnings({
@@ -38,8 +35,6 @@ const CSRSalesDashboard = () => {
       }
     } catch (err) {
       setError(err.message || 'Failed to load sales data');
-    } finally {
-      setLoading(false);
     }
   }, [employeeId, activeYear, activeMonth]);
 

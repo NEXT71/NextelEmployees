@@ -15,11 +15,11 @@ const SalaryHistory = () => {
     fetchSalarySlips();
   }, []);
 
-  const fetchSalarySlips = async () => {
+  const fetchSalarySlips = async (bypassCache = false) => {
     setLoading(true);
     setError('');
     try {
-      const response = await salaryAPI.getMySalarySlips();
+      const response = await salaryAPI.getMySalarySlips({ bypassCache });
       
       // Handle response structure
       const slipsData = response?.data || response;
@@ -38,8 +38,14 @@ const SalaryHistory = () => {
     setIsModalOpen(true);
   };
 
-  const handleRefresh = () => {
-    fetchSalarySlips();
+  const handleRefresh = async () => {
+    try {
+      console.log('🔄 Refreshing salary slips...');
+      await fetchSalarySlips(true);  // Bypass cache
+      console.log('✓ Salary slips refreshed successfully');
+    } catch (err) {
+      console.error('❌ Failed to refresh salary slips:', err);
+    }
   };
 
   // Format date to readable format

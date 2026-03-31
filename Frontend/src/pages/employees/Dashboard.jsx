@@ -40,11 +40,11 @@ const EmployeeDashboard = () => {
   const [finesError, setFinesError] = useState(null);
   const [showMessageCenter, setShowMessageCenter] = useState(false);
 
-const fetchAttendanceData = async (employeeId) => {
+const fetchAttendanceData = async (employeeId, bypassCache = false) => {
   setLoadingAttendance(true);
   setAttendanceError(null);
   try {
-    const response = await attendanceAPI.getAttendanceByEmployee(employeeId);
+    const response = await attendanceAPI.getAttendanceByEmployee(employeeId, { bypassCache });
     
     // Handle different response structures
     const attendanceData = response?.data || response || [];
@@ -58,11 +58,11 @@ const fetchAttendanceData = async (employeeId) => {
   }
 };
 
-const fetchFinesData = async () => {
+const fetchFinesData = async (bypassCache = false) => {
   setLoadingFines(true);
   setFinesError(null);
   try {
-    const response = await fineAPI.getEmployeeFines();
+    const response = await fineAPI.getEmployeeFines({ bypassCache });
     
     // Handle response based on your backend structure
     const finesData = response?.data || response;
@@ -158,13 +158,28 @@ const checkClockInStatus = async (employeeId) => {
   }, [user, navigate]);
 
   const refreshAttendanceData = async () => {
-    if (employee._id) {
-      await fetchAttendanceData(employee._id);
+    try {
+      if (employee?._id) {
+        // Bypass cache to get fresh data
+        await fetchAttendanceData(employee._id, true);
+      } else {
+        console.warn('Employee ID not available for attendance refresh');
+        setAttendanceError('Unable to refresh: Employee ID missing');
+      }
+    } catch (err) {
+      console.error('Attendance refresh error:', err);
+      setAttendanceError('Failed to refresh attendance data');
     }
   };
 
   const refreshFinesData = async () => {
-    await fetchFinesData();
+    try {
+      // Bypass cache to get fresh data
+      await fetchFinesData(true);
+    } catch (err) {
+      console.error('Fines refresh error:', err);
+      setFinesError('Failed to refresh fines data');
+    }
   };
 
   const handleLogout = async () => {

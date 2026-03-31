@@ -51,9 +51,9 @@ const apiRequest = async (endpoint, options = {}) => {
   const requestKey = `${options.method || 'GET'}:${endpoint}`;
   performanceMonitor.start(requestKey);
   
-  // Check cache first for GET requests
+  // Check cache first for GET requests (unless bypassCache is set)
   const cacheKey = createCacheKey(endpoint, options);
-  if (shouldCache(endpoint, options.method)) {
+  if (!options.bypassCache && shouldCache(endpoint, options.method)) {
     const cachedResult = apiCache.get(cacheKey);
     if (cachedResult) {
       performanceMonitor.end(requestKey);
@@ -246,8 +246,8 @@ export const attendanceAPI = {
     apiRequest('/attendance'),
 
   // Get attendance by employee ID with query params
-  getAttendanceByEmployee: (employeeId) =>
-    apiRequest(`/attendance?employeeId=${employeeId}`),
+  getAttendanceByEmployee: (employeeId, options = {}) =>
+    apiRequest(`/attendance?employeeId=${employeeId}`, options),
 
   // Get attendance status for employee
   getAttendanceStatus: (employeeId) =>
@@ -291,12 +291,12 @@ export const fineAPI = {
     apiRequest('/fines'),
 
   // Get fines for current employee (uses token to identify employee)
-  getEmployeeFines: () =>
-    apiRequest('/fines/employee'),
+  getEmployeeFines: (options = {}) =>
+    apiRequest('/fines/employee', options),
 
   // Get fines by employee ID
-  getFinesByEmployee: (employeeId) =>
-    apiRequest(`/fines/employee/${employeeId}`),
+  getFinesByEmployee: (employeeId, options = {}) =>
+    apiRequest(`/fines/employee/${employeeId}`, options),
 
   // Create fine
   createFine: (fineData) =>
@@ -355,8 +355,8 @@ export const fineAPI = {
 // Salary API calls
 export const salaryAPI = {
   // Get my salary slips (employee-only endpoint)
-  getMySalarySlips: () =>
-    apiRequest('/salaries/my-slips'),
+  getMySalarySlips: (options = {}) =>
+    apiRequest('/salaries/my-slips', options),
 
   // Generate monthly salary (admin-only endpoint)
   generateMonthlySalary: (salaryData) =>

@@ -297,6 +297,8 @@ const CSRSalesDashboard = () => {
           </div>
         </>
       )}
+        </div>
+      </div>
 
       {/* Floating Message Button */}
       <button

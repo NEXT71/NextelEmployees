@@ -127,7 +127,7 @@ const CSRSalesDashboard = () => {
 
       {/* Content */}
       {activeTab === 'submit' ? (
-        <CSRSalesSubmission />
+        <CSRSalesSubmission onBack={() => setActiveTab('dashboard')} />
       ) : (
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">
         <div className="space-y-6">

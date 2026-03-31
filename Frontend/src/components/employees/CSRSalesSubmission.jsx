@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Send, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { Send, AlertCircle, CheckCircle, Loader, ArrowLeft } from 'lucide-react';
 import { salesTargetAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 
-const CSRSalesSubmission = () => {
+const CSRSalesSubmission = ({ onBack }) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
@@ -78,7 +78,9 @@ const CSRSalesSubmission = () => {
 
       const response = await salesTargetAPI.submitSalesForm(payload);
 
-      if (response.success) {
+      console.log('📤 Submit response:', response);
+
+      if (response && response.success) {
         setSuccess(`✅ Sales submission successful! Your record is pending admin approval.`);
         // Reset form
         setFormData({
@@ -95,6 +97,8 @@ const CSRSalesSubmission = () => {
         
         // Auto-clear success message after 5 seconds
         setTimeout(() => setSuccess(''), 5000);
+      } else {
+        throw new Error(response?.message || 'Failed to submit sales record');
       }
     } catch (err) {
       setError(err.message || 'Failed to submit sales record');
@@ -120,13 +124,24 @@ const CSRSalesSubmission = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900 p-6">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <Send className="text-cyan-400" size={32} />
-            Submit Sales
-          </h1>
-          <p className="text-gray-400">Record a new customer sale for approval</p>
+        {/* Header with Back Button */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+              <Send className="text-cyan-400" size={32} />
+              Submit Sales
+            </h1>
+            <p className="text-gray-400">Record a new customer sale for approval</p>
+          </div>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-900/50 transition"
+            >
+              <ArrowLeft size={20} />
+              Back
+            </button>
+          )}
         </div>
 
         {/* Success Alert */}

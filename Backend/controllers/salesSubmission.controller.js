@@ -44,11 +44,17 @@ const getSubmissions = async (req, res, next) => {
   try {
     const { status, agentId, page = 1, limit = 50 } = req.query;
 
+    // Validate limit and page are numbers
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+
     const filter = {};
-    if (status) filter.status = status;
+    if (status && status !== 'all') filter.status = status;
     if (agentId) filter.agent = agentId;
 
-    const skip = (page - 1) * limit;
+    const skip = (pageNum - 1) * limitNum;
+
+    console.log('Fetching submissions with filter:', filter, 'Skip:', skip, 'Limit:', limitNum);
 
     const submissions = await SalesTarget.find(filter)
       .populate('agent', 'firstName lastName employeeId')
@@ -56,18 +62,20 @@ const getSubmissions = async (req, res, next) => {
       .populate('disapprovedBy', 'firstName lastName')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNum);
 
     const total = await SalesTarget.countDocuments(filter);
+
+    console.log('Found submissions:', submissions.length, 'Total:', total);
 
     res.status(200).json({
       success: true,
       data: submissions,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(total / limit)
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum)
       }
     });
   } catch (error) {

@@ -24,18 +24,26 @@ const PendingSalesReview = () => {
           method: 'GET',
           credentials: 'include',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           }
         }
       );
 
-      if (!response.ok) throw new Error('Failed to fetch submissions');
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to fetch submissions`);
+      }
 
       const data = await response.json();
+      console.log('Received submissions:', data);
       setSubmissions(data.data || []);
     } catch (error) {
       console.error('Error fetching submissions:', error);
-      alert('Failed to fetch submissions');
+      alert(`Failed to fetch submissions: ${error.message}`);
     } finally {
       setLoading(false);
     }

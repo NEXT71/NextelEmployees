@@ -95,7 +95,11 @@ const CSRSalesDashboard = () => {
       </div>
 
       {/* Header */}
-      <Header userName={user?.username} onLogout={handleLogout} />
+      <Header 
+        userName={user?.username} 
+        onLogout={handleLogout} 
+        pageTitle="Sales Dashboard"
+      />
 
             {/* Tab Navigation */}
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 relative z-10">

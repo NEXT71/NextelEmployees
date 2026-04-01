@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, AlertCircle, CheckCircle, Loader, ArrowLeft } from 'lucide-react';
+import { Send, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { salesTargetAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 

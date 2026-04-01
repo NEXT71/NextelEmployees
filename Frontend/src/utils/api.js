@@ -61,8 +61,13 @@ const apiRequest = async (endpoint, options = {}) => {
     }
   }
 
-  // Use request deduplication for GET requests
+  // Use request deduplication for GET requests (but skip if bypassCache is true)
   if (!options.method || options.method === 'GET') {
+    if (options.bypassCache) {
+      // Skip deduplication for bypass requests to ensure fresh data is fetched
+      return makeApiCall(endpoint, options, cacheKey);
+    }
+    
     return requestDeduplicator.dedupe(requestKey, async () => {
       return makeApiCall(endpoint, options, cacheKey);
     });

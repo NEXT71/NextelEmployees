@@ -7,7 +7,8 @@ const Header = ({
   onLogout, 
   onRegisterEmployee, 
   onProfileClick,
-  showProfileButton = true 
+  showProfileButton = true,
+  pageTitle = null
 }) => {
   return (
     <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
@@ -25,7 +26,10 @@ const Header = ({
                 className="object-contain"
               />
             </div>
-            <h1 className="text-xl font-semibold text-white">Nextel Employees</h1>
+            <div className="flex flex-col">
+              <h1 className="text-xl font-semibold text-white">Nextel Employees</h1>
+              {pageTitle && <p className="text-sm text-slate-400 mt-0.5">{pageTitle}</p>}
+            </div>
           </div>
 
           <div className="flex items-center space-x-4">

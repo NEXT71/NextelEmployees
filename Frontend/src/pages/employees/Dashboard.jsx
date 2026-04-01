@@ -677,6 +677,7 @@ const calculateSummary = () => {
         userName={user?.username}
         onLogout={handleLogout}
         showProfileButton={false}
+        pageTitle="Dashboard"
       />
 
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">

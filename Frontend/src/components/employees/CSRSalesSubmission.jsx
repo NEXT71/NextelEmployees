@@ -80,7 +80,7 @@ const CSRSalesSubmission = ({ onBack }) => {
 
       console.log('📤 Submit response:', response);
 
-      if (response && response.success) {
+      if (response) {
         setSuccess(`✅ Sales submission successful! Your record is pending admin approval.`);
         // Reset form
         setFormData({
@@ -98,7 +98,7 @@ const CSRSalesSubmission = ({ onBack }) => {
         // Auto-clear success message after 5 seconds
         setTimeout(() => setSuccess(''), 5000);
       } else {
-        throw new Error(response?.message || 'Failed to submit sales record');
+        throw new Error('Failed to submit sales record');
       }
     } catch (err) {
       setError(err.message || 'Failed to submit sales record');
@@ -124,24 +124,13 @@ const CSRSalesSubmission = ({ onBack }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900 p-6">
       <div className="max-w-2xl mx-auto">
-        {/* Header with Back Button */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-              <Send className="text-cyan-400" size={32} />
-              Submit Sales
-            </h1>
-            <p className="text-gray-400">Record a new customer sale for approval</p>
-          </div>
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-900/50 transition"
-            >
-              <ArrowLeft size={20} />
-              Back
-            </button>
-          )}
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+            <Send className="text-cyan-400" size={32} />
+            Submit Sales
+          </h1>
+          <p className="text-gray-400">Record a new customer sale for approval</p>
         </div>
 
         {/* Success Alert */}
@@ -350,14 +339,14 @@ const CSRSalesSubmission = ({ onBack }) => {
               type="button"
               onClick={handlePreview}
               disabled={loading}
-              className="flex-1 px-6 py-3 rounded-lg border border-cyan-600 text-cyan-400 font-semibold hover:bg-cyan-600/10 transition disabled:opacity-50"
+              className="flex-1 px-6 py-3 rounded-lg border border-cyan-600 text-cyan-400 font-semibold hover:bg-cyan-600/10 hover:border-cyan-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {showPreview ? '✓ Preview OK' : 'Preview'}
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

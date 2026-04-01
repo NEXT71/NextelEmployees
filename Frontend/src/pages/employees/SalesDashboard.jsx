@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle, Send } from 'lucide-react';
+import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle, Send, ArrowLeft } from 'lucide-react';
 import { salesTargetAPI, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import CSRSalesSubmission from '../../components/employees/CSRSalesSubmission';
@@ -95,33 +95,52 @@ const CSRSalesDashboard = () => {
       </div>
 
       {/* Header */}
-      <Header userName={user?.username} onLogout={handleLogout} />
+      <Header 
+        userName={user?.username} 
+        onLogout={handleLogout}
+        pageTitle="Sales Dashboard"
+      />
 
-            {/* Tab Navigation */}
+      {/* Tab Navigation with Back Button */}
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 relative z-10">
-        <div className="flex gap-2 mb-6 bg-blue-900/40 backdrop-blur-md border border-blue-600/30 rounded-lg p-1 w-fit">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
-              activeTab === 'dashboard'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white'
-            }`}
-          >
-            <TrendingUp size={20} />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('submit')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
-              activeTab === 'submit'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white'
-            }`}
-          >
-            <Send size={20} />
-            Submit Sale
-          </button>
+        <div className="flex items-center gap-4 mb-6">
+          {/* Back Button */}
+          {activeTab === 'submit' && (
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-500 text-gray-300 hover:bg-blue-600/20 hover:border-blue-400 transition-all"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={20} />
+              Back
+            </button>
+          )}
+          
+          {/* Tabs */}
+          <div className="flex gap-2 bg-blue-900/40 backdrop-blur-md border border-blue-600/30 rounded-lg p-1 w-fit">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
+                activeTab === 'dashboard'
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
+                  : 'text-gray-300 hover:text-white'
+              }`}
+            >
+              <TrendingUp size={20} />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab('submit')}
+              className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
+                activeTab === 'submit'
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
+                  : 'text-gray-300 hover:text-white'
+              }`}
+            >
+              <Send size={20} />
+              Submit Sale
+            </button>
+          </div>
         </div>
       </div>
 

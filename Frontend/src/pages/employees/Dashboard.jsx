@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   CheckCircle, XCircle, DollarSign, Calendar,
-  Mail, AlertTriangle, X, ChevronDown, ChevronUp, AlertCircle, RefreshCw, MessageCircle, TrendingUp
+  Mail, AlertTriangle, X, ChevronDown, ChevronUp, AlertCircle, RefreshCw, MessageCircle
 } from 'lucide-react';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';

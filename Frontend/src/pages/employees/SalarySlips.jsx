@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import AdminHeader from '../../components/common/AdminHeader';
+import Header from '../../components/common/Header';
 import { salaryAPI } from '../../utils/api';
 import { Download, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 
@@ -82,7 +82,12 @@ NET SALARY,${netPay}
       </div>
 
       <div className="relative z-10">
-        <AdminHeader />
+        <Header 
+        userName={user?.username} 
+        onLogout={handleLogout} 
+        pageTitle="Sales Dashboard"
+        onNavigateToSalary={() => navigate('/employee/sales-dashboard')}
+      />
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Page Title */}

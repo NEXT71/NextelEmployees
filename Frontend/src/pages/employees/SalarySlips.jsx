@@ -90,7 +90,7 @@ NET SALARY,${netPay}
           userName={user?.username} 
           onLogout={handleLogout} 
           pageTitle="My Salary Slips"
-          onNavigateToDashboard={() => navigate('/employee/dashboard')}
+          onNavigateToDashboard={() => navigate('/employeedashboard')}
           onNavigateToSales={() => navigate('/employee/sales-dashboard')}
         />
 

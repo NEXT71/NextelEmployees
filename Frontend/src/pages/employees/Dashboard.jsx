@@ -44,10 +44,13 @@ const fetchAttendanceData = async (employeeId, bypassCache = false) => {
   setLoadingAttendance(true);
   setAttendanceError(null);
   try {
+    console.log(`📡 Fetching attendance for employee ${employeeId}, bypassCache: ${bypassCache}`);
     const response = await attendanceAPI.getAttendanceByEmployee(employeeId, { bypassCache });
+    console.log('📦 Attendance response:', response);
     
     // Handle different response structures
     const attendanceData = response?.data || response || [];
+    console.log('📊 Processed attendance data:', attendanceData);
     setAttendance(Array.isArray(attendanceData) ? attendanceData : []);
   } catch (err) {
     console.error("Attendance fetch error:", err);
@@ -62,10 +65,13 @@ const fetchFinesData = async (bypassCache = false) => {
   setLoadingFines(true);
   setFinesError(null);
   try {
+    console.log(`📡 Fetching fines, bypassCache: ${bypassCache}`);
     const response = await fineAPI.getEmployeeFines({ bypassCache });
+    console.log('📦 Fines response:', response);
     
     // Handle response based on your backend structure
     const finesData = response?.data || response;
+    console.log('📊 Processed fines data:', finesData);
     if (Array.isArray(finesData)) {
       setFines(finesData);
     } else {
@@ -159,9 +165,11 @@ const checkClockInStatus = async (employeeId) => {
 
   const refreshAttendanceData = async () => {
     try {
+      console.log('🔄 Refreshing attendance data...');
       if (employee?._id) {
         // Bypass cache to get fresh data
         await fetchAttendanceData(employee._id, true);
+        console.log('✅ Attendance data refreshed successfully');
       } else {
         console.warn('Employee ID not available for attendance refresh');
         setAttendanceError('Unable to refresh: Employee ID missing');
@@ -174,8 +182,10 @@ const checkClockInStatus = async (employeeId) => {
 
   const refreshFinesData = async () => {
     try {
+      console.log('🔄 Refreshing fines data...');
       // Bypass cache to get fresh data
       await fetchFinesData(true);
+      console.log('✅ Fines data refreshed successfully');
     } catch (err) {
       console.error('Fines refresh error:', err);
       setFinesError('Failed to refresh fines data');

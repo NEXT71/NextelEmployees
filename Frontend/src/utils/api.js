@@ -53,6 +53,21 @@ const apiRequest = async (endpoint, options = {}) => {
   
   // Check cache first for GET requests (unless bypassCache is set)
   const cacheKey = createCacheKey(endpoint, options);
+  
+  // If bypassCache is set, clear the cache entry to force fresh data and skip deduplication
+  if (options.bypassCache && shouldCache(endpoint, options.method)) {
+    apiCache.delete(cacheKey);
+    console.log(`🔄 Cache cleared for refresh: ${endpoint}`);
+    
+    // For bypass requests, skip both cache and deduplication
+    if (!options.method || options.method === 'GET') {
+      const result = await makeApiCall(endpoint, options, cacheKey);
+      performanceMonitor.end(requestKey);
+      console.log(`✅ Refresh data fetched for: ${endpoint}`);
+      return result;
+    }
+  }
+  
   if (!options.bypassCache && shouldCache(endpoint, options.method)) {
     const cachedResult = apiCache.get(cacheKey);
     if (cachedResult) {
@@ -63,11 +78,6 @@ const apiRequest = async (endpoint, options = {}) => {
 
   // Use request deduplication for GET requests (but skip if bypassCache is true)
   if (!options.method || options.method === 'GET') {
-    if (options.bypassCache) {
-      // Skip deduplication for bypass requests to ensure fresh data is fetched
-      return makeApiCall(endpoint, options, cacheKey);
-    }
-    
     return requestDeduplicator.dedupe(requestKey, async () => {
       return makeApiCall(endpoint, options, cacheKey);
     });
@@ -143,8 +153,8 @@ const makeApiCall = async (endpoint, options = {}, cacheKey) => {
       throw new Error('Server returned an empty response');
     }
 
-    // Cache successful GET responses
-    if (shouldCache(endpoint, options.method) && cacheKey) {
+    // Cache successful GET responses (but not if bypassCache was set to avoid caching stale data)
+    if (shouldCache(endpoint, options.method) && cacheKey && !options.bypassCache) {
       // Set cache TTL based on endpoint type
       let ttl = 5 * 60 * 1000; // Default 5 minutes
       if (endpoint.includes('/auth/me')) ttl = 15 * 60 * 1000; // 15 minutes for user data

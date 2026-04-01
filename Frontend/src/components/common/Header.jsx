@@ -10,7 +10,8 @@ const Header = ({
   showProfileButton = true,
   pageTitle = null,
   onNavigateToSalary = null,
-  onNavigateToSales = null
+  onNavigateToSales = null,
+  onNavigateToDashboard = null
 }) => {
   return (
     <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
@@ -42,6 +43,16 @@ const Header = ({
               >
                 <UserPlus className="w-4 h-4" />
                 <span>Register Employee</span>
+              </button>
+            )}
+            
+            {onNavigateToDashboard && (
+              <button
+                onClick={onNavigateToDashboard}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors"
+                title="Go to Dashboard"
+              >
+                <span>Dashboard</span>
               </button>
             )}
             

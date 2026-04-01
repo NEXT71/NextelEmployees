@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../../components/common/Header';
+import { useAuth } from '../../contexts/AuthContext';
 import { salaryAPI } from '../../utils/api';
 import { Download, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 
 const EmployeeSalarySlips = () => {
+  const navigate = useNavigate();
+  const { user, logout: handleLogout } = useAuth();
   
   const [salarySlips, setSalarySlips] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,11 +87,12 @@ NET SALARY,${netPay}
 
       <div className="relative z-10">
         <Header 
-        userName={user?.username} 
-        onLogout={handleLogout} 
-        pageTitle="Sales Dashboard"
-        onNavigateToSalary={() => navigate('/employee/sales-dashboard')}
-      />
+          userName={user?.username} 
+          onLogout={handleLogout} 
+          pageTitle="My Salary Slips"
+          onNavigateToDashboard={() => navigate('/employee/dashboard')}
+          onNavigateToSales={() => navigate('/employee/sales-dashboard')}
+        />
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Page Title */}

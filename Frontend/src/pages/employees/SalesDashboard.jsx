@@ -99,6 +99,7 @@ const CSRSalesDashboard = () => {
         userName={user?.username} 
         onLogout={handleLogout} 
         pageTitle="Sales Dashboard"
+        onNavigateToDashboard={() => navigate('/employee/dashboard')}
         onNavigateToSalary={() => navigate('/employee/salary-slips')}
       />
 

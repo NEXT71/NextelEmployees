@@ -1,5 +1,5 @@
 // Header.jsx
-import { User, LogOut, UserPlus } from 'lucide-react';
+import { User, LogOut, UserPlus, DollarSign, TrendingUp } from 'lucide-react';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 
 const Header = ({ 
@@ -8,7 +8,9 @@ const Header = ({
   onRegisterEmployee, 
   onProfileClick,
   showProfileButton = true,
-  pageTitle = null
+  pageTitle = null,
+  onNavigateToSalary = null,
+  onNavigateToSales = null
 }) => {
   return (
     <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
@@ -42,7 +44,28 @@ const Header = ({
                 <span>Register Employee</span>
               </button>
             )}
-          
+            
+            {onNavigateToSalary && (
+              <button
+                onClick={onNavigateToSalary}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm transition-colors"
+                title="View My Salary Slips"
+              >
+                <DollarSign className="w-4 h-4" />
+                <span>My Salary Slip</span>
+              </button>
+            )}
+            
+            {onNavigateToSales && (
+              <button
+                onClick={onNavigateToSales}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm transition-colors"
+                title="View My Sales"
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span>My Sales</span>
+              </button>
+            )}
 
             <div className="flex items-center space-x-2">
               <User className="w-4 h-4 text-slate-300" />

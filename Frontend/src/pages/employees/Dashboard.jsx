@@ -678,6 +678,8 @@ const calculateSummary = () => {
         onLogout={handleLogout}
         showProfileButton={false}
         pageTitle="Dashboard"
+        onNavigateToSalary={() => navigate('/employee/salary-slips')}
+        onNavigateToSales={() => navigate('/employee/sales-dashboard')}
       />
 
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">
@@ -745,23 +747,7 @@ const calculateSummary = () => {
           onRefresh={refreshFinesData}
         />
 
-        {/* View Salary Slips Button */}
-        <div className="flex justify-center gap-4 mt-8 flex-wrap">
-          <button
-            onClick={() => navigate('/employee/salary-slips')}
-            className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-green-500/50"
-          >
-            <DollarSign className="w-5 h-5" />
-            View My Salary Slips
-          </button>
-          <button
-            onClick={() => navigate('/employee/sales-dashboard')}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-purple-500/50"
-          >
-            <TrendingUp className="w-5 h-5" />
-            View My Sales
-          </button>
-        </div>
+
       </div>
 
       {/* Floating Message Button */}

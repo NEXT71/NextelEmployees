@@ -225,9 +225,9 @@ export const authAPI = {
 
 // Employee API calls
 export const employeeAPI = {
-  // Get all employees
-  getAllEmployees: () =>
-    apiRequest('/employees'),
+  // Get all employees with optional cache bypass
+  getAllEmployees: (options = {}) =>
+    apiRequest('/employees', options),
 
   // Get employees with optional filters
   getEmployees: async (params = {}) => {
@@ -310,9 +310,9 @@ export const attendanceAPI = {
 
 // Fine API calls
 export const fineAPI = {
-  // Get all fines
-  getAllFines: () =>
-    apiRequest('/fines'),
+  // Get all fines with optional cache bypass
+  getAllFines: (options = {}) =>
+    apiRequest('/fines', options),
 
   // Get fines for current employee (uses token to identify employee)
   getEmployeeFines: (options = {}) =>
@@ -360,8 +360,8 @@ export const fineAPI = {
     apiRequest('/fines/summary'),
 
   // Get employee summary with fine stats for dashboard
-  getEmployeeSummary: () =>
-    apiRequest('/fines/employeesSummary'),
+  getEmployeeSummary: (options = {}) =>
+    apiRequest('/fines/employeesSummary', options),
 
   // Generate employee report
   generateEmployeeReport: (params = {}) => {

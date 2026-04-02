@@ -115,14 +115,14 @@ const AdminDashboard = () => {
     }
   }, [calculateSummary]);
 
-  // Refresh all dashboard data
+  // Refresh all dashboard data with cache bypass
   const refreshDashboard = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // Get all employees
-      const employeesResponse = await employeeAPI.getAllEmployees();
+      // Get all employees (bypass cache for fresh data)
+      const employeesResponse = await employeeAPI.getAllEmployees({ bypassCache: true });
       const allEmployees = employeesResponse.data || [];
       
       // Filter out the current user
@@ -137,13 +137,13 @@ const AdminDashboard = () => {
       
       setEmployees(filteredEmployees);
 
-      // Get all fines
-      const finesResponse = await fineAPI.getAllFines();
+      // Get all fines (bypass cache for fresh data)
+      const finesResponse = await fineAPI.getAllFines({ bypassCache: true });
       setFines(finesResponse.data || []);
 
-      // Get summary stats
+      // Get summary stats (bypass cache for fresh data)
       try {
-        const summaryResponse = await fineAPI.getEmployeeSummary();
+        const summaryResponse = await fineAPI.getEmployeeSummary({ bypassCache: true });
         setSummary(summaryResponse.data || {});
       } catch (err) {
         calculateSummary(filteredEmployees, finesResponse.data || []);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { Search, UserCheck, AlertCircle } from 'lucide-react';
+import { Search, Edit, UserCheck, AlertCircle } from 'lucide-react';
 import { employeeAPI, fineAPI } from '../../../utils/api';
 import { DEPARTMENTS } from '../../../utils/constants';
 import CreateEmployeeModal from '../../../components/admin/CreateEmployeeModal';
@@ -57,6 +57,20 @@ const EmployeesTab = memo(({ user, onRefresh }) => {
       return matchesSearch && matchesDepartment;
     });
   }, [employees, searchTerm, departmentFilter]);
+
+  // View employee details
+  const viewEmployeeDetails = useCallback(async (employee) => {
+    try {
+      const finesResponse = await fineAPI.getFinesByEmployee(employee._id);
+      setSelectedEmployee(employee);
+      setEmployeeFines(finesResponse.data || []);
+      setShowEmployeeDetails(true);
+    } catch (err) {
+      setError(err.message || 'Failed to load employee details');
+    }
+  }, []);
+
+
 
   // Toggle select all
   const toggleSelectAll = useCallback(() => {
@@ -166,6 +180,13 @@ const EmployeesTab = memo(({ user, onRefresh }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm flex gap-2">
+                    <button 
+                      onClick={() => viewEmployeeDetails(emp)}
+                      className="text-blue-400 hover:text-blue-300"
+                      title="View details"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               ))}

@@ -186,4 +186,4 @@ const BonusModal = ({ isOpen, onClose, onSuccess, salary = null }) => {
   );
 };
 
-export default BonusModal;
+export default React.memo(BonusModal);

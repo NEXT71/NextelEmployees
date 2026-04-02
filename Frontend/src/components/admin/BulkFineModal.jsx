@@ -264,4 +264,4 @@ const BulkFineModal = ({ isOpen, onClose, employees, onApply }) => {
   );
 };
 
-export default BulkFineModal;
+export default React.memo(BulkFineModal);

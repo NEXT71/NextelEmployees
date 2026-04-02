@@ -323,4 +323,4 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
   );
 };
 
-export default CreateEmployeeModal;
+export default React.memo(CreateEmployeeModal);

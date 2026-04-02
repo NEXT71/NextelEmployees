@@ -19,36 +19,8 @@ const SalesAnalytics = ({ month = 3, year = 2026 }) => {
   const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
   const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-  const loadSalesData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      const response = await salesTargetAPI.getAllCsrSales({
-        startDate,
-        endDate,
-        limit: 20
-      });
-
-      if (response.data) {
-        const data = response.data;
-        setSalesData(data);
-
-        // Calculate statistics
-        calculateStats(data);
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to load sales data');
-    } finally {
-      setLoading(false);
-    }
-  }, [startDate, endDate]);
-
-  useEffect(() => {
-    loadSalesData();
-  }, [loadSalesData]);
-
-  const calculateStats = (data) => {
+  // ✅ OPTIMIZATION: Memoize calculateStats to prevent recreation on every render
+  const calculateStats = useCallback((data) => {
     if (!data || data.length === 0) {
       setStats({
         totalSales: 0,
@@ -99,7 +71,34 @@ const SalesAnalytics = ({ month = 3, year = 2026 }) => {
       totalEarnings,
       topPerformer,
     });
-  };
+  }, []);
+
+  const loadSalesData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await salesTargetAPI.getAllCsrSales({
+        startDate,
+        endDate,
+        limit: 20
+      });
+
+      if (response.data) {
+        const data = response.data;
+        setSalesData(data);
+        calculateStats(data);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to load sales data');
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate, calculateStats]);
+
+  useEffect(() => {
+    loadSalesData();
+  }, [loadSalesData]);
 
   const getTierBadge = (tier) => {
     const badges = {

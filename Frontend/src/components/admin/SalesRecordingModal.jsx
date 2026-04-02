@@ -272,4 +272,4 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
   );
 };
 
-export default SalesRecordingModal;
+export default React.memo(SalesRecordingModal);

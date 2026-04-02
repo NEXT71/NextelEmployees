@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { Search, Download, DollarSign, UserIcon } from 'lucide-react';
 import { salaryAPI, employeeAPI } from '../../../utils/api';
-import GenerateSalaryModal from '../../components/admin/GenerateSalaryModal';
-import BonusModal from '../../components/admin/BonusModal';
+import GenerateSalaryModal from '../../../components/admin/GenerateSalaryModal';
+import BonusModal from '../../../components/admin/BonusModal';
 
 // ✅ OPTIMIZATION: Separated component to prevent re-renders of unrelated state changes
 const SalariesTab = memo(({ user, onRefresh }) => {

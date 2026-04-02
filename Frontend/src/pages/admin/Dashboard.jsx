@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';

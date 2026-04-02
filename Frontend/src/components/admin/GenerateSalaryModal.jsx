@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useState } from 'react';
 import { X, DollarSign, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { salaryAPI, employeeAPI } from '../../utils/api';
 
@@ -300,4 +300,4 @@ const GenerateSalaryModal = ({ isOpen, onClose, onSuccess, employees = [] }) => 
   );
 };
 
-export default memo(GenerateSalaryModal);
+export default React.memo(GenerateSalaryModal);

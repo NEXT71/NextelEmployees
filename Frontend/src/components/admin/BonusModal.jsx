@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { X, Gift, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { salaryAPI } from '../../utils/api';
 
@@ -186,4 +186,4 @@ const BonusModal = ({ isOpen, onClose, onSuccess, salary = null }) => {
   );
 };
 
-export default React.memo(BonusModal);
+export default memo(BonusModal);

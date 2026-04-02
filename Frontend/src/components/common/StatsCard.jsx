@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import { TrendingUp } from "lucide-react";
 
-const StatsCard = ({ title, value, subtitle, icon, color }) => {
+const StatsCard = memo(({ title, value, subtitle, icon, color }) => {
   const colorClasses = {
     green: 'from-blue-400 to-purple-500 text-blue-300',
     red: 'from-red-400 to-pink-500 text-red-300',
@@ -32,6 +33,8 @@ const StatsCard = ({ title, value, subtitle, icon, color }) => {
       </div>
     </div>
   );
-};
+});
+
+StatsCard.displayName = 'StatsCard';
 
 export default StatsCard;

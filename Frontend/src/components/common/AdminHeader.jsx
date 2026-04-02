@@ -1,10 +1,10 @@
+import { memo, useState } from 'react';
 import { User, LogOut, Clock, LayoutDashboard, Users, Menu, X } from 'lucide-react';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 import 'react-lazy-load-image-component/src/effects/blur.css';
 import { Link, useLocation } from 'react-router-dom';
-import { useState } from 'react';
 
-const AdminHeader = ({ userName, onLogout }) => {
+const AdminHeader = memo(({ userName, onLogout }) => {
   const location = useLocation();
   const isAttendancePage = location.pathname.includes('/attendance');
   const isEmployeesPage = location.pathname.includes('/employees');
@@ -152,6 +152,8 @@ const AdminHeader = ({ userName, onLogout }) => {
       </div>
     </header>
   );
-};
+});
+
+AdminHeader.displayName = 'AdminHeader';
 
 export default AdminHeader;

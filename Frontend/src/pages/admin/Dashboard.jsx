@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';
@@ -522,66 +522,76 @@ const AdminDashboard = () => {
     setAppliedEmployeeFilter('');
     setAppliedFineFilter('');
   };
-  const filteredEmployees = employees.filter(employee => {
-    const matchesSearch = 
-      `${employee.firstName} ${employee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesDepartment = departmentFilter ? employee.department === departmentFilter : true;
-    
-    return matchesSearch && matchesDepartment;
-  });
+  // Memoized filter operations for employees
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(employee => {
+      const matchesSearch = 
+        `${employee.firstName} ${employee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        employee.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesDepartment = departmentFilter ? employee.department === departmentFilter : true;
+      
+      return matchesSearch && matchesDepartment;
+    });
+  }, [employees, searchTerm, departmentFilter]);
 
-  const filteredFines = fines.filter(fine => {
-    if (!fine.employee) return false;
-    
-    const employee = employees.find(e => e._id === fine.employee._id);
-    if (!employee) return false;
-    
-    const matchesEmployee = appliedEmployeeFilter ? fine.employee._id === appliedEmployeeFilter : true;
-    const matchesType = appliedFineFilter ? fine.type === appliedFineFilter : true;
-    
-    // Month filter
-    const matchesMonth = appliedMonthFilter ? 
-      new Date(fine.date).toISOString().slice(0, 7) === appliedMonthFilter : true;
-    
-    // Date filter
-    const matchesDate = appliedDateFilter ? 
-      new Date(fine.date).toISOString().slice(0, 10) === appliedDateFilter : true;
-    
-    // Search filter
-    const matchesSearch = appliedSearchTerm ? 
-      `${employee.firstName} ${employee.lastName}`.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
-      employee.email?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
-      employee.employeeId?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
-      fine.type.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
-      fine.description?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) : true;
-    
-    return matchesEmployee && matchesType && matchesMonth && matchesDate && matchesSearch;
-  });
+  // Memoized filter operations for fines
+  const filteredFines = useMemo(() => {
+    return fines.filter(fine => {
+      if (!fine.employee) return false;
+      
+      const employee = employees.find(e => e._id === fine.employee._id);
+      if (!employee) return false;
+      
+      const matchesEmployee = appliedEmployeeFilter ? fine.employee._id === appliedEmployeeFilter : true;
+      const matchesType = appliedFineFilter ? fine.type === appliedFineFilter : true;
+      
+      // Month filter
+      const matchesMonth = appliedMonthFilter ? 
+        new Date(fine.date).toISOString().slice(0, 7) === appliedMonthFilter : true;
+      
+      // Date filter
+      const matchesDate = appliedDateFilter ? 
+        new Date(fine.date).toISOString().slice(0, 10) === appliedDateFilter : true;
+      
+      // Search filter
+      const matchesSearch = appliedSearchTerm ? 
+        `${employee.firstName} ${employee.lastName}`.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+        employee.email?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+        employee.employeeId?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+        fine.type.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+        fine.description?.toLowerCase().includes(appliedSearchTerm.toLowerCase()) : true;
+      
+      return matchesEmployee && matchesType && matchesMonth && matchesDate && matchesSearch;
+    });
+  }, [fines, employees, appliedEmployeeFilter, appliedFineFilter, appliedMonthFilter, appliedDateFilter, appliedSearchTerm]);
 
-  // Group fines by employee for the grouped display
-  const groupedFines = filteredFines.reduce((groups, fine) => {
-    const employeeId = fine.employee._id;
-    if (!groups[employeeId]) {
-      groups[employeeId] = [];
-    }
-    groups[employeeId].push(fine);
-    return groups;
-  }, {});
+  // Group fines by employee for the grouped display (memoized)
+  const groupedFines = useMemo(() => {
+    return filteredFines.reduce((groups, fine) => {
+      const employeeId = fine.employee._id;
+      if (!groups[employeeId]) {
+        groups[employeeId] = [];
+      }
+      groups[employeeId].push(fine);
+      return groups;
+    }, {});
+  }, [filteredFines]);
 
-  // Filter salaries based on search term
-  const filteredSalaries = salaries.filter(salary => {
-    if (!salary.employee) return false;
-    
-    const matchesSearch = salarySearchTerm ? 
-      `${salary.employee.firstName} ${salary.employee.lastName}`.toLowerCase().includes(salarySearchTerm.toLowerCase()) ||
-      salary.employee.employeeId?.toLowerCase().includes(salarySearchTerm.toLowerCase()) ||
-      salary.employee.email?.toLowerCase().includes(salarySearchTerm.toLowerCase()) : true;
-    
-    return matchesSearch;
-  });
+  // Memoized filter operations for salaries
+  const filteredSalaries = useMemo(() => {
+    return salaries.filter(salary => {
+      if (!salary.employee) return false;
+      
+      const matchesSearch = salarySearchTerm ? 
+        `${salary.employee.firstName} ${salary.employee.lastName}`.toLowerCase().includes(salarySearchTerm.toLowerCase()) ||
+        salary.employee.employeeId?.toLowerCase().includes(salarySearchTerm.toLowerCase()) ||
+        salary.employee.email?.toLowerCase().includes(salarySearchTerm.toLowerCase()) : true;
+      
+      return matchesSearch;
+    });
+  }, [salaries, salarySearchTerm]);
 
   if (loading) {
     return (
@@ -601,16 +611,6 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 relative overflow-hidden">
-      <style dangerouslySetInnerHTML={{__html: `
-        .admin-dashboard-select option {
-          background-color: rgba(30, 58, 138, 0.95) !important;
-          color: rgb(219, 234, 254) !important;
-          padding: 8px !important;
-        }
-        .admin-dashboard-select option:hover {
-          background-color: rgba(59, 130, 246, 0.3) !important;
-        }
-      `}} />
       {/* Background elements - responsive */}
       <div className="absolute inset-0">
         <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-64 sm:h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>

@@ -43,7 +43,7 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// Rate limiting
+// General Rate limiting for all API routes
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -53,9 +53,31 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req, res) => {
+    // Skip rate limiting for attendance endpoints (they have their own limiter)
+    return req.path.includes('/attendance/');
+  }
+});
+
+// Specialized Rate limiting for attendance endpoints (clock in/out during peak times)
+// Handles 30-40 concurrent agents clocking in simultaneously
+const attendanceLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Allow up to 300 requests per 15 minutes per IP
+  message: {
+    error: 'Too many attendance requests. Please wait before trying again.',
+    retryAfter: 900
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req, res) => {
+    // Prefer user ID for rate limiting, fallback to IP for unauthenticated requests
+    return req.user?._id?.toString() || req.ip;
+  }
 });
 
 app.use('/api/', limiter);
+app.use('/api/attendance/', attendanceLimiter);
 
 // Compression middleware for response compression
 app.use(compression({

@@ -1,13 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { Search, Download, DollarSign, UserIcon } from 'lucide-react';
-import { salaryAPI, employeeAPI } from '../../../utils/api';
+import { Search, Download, DollarSign } from 'lucide-react';
+import { salaryAPI } from '../../../utils/api';
 import GenerateSalaryModal from '../../../components/admin/GenerateSalaryModal';
 import BonusModal from '../../../components/admin/BonusModal';
 
 // ✅ OPTIMIZATION: Separated component to prevent re-renders of unrelated state changes
 const SalariesTab = memo(({ user, onRefresh }) => {
   const [salaries, setSalaries] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedSalary, setSelectedSalary] = useState(null);
@@ -21,13 +20,8 @@ const SalariesTab = memo(({ user, onRefresh }) => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [salariesRes, employeesRes] = await Promise.all([
-          salaryAPI.getAllSalaries({ bypassCache: true }),
-          employeeAPI.getAllEmployees({ bypassCache: true })
-        ]);
-        
+        const salariesRes = await salaryAPI.getAllSalaries({ bypassCache: true });
         setSalaries(salariesRes.data || []);
-        setEmployees(employeesRes.data || []);
         setError('');
       } catch (err) {
         setError(err.message || 'Failed to load salaries');

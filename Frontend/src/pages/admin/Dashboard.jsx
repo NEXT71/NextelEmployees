@@ -10,7 +10,7 @@ import SalesTab from './components/SalesTab';
 import { 
   Users, CheckCircle, AlertTriangle, DollarSign, TrendingUp, RefreshCw 
 } from 'lucide-react';
-import { employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
+import { employeeAPI, fineAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { authAPI } from '../../utils/api';
 

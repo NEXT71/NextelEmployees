@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { Search, Filter, Calendar, Users, AlertTriangle, Trash2, X, Download } from 'lucide-react';
+import { Search, AlertTriangle, Trash2, X, Download } from 'lucide-react';
 import { fineAPI, employeeAPI } from '../../../utils/api';
 import { FINE_TYPES } from '../../../utils/constants';
 

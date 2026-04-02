@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { Search, Filter, Edit, Trash2, UserCheck, Download, AlertCircle } from 'lucide-react';
+import { Search, Edit, UserCheck, AlertCircle } from 'lucide-react';
 import { employeeAPI, fineAPI } from '../../../utils/api';
 import { DEPARTMENTS } from '../../../utils/constants';
 import CreateEmployeeModal from '../../../components/admin/CreateEmployeeModal';
@@ -19,9 +19,6 @@ const EmployeesTab = memo(({ user, onRefresh }) => {
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showBulkFineModal, setShowBulkFineModal] = useState(false);
-  const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [employeeFines, setEmployeeFines] = useState([]);
 
   // Fetch employees on mount
   useEffect(() => {
@@ -73,25 +70,7 @@ const EmployeesTab = memo(({ user, onRefresh }) => {
     }
   }, []);
 
-  const closeEmployeeDetails = useCallback(() => {
-    setShowEmployeeDetails(false);
-    setSelectedEmployee(null);
-  }, []);
 
-  // Handle download report
-  const handleDownloadEmployeeReport = useCallback(async () => {
-    try {
-      const response = await fineAPI.generateEmployeeReport();
-      if (response.success && response.data) {
-        const headers = ['employeeId', 'name', 'email', 'department', 'status', 'totalFines', 'totalAmount'];
-        const csvContent = convertToCSV(response.data, headers);
-        const filename = `employee-report-${new Date().toISOString().split('T')[0]}.csv`;
-        downloadCSV(csvContent, filename);
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to generate employee report');
-    }
-  }, []);
 
   // Toggle select all
   const toggleSelectAll = useCallback(() => {

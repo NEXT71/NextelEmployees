@@ -300,4 +300,4 @@ const GenerateSalaryModal = ({ isOpen, onClose, onSuccess, employees = [] }) => 
   );
 };
 
-export default React.memo(GenerateSalaryModal);
+export default GenerateSalaryModal;

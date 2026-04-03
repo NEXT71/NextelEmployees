@@ -505,14 +505,6 @@ const getAnalyticsSummary = async (req, res, next) => {
   }
 };
 
-        pendingCount: count
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
 // Get CSR's own sales submissions (with all statuses)
 const getMySales = async (req, res, next) => {
   try {

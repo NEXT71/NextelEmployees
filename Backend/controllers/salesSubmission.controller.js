@@ -356,7 +356,13 @@ const getPendingCount = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: {
+      count
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Get analytics data for approved sales
 const getAnalytics = async (req, res, next) => {
   try {

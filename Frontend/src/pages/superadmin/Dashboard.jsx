@@ -549,7 +549,8 @@ const SuperAdminDashboard = () => {
                     <tr className="text-white/50 border-b border-white/10">
                       <th className="text-left py-3 px-4">Employee</th>
                       <th className="text-left py-3 px-4">Customer</th>
-                      <th className="text-left py-3 px-4">Package</th>
+                      <th className="text-left py-3 px-4">DIDs</th>
+                      <th className="text-left py-3 px-4">Closer</th>
                       <th className="text-center py-3 px-4">Status</th>
                       <th className="text-left py-3 px-4">Date</th>
                     </tr>
@@ -558,12 +559,13 @@ const SuperAdminDashboard = () => {
                     {sales.map((s) => (
                       <tr key={s._id} className="border-b border-white/5 hover:bg-white/5">
                         <td className="py-3 px-4 text-white">
-                          {s.employee?.firstName
-                            ? `${s.employee.firstName} ${s.employee.lastName}`
-                            : s.employeeId || '—'}
+                          {s.agentName || (s.agent?.firstName ? `${s.agent.firstName} ${s.agent.lastName}` : '—')}
                         </td>
-                        <td className="py-3 px-4 text-white/70">{s.customerName || '—'}</td>
-                        <td className="py-3 px-4 text-white/70">{s.packageDetails || s.package || '—'}</td>
+                        <td className="py-3 px-4 text-white/70">
+                          {s.customer?.firstName ? `${s.customer.firstName} ${s.customer.lastName}` : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-white/70">{s.dids || '—'}</td>
+                        <td className="py-3 px-4 text-white/70">{s.closer || '—'}</td>
                         <td className="py-3 px-4 text-center">
                           <Badge text={s.status} color={s.status} />
                         </td>
@@ -572,7 +574,7 @@ const SuperAdminDashboard = () => {
                     ))}
                     {sales.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="py-10 text-center text-white/40">No sales found.</td>
+                        <td colSpan={6} className="py-10 text-center text-white/40">No sales found.</td>
                       </tr>
                     )}
                   </tbody>

@@ -490,16 +490,22 @@ export const salesTargetAPI = {
       body: JSON.stringify(salesData),
     }),
 
-  // Get CSR daily sales report (Employee/Admin)
-  getCsrDailySalesReport: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return apiRequest(`/sales-targets/my-sales-report${queryString ? `?${queryString}` : ''}`);
-  },
-
   // Get CSR monthly earnings (Employee/Admin)
   getCsrMonthlyEarnings: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    return apiRequest(`/sales-targets/my-monthly-earnings${queryString ? `?${queryString}` : ''}`);
+    return apiRequest(`/sales-submissions/my/monthly-earnings${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get CSR daily sales report (Employee/Admin)
+  getCsrDailySalesReport: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/sales-submissions/my/sales${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get CSR 30-day summary (Employee)
+  getCsrSalesSummary: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/sales-submissions/my/summary${queryString ? `?${queryString}` : ''}`);
   },
 
   // Get all CSR sales (Admin)

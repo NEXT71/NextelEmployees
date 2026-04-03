@@ -1,10 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, Users, Award, DollarSign, AlertCircle, BarChart3 } from 'lucide-react';
-import { salesTargetAPI } from '../../utils/api';
+import { API_BASE_URL } from '../../utils/constants';
 import StatsCard from '../common/StatsCard';
 import LoadingSkeleton from '../common/LoadingSkeleton';
 
-const SalesAnalytics = ({ month = 3, year = 2026 }) => {
+// Helper to get auth token
+const getAuthToken = () => {
+  try {
+    return localStorage.getItem('token');
+  } catch (err) {
+    return null;
+  }
+};
+
+// Helper to build headers with token
+const getHeaders = (token) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
+const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
   const [salesData, setSalesData] = useState([]);
   const [stats, setStats] = useState({
     totalSales: 0,
@@ -24,21 +45,37 @@ const SalesAnalytics = ({ month = 3, year = 2026 }) => {
       setLoading(true);
       setError('');
 
-      const response = await salesTargetAPI.getAllCsrSales({
-        startDate,
-        endDate,
-        limit: 20
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const url = `${API_BASE_URL}/sales-submissions/analytics/detailed?startDate=${startDate}&endDate=${endDate}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: getHeaders(token)
       });
 
-      if (response.data) {
-        const data = response.data;
-        setSalesData(data);
+      if (!response.ok) {
+        throw new Error(`Failed to load analytics data (${response.status})`);
+      }
 
-        // Calculate statistics
-        calculateStats(data);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        setSalesData(result.data);
+        setStats(result.stats || {
+          totalSales: 0,
+          totalCSRs: 0,
+          averageSalesPerCSR: 0,
+          totalEarnings: 0,
+          topPerformer: null,
+        });
       }
     } catch (err) {
       setError(err.message || 'Failed to load sales data');
+      console.error('Analytics error:', err);
     } finally {
       setLoading(false);
     }
@@ -47,59 +84,6 @@ const SalesAnalytics = ({ month = 3, year = 2026 }) => {
   useEffect(() => {
     loadSalesData();
   }, [loadSalesData]);
-
-  const calculateStats = (data) => {
-    if (!data || data.length === 0) {
-      setStats({
-        totalSales: 0,
-        totalCSRs: 0,
-        averageSalesPerCSR: 0,
-        totalEarnings: 0,
-        topPerformer: null,
-      });
-      return;
-    }
-
-    // Group by employee
-    const byEmployee = {};
-    data.forEach(record => {
-      const empId = record.employee?._id || record.employee;
-      if (!byEmployee[empId]) {
-        byEmployee[empId] = {
-          employee: record.employee,
-          totalSales: 0,
-          totalEarnings: 0,
-          daysWorked: 0,
-          records: []
-        };
-      }
-      byEmployee[empId].totalSales += record.salesCount || 0;
-      byEmployee[empId].totalEarnings += record.totalEarningForDay || 0;
-      byEmployee[empId].daysWorked += 1;
-      byEmployee[empId].records.push(record);
-    });
-
-    const employees = Object.values(byEmployee);
-    const totalSales = employees.reduce((sum, e) => sum + e.totalSales, 0);
-    const totalEarnings = employees.reduce((sum, e) => sum + e.totalEarnings, 0);
-    const avgSalesPerCSR = Math.round((totalSales / employees.length) * 100) / 100;
-
-    // Find top performer
-    let topPerformer = employees[0];
-    employees.forEach(emp => {
-      if (emp.totalEarnings > topPerformer.totalEarnings) {
-        topPerformer = emp;
-      }
-    });
-
-    setStats({
-      totalSales,
-      totalCSRs: employees.length,
-      averageSalesPerCSR: avgSalesPerCSR,
-      totalEarnings,
-      topPerformer,
-    });
-  };
 
   const getTierBadge = (tier) => {
     const badges = {

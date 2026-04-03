@@ -357,7 +357,298 @@ const getPendingCount = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {
+// Get analytics data for approved sales
+const getAnalytics = async (req, res, next) => {
+  try {
+    const { startDate, endDate, month, year } = req.query;
+    
+    // Build date filter
+    let dateFilter = {};
+    if (startDate && endDate) {
+      dateFilter = {
+        saleDate: {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate)
+        }
+      };
+    } else if (month && year) {
+      const monthNum = parseInt(month) - 1;
+      const yearNum = parseInt(year);
+      const start = new Date(yearNum, monthNum, 1);
+      const end = new Date(yearNum, monthNum + 1, 0);
+      dateFilter = {
+        saleDate: {
+          $gte: start,
+          $lte: end
+        }
+      };
+    }
+
+    // Get approved sales only
+    const approvedSales = await SalesTarget.find({
+      status: 'approved',
+      ...dateFilter
+    })
+      .populate('agent', 'firstName lastName employeeId phone')
+      .populate('approvedBy', 'firstName lastName')
+      .sort({ saleDate: -1 });
+
+    if (approvedSales.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        stats: {
+          totalSales: 0,
+          totalCSRs: 0,
+          averageSalesPerCSR: 0,
+          totalEarnings: 0,
+          topPerformer: null
+        }
+      });
+    }
+
+    // Group by agent and calculate statistics
+    const byAgent = {};
+    approvedSales.forEach(sale => {
+      const agentId = sale.agent?._id?.toString() || sale.agent;
+      if (!byAgent[agentId]) {
+        byAgent[agentId] = {
+          agent: sale.agent,
+          agentName: sale.agentName,
+          totalSales: 0,
+          totalEarnings: 0,
+          records: []
+        };
+      }
+      byAgent[agentId].totalSales += 1; // Each sale submission = 1 sale
+      byAgent[agentId].totalEarnings += sale.pricePerSale || 1000;
+      byAgent[agentId].records.push(sale);
+    });
+
+    const agents = Object.values(byAgent);
+    const totalSales = approvedSales.length;
+    const totalCSRs = agents.length;
+    const totalEarnings = agents.reduce((sum, a) => sum + a.totalEarnings, 0);
+    const averageSalesPerCSR = totalCSRs > 0 ? Math.round((totalSales / totalCSRs) * 100) / 100 : 0;
+
+    // Find top performer
+    let topPerformer = agents[0];
+    agents.forEach(agent => {
+      if (agent.totalEarnings > topPerformer.totalEarnings) {
+        topPerformer = agent;
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: approvedSales,
+      byAgent: Object.values(byAgent),
+      stats: {
+        totalSales,
+        totalCSRs,
+        averageSalesPerCSR,
+        totalEarnings,
+        topPerformer
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get 30-day analytics summary
+const getAnalyticsSummary = async (req, res, next) => {
+  try {
+    // Get sales from last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const approvedSales = await SalesTarget.find({
+      status: 'approved',
+      saleDate: { $gte: thirtyDaysAgo }
+    })
+      .populate('agent', 'firstName lastName employeeId')
+      .sort({ saleDate: -1 });
+
+    // Group by agent
+    const byAgent = {};
+    approvedSales.forEach(sale => {
+      const agentId = sale.agent?._id?.toString() || sale.agent;
+      if (!byAgent[agentId]) {
+        byAgent[agentId] = {
+          agent: sale.agent,
+          agentName: sale.agentName,
+          salesCount: 0,
+          earnings: 0
+        };
+      }
+      byAgent[agentId].salesCount += 1;
+      byAgent[agentId].earnings += sale.pricePerSale || 1000;
+    });
+
+    res.status(200).json({
+      success: true,
+      period: '30 days',
+      totalSales: approvedSales.length,
+      totalCSRs: Object.keys(byAgent).length,
+      totalEarnings: Object.values(byAgent).reduce((sum, a) => sum + a.earnings, 0),
+      byAgent: Object.values(byAgent).sort((a, b) => b.earnings - a.earnings)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
         pendingCount: count
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get CSR's own sales submissions (with all statuses)
+const getMySales = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { startDate, endDate, status, page = 1, limit = 50 } = req.query;
+
+    // Build filters
+    const filter = { agent: userId };
+    
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
+
+    if (startDate && endDate) {
+      filter.saleDate = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    const sales = await SalesTarget.find(filter)
+      .populate('approvedBy', 'firstName lastName')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const total = await SalesTarget.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      data: sales,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get CSR's monthly earnings from sales submissions
+const getMyMonthlyEarnings = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { month, year } = req.query;
+
+    const monthNum = month ? parseInt(month) : new Date().getMonth() + 1;
+    const yearNum = year ? parseInt(year) : new Date().getFullYear();
+
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
+
+    // Get only APPROVED sales for this month
+    const approvedSales = await SalesTarget.find({
+      agent: userId,
+      status: 'approved',
+      saleDate: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).populate('approvedBy', 'firstName lastName');
+
+    // Get pending sales (for visibility)
+    const pendingSales = await SalesTarget.find({
+      agent: userId,
+      status: 'pending',
+      saleDate: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    });
+
+    // Get disapproved sales
+    const disapprovedSales = await SalesTarget.find({
+      agent: userId,
+      status: 'disapproved',
+      saleDate: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    });
+
+    const totalApproved = approvedSales.length;
+    const totalEarnings = totalApproved * 1000; // Each approved sale = 1000 RS
+    const totalPending = pendingSales.length;
+    const totalDisapproved = disapprovedSales.length;
+
+    res.status(200).json({
+      success: true,
+      month: monthNum,
+      year: yearNum,
+      data: {
+        monthlyStats: {
+          totalApprovedSales: totalApproved,
+          totalPendingSales: totalPending,
+          totalDisapprovedSales: totalDisapproved,
+          totalEarnings,
+          pricePerSale: 1000,
+          approvalRate: totalApproved + totalDisapproved > 0 
+            ? Math.round((totalApproved / (totalApproved + totalDisapproved)) * 100)
+            : 0
+        },
+        dailyBreakdown: approvedSales,
+        pendingBreakdown: pendingSales,
+        disapprovedBreakdown: disapprovedSales
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get CSR's 30-day sales summary
+const getMySalesSummary = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const approvedSales = await SalesTarget.find({
+      agent: userId,
+      status: 'approved',
+      saleDate: { $gte: thirtyDaysAgo }
+    });
+
+    const totalEarnings = approvedSales.length * 1000;
+
+    res.status(200).json({
+      success: true,
+      period: 'Last 30 days',
+      data: {
+        totalApprovedSales: approvedSales.length,
+        totalEarnings,
+        averagePerDay: approvedSales.length > 0 ? (totalEarnings / 30).toFixed(0) : 0,
+        sales: approvedSales
       }
     });
   } catch (error) {
@@ -373,5 +664,10 @@ export {
   disapproveSubmission,
   bulkApproveSubmissions,
   bulkDisapproveSubmissions,
-  getPendingCount
+  getPendingCount,
+  getAnalytics,
+  getAnalyticsSummary,
+  getMySales,
+  getMyMonthlyEarnings,
+  getMySalesSummary
 };

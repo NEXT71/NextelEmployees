@@ -23,16 +23,41 @@ const CSRSalesDashboard = () => {
     try {
       setError('');
 
-      const response = await salesTargetAPI.getCsrMonthlyEarnings({
+      // Get monthly stats
+      const earningsResponse = await salesTargetAPI.getCsrMonthlyEarnings({
         year: activeYear,
         month: activeMonth
       });
 
-      if (response.data) {
-        setMonthlyData(response.data.monthlyStats);
-        setDailyRecords(response.data.dailyBreakdown || []);
+      console.log('📊 Monthly earnings response:', earningsResponse);
+
+      // Get individual sales records for the month
+      const startDate = new Date(activeYear, activeMonth - 1, 1);
+      const endDate = new Date(activeYear, activeMonth, 0);
+      
+      const salesResponse = await salesTargetAPI.getCsrDailySalesReport({
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      });
+
+      console.log('📊 Daily sales response:', salesResponse);
+
+      if (earningsResponse && earningsResponse.data) {
+        const monthlyStats = earningsResponse.data.monthlyStats || earningsResponse.data;
+        const dailyRecords = salesResponse?.data || [];
+        
+        setMonthlyData(monthlyStats);
+        setDailyRecords(dailyRecords);
+        
+        console.log('✅ Loaded all sales data:', {
+          monthlyStats,
+          dailyCount: dailyRecords.length
+        });
+      } else {
+        throw new Error('No data received from server');
       }
     } catch (err) {
+      console.error('❌ Error loading sales:', err);
       setError(err.message || 'Failed to load sales data');
     }
   }, [activeYear, activeMonth]);
@@ -177,92 +202,78 @@ const CSRSalesDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard
               icon={<TrendingUp className="w-5 h-5" />}
-              title="Total Sales"
-              value={monthlyData.totalSales}
+              title="Approved Sales"
+              value={monthlyData?.totalApprovedSales || 0}
               subtitle="This month"
-              trend={monthlyData.totalSales > 30 ? 'up' : 'stable'}
+              trend={monthlyData?.totalApprovedSales > 0 ? 'up' : 'stable'}
             />
             <StatsCard
-              icon={<DollarSign className="w-5 h-5" />}
-              title="Base Salary"
-              value={`RS ${(monthlyData.totalBaseSalary / 1000).toFixed(1)}K`}
-              subtitle={`${monthlyData.totalDays} days worked`}
-              trend="up"
+              icon={<AlertCircle className="w-5 h-5" />}
+              title="Pending Review"
+              value={monthlyData?.totalPendingSales || 0}
+              subtitle="Awaiting approval"
+              trend="stable"
             />
             <StatsCard
               icon={<Award className="w-5 h-5" />}
-              title="Tier Bonus"
-              value={`RS ${(monthlyData.totalTierBonus / 1000).toFixed(1)}K`}
-              subtitle="Performance bonus"
-              trend={monthlyData.totalTierBonus > 0 ? 'up' : 'stable'}
+              title="Approval Rate"
+              value={`${monthlyData?.approvalRate || 0}%`}
+              subtitle="Of submitted sales"
+              trend={monthlyData?.approvalRate > 80 ? 'up' : 'stable'}
             />
             <StatsCard
               icon={<Target className="w-5 h-5" />}
               title="Total Earnings"
-              value={`RS ${(monthlyData.totalEarnings / 1000).toFixed(1)}K`}
-              subtitle="Base + Bonus"
-              trend="up"
+              value={`RS ${((monthlyData?.totalEarnings || 0) / 1000).toFixed(1)}K`}
+              subtitle="From approved sales"
+              trend={monthlyData?.totalEarnings > 0 ? 'up' : 'stable'}
             />
           </div>
 
-          {/* Tier Breakdown */}
+          {/* Sales Status Breakdown */}
           <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-xl p-6">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <Award className="w-5 h-5 text-amber-400" />
-              Tier Performance
+              Sales Summary
             </h3>
 
             <div className="space-y-4">
-              {/* Tier 1 */}
-              <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-600/30">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="text-blue-200 font-medium">Tier 1</h4>
-                    <p className="text-xs text-gray-400">5-6 sales (Base rate)</p>
-                  </div>
-                  <span className="text-2xl font-bold text-blue-400">{monthlyData.daysPerTier.tier1}</span>
-                </div>
-                <TierProgressBar tier="tier1" minSales={5} />
-              </div>
-
-              {/* Tier 2 */}
+              {/* Approved */}
               <div className="bg-green-900/20 rounded-lg p-4 border border-green-600/30">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <h4 className="text-green-200 font-medium">Tier 2</h4>
-                    <p className="text-xs text-gray-400">7-9 sales (+20% bonus)</p>
+                    <h4 className="text-green-200 font-medium">✅ Approved</h4>
+                    <p className="text-xs text-gray-400">Approved by admin</p>
                   </div>
-                  <span className="text-2xl font-bold text-green-400">{monthlyData.daysPerTier.tier2}</span>
+                  <span className="text-2xl font-bold text-green-400">{monthlyData?.totalApprovedSales || 0}</span>
                 </div>
-                <TierProgressBar tier="tier2" minSales={7} />
+                <div className="bg-green-900/30 rounded-full h-2 w-full"></div>
               </div>
 
-              {/* Tier 3 */}
-              <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-600/30">
+              {/* Pending */}
+              <div className="bg-yellow-900/20 rounded-lg p-4 border border-yellow-600/30">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <h4 className="text-purple-200 font-medium">Tier 3</h4>
-                    <p className="text-xs text-gray-400">10+ sales (+50% bonus)</p>
+                    <h4 className="text-yellow-200 font-medium">⏳ Pending</h4>
+                    <p className="text-xs text-gray-400">Awaiting admin review</p>
                   </div>
-                  <span className="text-2xl font-bold text-purple-400">{monthlyData.daysPerTier.tier3}</span>
+                  <span className="text-2xl font-bold text-yellow-400">{monthlyData?.totalPendingSales || 0}</span>
                 </div>
-                <TierProgressBar tier="tier3" minSales={10} />
+                <div className="bg-yellow-900/30 rounded-full h-2 w-full"></div>
+              </div>
+
+              {/* Disapproved */}
+              <div className="bg-red-900/20 rounded-lg p-4 border border-red-600/30">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="text-red-200 font-medium">❌ Disapproved</h4>
+                    <p className="text-xs text-gray-400">Rejected by admin</p>
+                  </div>
+                  <span className="text-2xl font-bold text-red-400">{monthlyData?.totalDisapprovedSales || 0}</span>
+                </div>
+                <div className="bg-red-900/30 rounded-full h-2 w-full"></div>
               </div>
             </div>
-
-            {/* Best Day */}
-            {monthlyData.bestDay && (
-              <div className="mt-4 pt-4 border-t border-blue-600/30">
-                <p className="text-xs text-gray-400 mb-2">Best Day</p>
-                <div className="flex items-center justify-between bg-green-900/30 rounded p-3 border border-green-600/40">
-                  <span className="text-green-200">{new Date(monthlyData.bestDay.date).toLocaleDateString('en-GB')}</span>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-green-400">{monthlyData.bestDay.sales} sales</p>
-                    <p className="text-xs text-green-300">RS {monthlyData.bestDay.earning.toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Daily Records */}
@@ -280,42 +291,58 @@ const CSRSalesDashboard = () => {
                   <thead>
                     <tr className="border-b border-blue-600/30 text-xs font-semibold text-gray-300 uppercase tracking-wider bg-black/20">
                       <th className="px-6 py-3 text-left">Date</th>
-                      <th className="px-6 py-3 text-center">Sales</th>
-                      <th className="px-6 py-3 text-right">Base</th>
-                      <th className="px-6 py-3 text-right">Bonus</th>
-                      <th className="px-6 py-3 text-right">Total</th>
-                      <th className="px-6 py-3 text-center">Tier</th>
+                      <th className="px-6 py-3 text-left">Customer</th>
+                      <th className="px-6 py-3 text-center">Status</th>
+                      <th className="px-6 py-3 text-right">DIDs</th>
+                      <th className="px-6 py-3 text-right">Amount</th>
+                      <th className="px-6 py-3 text-right">Earned</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-blue-600/20">
-                    {dailyRecords.map((record, idx) => (
-                      <tr key={idx} className="hover:bg-blue-800/20 transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-300">
-                          {new Date(record.date).toLocaleDateString('en-GB')}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-center font-semibold text-amber-400">
-                          {record.sales}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right text-gray-300">
-                          RS {record.baseSalary.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right">
-                          {record.tierBonus > 0 ? (
-                            <span className="text-green-400 font-medium">+ RS {record.tierBonus.toLocaleString()}</span>
-                          ) : (
-                            <span className="text-gray-500">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right font-semibold text-green-400">
-                          RS {record.totalEarning.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-center">
-                          <span className={`inline-block px-2 py-1 rounded text-xs font-medium border ${getTierColor(record.tier)}`}>
-                            {record.tier}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {dailyRecords.map((record, idx) => {
+                      const isApproved = record.status === 'approved';
+                      const earned = isApproved ? 1000 : 0;
+                      const statusColors = {
+                        approved: 'bg-green-900/40 text-green-300 border-green-600/40',
+                        pending: 'bg-yellow-900/40 text-yellow-300 border-yellow-600/40',
+                        disapproved: 'bg-red-900/40 text-red-300 border-red-600/40'
+                      };
+                      
+                      const customerName = record.customer 
+                        ? `${record.customer.firstName} ${record.customer.lastName}`.trim()
+                        : 'N/A';
+                      
+                      return (
+                        <tr key={idx} className="hover:bg-blue-800/20 transition-colors">
+                          <td className="px-6 py-4 text-sm text-gray-300">
+                            {new Date(record.saleDate).toLocaleDateString('en-GB')}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-300">
+                            {customerName}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-center">
+                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${statusColors[record.status] || 'bg-gray-900/40 text-gray-300 border-gray-600/40'}`}>
+                              {record.status === 'approved' && '✅ Approved'}
+                              {record.status === 'pending' && '⏳ Pending'}
+                              {record.status === 'disapproved' && '❌ Disapproved'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-right text-gray-300">
+                            {(record.dids && record.dids.length) ? record.dids.split(',').length : 0}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-right font-semibold text-amber-400">
+                            RS {(record.pricePerSale || record.baseSalary || 0).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-right font-semibold">
+                            {isApproved ? (
+                              <span className="text-green-400">+ RS {earned.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

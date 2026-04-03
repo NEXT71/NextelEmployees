@@ -24,6 +24,20 @@ const getHeaders = (token) => {
   return headers;
 };
 
+// Helper to get agent full name from submission (handles undefined cases)
+const getAgentName = (submission) => {
+  if (submission.agentName && submission.agentName.trim()) {
+    return submission.agentName;
+  }
+  if (submission.agent) {
+    const agent = submission.agent;
+    if (typeof agent === 'object' && agent.firstName && agent.lastName) {
+      return `${agent.firstName} ${agent.lastName}`;
+    }
+  }
+  return 'Unknown Agent';
+};
+
 const PendingSalesReview = ({ onRefresh }) => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -427,7 +441,7 @@ const PendingSalesReview = ({ onRefresh }) => {
                     }
                   >
                     <p className="text-white font-medium text-sm">
-                      {submission.agentName} - {submission.customer.firstName} {submission.customer.lastName}
+                      {getAgentName(submission)} - {submission.customer.firstName} {submission.customer.lastName}
                     </p>
                     <p className="text-blue-300 text-xs">
                       {submission.customer.phone} • {submission.dids}

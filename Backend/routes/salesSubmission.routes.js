@@ -8,7 +8,12 @@ import {
   disapproveSubmission,
   bulkApproveSubmissions,
   bulkDisapproveSubmissions,
-  getPendingCount
+  getPendingCount,
+  getAnalytics,
+  getAnalyticsSummary,
+  getMySales,
+  getMyMonthlyEarnings,
+  getMySalesSummary
 } from '../controllers/salesSubmission.controller.js';
 import auth from '../middlewares/auth.js';
 import admin from '../middlewares/admin.js';
@@ -112,6 +117,15 @@ router.get('/debug/all-records', async (req, res) => {
 
 // Public endpoint - Google Form webhook
 router.post('/create', createSubmission);
+
+// Analytics endpoints (admin only)
+router.get('/analytics/summary', auth, admin, getAnalyticsSummary);
+router.get('/analytics/detailed', auth, admin, getAnalytics);
+
+// CSR endpoints (auth required, not admin)
+router.get('/my/sales', auth, getMySales);
+router.get('/my/monthly-earnings', auth, getMyMonthlyEarnings);
+router.get('/my/summary', auth, getMySalesSummary);
 
 // Static routes BEFORE dynamic routes
 router.get('/pending/count', auth, admin, getPendingCount);

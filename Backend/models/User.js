@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'employee'],
+    enum: ['superadmin', 'admin', 'employee'],
     default: 'employee'
   },
   employeeId: {
@@ -55,8 +55,6 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Add indexes for optimal query performance
-userSchema.index({ username: 1 }, { unique: true });
-userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ role: 1 }); // For role-based queries
 userSchema.index({ isActive: 1 }); // For active user queries
 userSchema.index({ lastLogin: -1 }); // For recent login tracking

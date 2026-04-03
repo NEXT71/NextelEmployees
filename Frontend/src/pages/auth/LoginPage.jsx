@@ -30,7 +30,10 @@ const LoginPage = () => {
         login(response.user);
         
         // Redirect based on role
-        const redirectPath = response.user.role === 'admin' ? '/admindashboard' : '/employeedashboard';
+        const redirectPath =
+          response.user.role === 'superadmin' ? '/superadmindashboard'
+          : response.user.role === 'admin' ? '/admindashboard'
+          : '/employeedashboard';
         navigate(redirectPath);
       } else {
         setError(response?.message || 'Login failed. Please try again.');

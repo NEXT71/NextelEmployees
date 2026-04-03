@@ -15,6 +15,7 @@ import salaryRouter from './routes/salary.routes.js';
 import messageRouter from './routes/message.routes.js';
 import salesTargetRouter from './routes/salesTarget.routes.js';
 import salesSubmissionRouter from './routes/salesSubmission.routes.js';
+import superadminRouter from './routes/superadmin.routes.js';
 import { initializeCache, closeCache } from './utils/cache.js';
 import { ensureArchiveCollections } from './utils/archive.js';
 import { scheduleArchiveJobs } from './jobs/archiveJobs.js';
@@ -172,6 +173,7 @@ app.use('/api/salaries', salaryRouter);
 app.use('/api/messages', messageRouter);
 app.use('/api/sales-targets', salesTargetRouter);
 app.use('/api/sales-submissions', salesSubmissionRouter);
+app.use('/api/superadmin', superadminRouter);
 
 // Error handling
 app.use(errorHandler);

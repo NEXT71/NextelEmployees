@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-const ProtectedRoute = ({ children, adminOnly }) => {
+const ProtectedRoute = ({ children, adminOnly, superAdminOnly }) => {
   const navigate = useNavigate();
   const { user, isLoading, isLoggedIn } = useAuth();
 
@@ -11,8 +11,14 @@ const ProtectedRoute = ({ children, adminOnly }) => {
     return null;
   }
 
-  // Redirect if admin-only route and user is not admin
-  if (!isLoading && adminOnly && user?.role !== 'admin') {
+  // Super admin only routes
+  if (!isLoading && superAdminOnly && user?.role !== 'superadmin') {
+    navigate(user?.role === 'admin' ? '/admindashboard' : '/employeedashboard');
+    return null;
+  }
+
+  // Admin-only routes (admin + superadmin both allowed)
+  if (!isLoading && adminOnly && user?.role !== 'admin' && user?.role !== 'superadmin') {
     navigate('/employeedashboard');
     return null;
   }

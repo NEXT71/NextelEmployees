@@ -10,6 +10,7 @@ const LoginPage = lazy(() => import('./pages/auth/LoginPage.jsx'));
 const EmployeeDashboard = lazy(() => import('./pages/employees/Dashboard.jsx'));
 const EmployeeSalarySlips = lazy(() => import('./pages/employees/SalarySlips.jsx'));
 const SalesDashboard = lazy(() => import('./pages/employees/SalesDashboard.jsx'));
+const CloserDashboard = lazy(() => import('./pages/employees/CloserDashboard.jsx'));
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard.jsx'));
 const EmployeeManagement = lazy(() => import('./pages/admin/EmployeeManagement.jsx'));
 const AdminAttendance = lazy(() => import('./pages/admin/AdminAttendance.jsx'));
@@ -58,6 +59,14 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <SalesDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/closerdashboard"
+                element={
+                  <ProtectedRoute>
+                    <CloserDashboard />
                   </ProtectedRoute>
                 }
               />

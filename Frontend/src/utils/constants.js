@@ -20,7 +20,8 @@ export const FINE_TYPES = [
 export const DEPARTMENTS = [
   'Sales',
   'Quality Assurance',
-  'HR'
+  'HR',
+  'Verifier'
 ];
 
 export const EMPLOYEE_STATUS = [

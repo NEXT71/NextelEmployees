@@ -260,6 +260,54 @@ export const getSalesLeaderboard = async (req, res, next) => {
   }
 };
 
+// ── Verifier/Closer leaderboard — sorted by approved closes ────────────────
+export const getCloserLeaderboard = async (req, res, next) => {
+  try {
+    const { month, year } = req.query;
+
+    const matchFilter = { status: 'approved', closerRef: { $ne: null } };
+    if (month && year) {
+      const start = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const end   = new Date(parseInt(year), parseInt(month), 1);
+      matchFilter.saleDate = { $gte: start, $lt: end };
+    }
+
+    const agg = await SalesTarget.aggregate([
+      { $match: matchFilter },
+      {
+        $group: {
+          _id: '$closerRef',
+          approvedCloses: { $sum: 1 },
+          totalEarnings: { $sum: 100 }, // 100 RS per close
+          lastCloseDate: { $max: '$saleDate' }
+        }
+      },
+      { $sort: { approvedCloses: -1 } }
+    ]);
+
+    const populated = await Employee.populate(agg, {
+      path: '_id',
+      select: 'firstName lastName employeeId department'
+    });
+
+    const leaderboard = populated.map((row, idx) => ({
+      rank: idx + 1,
+      closerId: row._id?._id || row._id,
+      closerName: row._id?.firstName
+        ? `${row._id.firstName} ${row._id.lastName}`
+        : 'Unknown',
+      employeeId: row._id?.employeeId || '—',
+      approvedCloses: row.approvedCloses,
+      totalEarnings: row.approvedCloses * 100,
+      lastCloseDate: row.lastCloseDate
+    }));
+
+    res.json({ success: true, data: leaderboard, topCloser: leaderboard[0] || null });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── Dashboard summary stats ─────────────────────────────────────────────────
 export const getSuperAdminStats = async (req, res, next) => {
   try {

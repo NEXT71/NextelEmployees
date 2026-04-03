@@ -244,6 +244,8 @@ const SuperAdminDashboard = () => {
   const [sales, setSales] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [topPerformer, setTopPerformer] = useState(null);
+  const [closerLeaderboard, setCloserLeaderboard] = useState([]);
+  const [topCloser, setTopCloser] = useState(null);
   const [salaries, setSalaries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -267,12 +269,15 @@ const SuperAdminDashboard = () => {
         const d = await apiFetch('/superadmin/employees');
         setEmployees(d.data || []);
       } else if (tab === 'sales') {
-        const [lb, all] = await Promise.all([
+        const [lb, clb, all] = await Promise.all([
           apiFetch('/superadmin/sales/leaderboard'),
+          apiFetch('/superadmin/sales/closer-leaderboard'),
           apiFetch(`/superadmin/sales?status=${salesFilter}&limit=100`)
         ]);
         setLeaderboard(lb.data || []);
         setTopPerformer(lb.topPerformer || null);
+        setCloserLeaderboard(clb.data || []);
+        setTopCloser(clb.topCloser || null);
         setSales(all.data || []);
       } else if (tab === 'salaries') {
         const d = await apiFetch('/superadmin/salaries?limit=100');
@@ -563,7 +568,13 @@ const SuperAdminDashboard = () => {
                   onClick={() => setSalesView('leaderboard')}
                   className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${salesView === 'leaderboard' ? 'bg-purple-500/40 text-purple-200' : 'text-white/50 hover:text-white/80'}`}
                 >
-                  Leaderboard
+                  CSR Leaderboard
+                </button>
+                <button
+                  onClick={() => setSalesView('verifier')}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${salesView === 'verifier' ? 'bg-teal-500/40 text-teal-200' : 'text-white/50 hover:text-white/80'}`}
+                >
+                  Verifier Board
                 </button>
                 <button
                   onClick={() => setSalesView('all')}
@@ -640,6 +651,65 @@ const SuperAdminDashboard = () => {
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* Verifier Board view */}
+            {salesView === 'verifier' && (
+              <div>
+                {topCloser && (
+                  <div className="mb-4 bg-gradient-to-r from-teal-800/60 to-cyan-800/60 border border-teal-500/30 rounded-2xl p-5 flex items-center gap-5">
+                    <div className="text-4xl">🏆</div>
+                    <div className="flex-1">
+                      <p className="text-teal-300 text-xs font-semibold uppercase tracking-widest mb-1">Top Verifier</p>
+                      <p className="text-white text-2xl font-bold">{topCloser.closerName}</p>
+                      <p className="text-white/50 text-sm">{topCloser.employeeId}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-3xl font-bold text-green-300">{topCloser.approvedCloses}</p>
+                      <p className="text-white/50 text-xs mt-1">Closes</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xl font-bold text-white">{fmtCurrency(topCloser.totalEarnings)}</p>
+                      <p className="text-white/50 text-xs mt-1">Earned</p>
+                    </div>
+                  </div>
+                )}
+                <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-white/50 border-b border-white/10">
+                          <th className="text-center py-3 px-4 w-12">Rank</th>
+                          <th className="text-left py-3 px-4">Verifier Name</th>
+                          <th className="text-left py-3 px-4">Employee ID</th>
+                          <th className="text-center py-3 px-4">Closes</th>
+                          <th className="text-right py-3 px-4">Earned (RS)</th>
+                          <th className="text-left py-3 px-4">Last Close</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {closerLeaderboard.map((row) => (
+                          <tr key={String(row.closerId)} className={`border-b border-white/5 hover:bg-white/5 ${row.rank === 1 ? 'bg-teal-500/5' : ''}`}>
+                            <td className="py-3 px-4 text-center">
+                              {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : <span className="text-white/40">{row.rank}</span>}
+                            </td>
+                            <td className="py-3 px-4 text-white font-medium">{row.closerName}</td>
+                            <td className="py-3 px-4 text-white/60">{row.employeeId}</td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full text-xs font-bold">{row.approvedCloses}</span>
+                            </td>
+                            <td className="py-3 px-4 text-right text-green-300 font-semibold">{fmtCurrency(row.totalEarnings)}</td>
+                            <td className="py-3 px-4 text-white/50">{fmtDate(row.lastCloseDate)}</td>
+                          </tr>
+                        ))}
+                        {closerLeaderboard.length === 0 && (
+                          <tr><td colSpan={6} className="py-10 text-center text-white/40">No verifier data yet.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}

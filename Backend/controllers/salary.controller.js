@@ -41,13 +41,60 @@ export const generateMonthlySalary = async (req, res, next) => {
     }
 
     // Fetch employee
-    const employee = await Employee.findById(employeeId).select('baseSalary');
+    const employee = await Employee.findById(employeeId).select('baseSalary isCloser');
     if (!employee) {
       return res.status(404).json({
         success: false,
         message: 'Employee not found'
       });
     }
+
+    // ── Closer (Verifier) salary path ──────────────────────────────────────
+    if (employee.isCloser) {
+      const approvedCloses = await SalesTarget.countDocuments({
+        closerRef: employeeId,
+        status: 'approved',
+        saleDate: { $gte: monthStart, $lte: monthEnd }
+      });
+
+      const totalCloserPay = approvedCloses * 100;
+
+      const existingSalary = await Salary.findOne({ employee: employeeId, month: monthStart });
+      if (existingSalary) {
+        return res.status(409).json({
+          success: false,
+          message: 'Salary record already exists for this month',
+          data: existingSalary
+        });
+      }
+
+      const closerNotes = `Verifier/Closer Pay: ${totalCloserPay} RS (${approvedCloses} approved closes × 100 RS)`;
+      const salary = await Salary.create({
+        employee: employeeId,
+        month: monthStart,
+        baseSalary: 0,
+        bonuses: totalCloserPay,
+        deductions: 0,
+        notes: closerNotes
+      });
+
+      await salary.populate('employee', 'firstName lastName employeeId email');
+
+      return res.status(201).json({
+        success: true,
+        message: 'Closer salary generated successfully',
+        data: {
+          ...salary.toObject(),
+          breakdown: {
+            approvedCloses,
+            ratePerClose: 100,
+            totalCloserPay,
+            netPay: totalCloserPay
+          }
+        }
+      });
+    }
+    // ── End closer salary path ─────────────────────────────────────────────
 
     const baseSalary = employee.baseSalary || 0;
 

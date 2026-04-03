@@ -46,6 +46,11 @@ const salesTargetSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  closerRef: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Employee',
+    default: null
+  },
   
   // Each form submission = 1 sale
   salesCount: {

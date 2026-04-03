@@ -27,7 +27,7 @@ const getMyEmployeeId = async (userId) => {
 // Create a new sales submission (from Google Form or manual)
 const createSubmission = async (req, res, next) => {
   try {
-    let { agent, agentName, agentPhone, customer, dids, closer, saleDate, submissionSource, googleFormResponseId } = req.body;
+    let { agent, agentName, agentPhone, customer, dids, closer, closerRef, saleDate, submissionSource, googleFormResponseId } = req.body;
 
     // Fallback: If agentName is undefined/empty, use customer name
     if (!agentName || agentName === 'undefined' || agentName === 'undefined undefined') {
@@ -67,6 +67,12 @@ const createSubmission = async (req, res, next) => {
       });
     }
 
+    // Resolve closerRef: validate it's a valid ObjectId
+    let resolvedCloserRef = null;
+    if (closerRef && mongoose.Types.ObjectId.isValid(closerRef)) {
+      resolvedCloserRef = new mongoose.Types.ObjectId(closerRef);
+    }
+
     // Create submission with PENDING status
     const submission = new SalesTarget({
       agent: resolvedAgent,  // always store employee _id (or null for Google Form without match)
@@ -74,6 +80,7 @@ const createSubmission = async (req, res, next) => {
       customer,
       dids,
       closer,
+      closerRef: resolvedCloserRef,
       saleDate: saleDate || new Date(),
       status: 'pending',
       baseSalary: 1000,
@@ -777,5 +784,80 @@ export {
   getAnalyticsSummary,
   getMySales,
   getMyMonthlyEarnings,
-  getMySalesSummary
+  getMySalesSummary,
+  getMyCloses,
+  getMyClosesStats
 };
+
+// ── Closer / Verifier endpoints ──────────────────────────────────────────────
+
+// Get all sales closed by this verifier
+async function getMyCloses(req, res, next) {
+  try {
+    const userId = req.user?.userId || req.user?._id;
+    const emp = await Employee.findOne({ user: userId }).select('_id');
+    if (!emp) return res.status(404).json({ success: false, message: 'Employee not found' });
+
+    const { status, limit = 100, page = 1 } = req.query;
+    const filter = { closerRef: emp._id };
+    if (status && status !== 'all') filter.status = status;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [closes, total] = await Promise.all([
+      SalesTarget.find(filter)
+        .sort({ saleDate: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      SalesTarget.countDocuments(filter)
+    ]);
+
+    res.json({ success: true, data: closes, pagination: { total, page: pageNum, limit: limitNum } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Get closer stats summary (this month closes, total earnings, rank)
+async function getMyClosesStats(req, res, next) {
+  try {
+    const userId = req.user?.userId || req.user?._id;
+    const emp = await Employee.findOne({ user: userId }).select('_id');
+    if (!emp) return res.status(404).json({ success: false, message: 'Employee not found' });
+
+    const empId = emp._id;
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+    const monthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
+
+    const [approvedAllTime, approvedThisMonth] = await Promise.all([
+      SalesTarget.countDocuments({ closerRef: empId, status: 'approved' }),
+      SalesTarget.countDocuments({ closerRef: empId, status: 'approved', saleDate: { $gte: monthStart, $lte: monthEnd } })
+    ]);
+
+    // Compute rank: count how many closers have more approved closes than me this month
+    const rankAgg = await SalesTarget.aggregate([
+      { $match: { status: 'approved', closerRef: { $ne: null }, saleDate: { $gte: monthStart, $lte: monthEnd } } },
+      { $group: { _id: '$closerRef', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    const rank = rankAgg.findIndex(r => String(r._id) === String(empId)) + 1;
+
+    res.json({
+      success: true,
+      data: {
+        approvedAllTime,
+        approvedThisMonth,
+        earningsThisMonth: approvedThisMonth * 100,
+        earningsAllTime: approvedAllTime * 100,
+        rank: rank || null,
+        totalVerifiers: rankAgg.length
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}

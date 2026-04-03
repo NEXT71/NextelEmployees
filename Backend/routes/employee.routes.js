@@ -7,13 +7,15 @@ import {
   updateEmployee,
   getEmployeeFines,
   getEmployeeSalaries,
-  getEmployeeByUserId
+  getEmployeeByUserId,
+  getClosers
 } from '../controllers/employee.controller.js';
 import auth from '../middlewares/auth.js';
 import roles from '../middlewares/roles.js';
 
 const employeeRouter = express.Router();
 
+employeeRouter.get('/closers', auth, getClosers); // Must be before /:id
 employeeRouter.get('/', auth, getAllEmployees);
 employeeRouter.post('/', auth, roles('admin'), createEmployee);
 employeeRouter.get('/:id', auth, getEmployee);

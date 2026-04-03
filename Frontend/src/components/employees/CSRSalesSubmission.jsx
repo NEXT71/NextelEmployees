@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Send, AlertCircle, CheckCircle, Loader } from 'lucide-react';
-import { salesTargetAPI } from '../../utils/api';
+import { salesTargetAPI, employeeAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 const CSRSalesSubmission = ({ onBack }) => {
@@ -14,6 +14,7 @@ const CSRSalesSubmission = ({ onBack }) => {
     zipCode: '',
     dids: '',
     closer: '',
+    closerRef: '',
     submissionDate: new Date().toISOString().split('T')[0]
   });
 
@@ -21,13 +22,30 @@ const CSRSalesSubmission = ({ onBack }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [closers, setClosers] = useState([]);
+
+  useEffect(() => {
+    employeeAPI.getClosers().then(res => {
+      if (res?.data) setClosers(res.data);
+    }).catch(() => {});
+  }, []);
 
   const handlechange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    if (name === 'closerRef') {
+      // Find the selected closer name for the text field
+      const selected = closers.find(c => c._id === value);
+      setFormData(prev => ({
+        ...prev,
+        closerRef: value,
+        closer: selected ? `${selected.firstName} ${selected.lastName}` : ''
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
     setError('');
   };
 
@@ -78,6 +96,7 @@ const CSRSalesSubmission = ({ onBack }) => {
         },
         dids: formData.dids.trim(),
         closer: formData.closer.trim(),
+        closerRef: formData.closerRef || undefined,
         saleDate: formData.submissionDate,
         submissionSource: 'CSR Portal'
       };
@@ -116,6 +135,7 @@ const CSRSalesSubmission = ({ onBack }) => {
           zipCode: '',
           dids: '',
           closer: '',
+          closerRef: '',
           submissionDate: new Date().toISOString().split('T')[0]
         });
         setShowPreview(false);
@@ -315,16 +335,33 @@ const CSRSalesSubmission = ({ onBack }) => {
               {/* Closer */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Closer Verified Name <span className="text-red-500">*</span>
+                  Closer / Verifier <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  name="closer"
-                  value={formData.closer}
-                  onChange={handlechange}
-                  placeholder="Name of the verified closer"
-                  className="w-full px-4 py-2.5 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
-                />
+                {closers.length > 0 ? (
+                  <select
+                    name="closerRef"
+                    value={formData.closerRef}
+                    onChange={handlechange}
+                    className="w-full px-4 py-2.5 rounded-lg bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
+                  >
+                    <option value="" className="bg-slate-800">Select a Verifier</option>
+                    {closers.map(c => (
+                      <option key={c._id} value={c._id} className="bg-slate-800">
+                        {c.firstName} {c.lastName}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    name="closer"
+                    value={formData.closer}
+                    onChange={handlechange}
+                    placeholder="Name of the closer/verifier"
+                    className="w-full px-4 py-2.5 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
+                  />
+                )}
+                <p className="text-xs text-gray-400 mt-1">Select the verifier who closed this sale</p>
               </div>
 
               {/* Submission Date */}

@@ -8,6 +8,7 @@ import {
   getEmployeeFullHistory,
   getAllSalesSubmissions,
   getSalesLeaderboard,
+  getCloserLeaderboard,
   getAllSalaries,
   getSuperAdminStats
 } from '../controllers/superadmin.controller.js';
@@ -24,6 +25,7 @@ router.get('/employees',        getAllEmployees);
 router.get('/employees/:id/full-history', getEmployeeFullHistory);
 router.get('/sales',            getAllSalesSubmissions);
 router.get('/sales/leaderboard', getSalesLeaderboard);
+router.get('/sales/closer-leaderboard', getCloserLeaderboard);
 router.get('/salaries',         getAllSalaries);
 
 export default router;

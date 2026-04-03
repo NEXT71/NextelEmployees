@@ -343,5 +343,19 @@ export {
   updateEmployee,
   getEmployeeFines,
   getEmployeeSalaries,
-  getEmployeeByUserId
+  getEmployeeByUserId,
+  getClosers
 };
+
+// Get all employees with isCloser = true (for dropdown in CSR sales form)
+async function getClosers(req, res, next) {
+  try {
+    const closers = await Employee.find({ isCloser: true, status: 'Active' })
+      .select('_id firstName lastName employeeId')
+      .sort({ firstName: 1 });
+
+    res.json({ success: true, data: closers });
+  } catch (err) {
+    next(err);
+  }
+}

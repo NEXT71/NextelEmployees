@@ -261,6 +261,10 @@ export const employeeAPI = {
   // Get employee statistics
   getEmployeeStats: () =>
     apiRequest('/auth/employees/stats'),
+
+  // Get all closers/verifiers (isCloser = true)
+  getClosers: () =>
+    apiRequest('/employees/closers'),
 };
 
 // Attendance API calls
@@ -532,6 +536,15 @@ export const salesTargetAPI = {
       method: 'POST',
       body: JSON.stringify(formData),
     }),
+
+  // Closer / Verifier endpoints
+  getMyCloses: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/sales-submissions/my/closes${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getMyClosesStats: () =>
+    apiRequest('/sales-submissions/my/closes/stats'),
 };
 
 // Utility functions for authentication

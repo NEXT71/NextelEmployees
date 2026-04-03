@@ -22,7 +22,11 @@ const employeeSchema = new mongoose.Schema({
   department: {
     type: String,
     required: true,
-    enum: ['Sales', 'Quality Assurance', 'HR']
+    enum: ['Sales', 'Quality Assurance', 'HR', 'Verifier']
+  },
+  isCloser: {
+    type: Boolean,
+    default: false
   },
   hireDate: {
     type: Date,

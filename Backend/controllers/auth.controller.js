@@ -38,6 +38,7 @@ const registerEmployee = async (req, res, next) => {
       hireDate,
       status,
       contact,
+      isCloser,
       password // Add password field for admin to set
     } = req.body;
 
@@ -221,6 +222,7 @@ const registerEmployee = async (req, res, next) => {
       fatherName,
       email,
       department,
+      isCloser: isCloser === true || isCloser === 'true',
       employeeId,
       hireDate: hireDate || Date.now(),
       status: status || 'Active',
@@ -328,8 +330,13 @@ const registerEmployee = async (req, res, next) => {
 // User login (works for both regular users and employees)
 const login = async (req, res, next) => {
   try {
+    console.log('=== LOGIN ENDPOINT ===');
+    console.log('Request body:', req.body);
+    console.log('Request headers:', { host: req.hostname, origin: req.get('origin') });
+
     const { error } = validateLogin(req.body);
     if (error) {
+      console.log('Validation error:', error.details[0].message);
       return res.status(400).json({ 
         success: false,
         message: error.details[0].message 
@@ -338,7 +345,7 @@ const login = async (req, res, next) => {
 
     const { email, password } = req.body;
 
-    console.log(`🔍 Login attempt - Email: ${email}, Password: ${password}`); // Debug log
+    console.log(`🔍 Login attempt - Email: ${email}`);
 
     // Find user by email OR username (for flexibility)
     const user = await User.findOne({ 
@@ -349,18 +356,18 @@ const login = async (req, res, next) => {
     });
     
     if (!user) {
-      console.log(`❌ User not found for email: ${email}`); // Debug log
+      console.log(`❌ User not found for email: ${email}`);
       return res.status(401).json({ 
         success: false,
         message: 'Invalid credentials' 
       });
     }
 
-    console.log(`✅ User found: ${user.email}, Role: ${user.role}, Active: ${user.isActive}`); // Debug log
+    console.log(`✅ User found: ${user.email}, Role: ${user.role}, Active: ${user.isActive}`);
 
     // Check if account is active (only for employees)
     if (user.role === 'employee' && !user.isActive) {
-      console.log(`❌ Account not active for: ${user.email}`); // Debug log
+      console.log(`❌ Account not active for: ${user.email}`);
       return res.status(401).json({
         success: false,
         message: 'Account not active. Please verify your email first.'
@@ -369,9 +376,10 @@ const login = async (req, res, next) => {
 
     // Check password
     const isMatch = await user.comparePassword(password);
-    console.log(`🔑 Password match result: ${isMatch}`); // Debug log
+    console.log(`🔑 Password match result: ${isMatch}`);
     
     if (!isMatch) {
+      console.log(`❌ Password mismatch for: ${email}`);
       return res.status(401).json({ 
         success: false,
         message: 'Invalid credentials' 
@@ -382,6 +390,14 @@ const login = async (req, res, next) => {
     user.isLoggedIn = true;
     user.lastLogin = new Date();
     await user.save();
+    console.log(`✅ User login successful: ${user.email}`);
+
+    // For employee role, check if they are a Closer/Verifier
+    let isCloser = false;
+    if (user.role === 'employee') {
+      const emp = await Employee.findOne({ user: user._id }).select('isCloser');
+      isCloser = emp?.isCloser || false;
+    }
 
     // Generate token
     const token = generateToken({ 
@@ -389,7 +405,9 @@ const login = async (req, res, next) => {
       role: user.role 
     });
 
-    res.json({
+    console.log(`✅ Token generated for user: ${user._id}`);
+
+    const responsePayload = {
       success: true,
       token,
       user: {
@@ -397,10 +415,16 @@ const login = async (req, res, next) => {
         username: user.username,
         email: user.email,
         role: user.role,
-        employeeId: user.employeeId
+        employeeId: user.employeeId,
+        isCloser
       }
-    });
+    };
+
+    console.log(`📤 Sending response:`, responsePayload);
+    
+    res.json(responsePayload);
   } catch (err) {
+    console.error('❌ Login error:', err);
     next(err);
   }
 };
@@ -420,10 +444,18 @@ const getMe = async (req, res, next) => {
       });
     }
 
+    // Include isCloser for employee role
+    let isCloser = false;
+    if (user.role === 'employee') {
+      const emp = await Employee.findOne({ user: user._id }).select('isCloser');
+      isCloser = emp?.isCloser || false;
+    }
+
     res.json({
       success: true,
       data: {
         ...user.toObject(),
+        isCloser,
         isLoggedIn: user.isLoggedIn
       }
     });

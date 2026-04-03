@@ -14,7 +14,9 @@ import {
   getAnalyticsSummary,
   getMySales,
   getMyMonthlyEarnings,
-  getMySalesSummary
+  getMySalesSummary,
+  getMyCloses,
+  getMyClosesStats
 } from '../controllers/salesSubmission.controller.js';
 import auth from '../middlewares/auth.js';
 import admin from '../middlewares/admin.js';
@@ -130,6 +132,10 @@ router.get('/analytics/detailed', auth, admin, getAnalytics);
 router.get('/my/sales', auth, getMySales);
 router.get('/my/monthly-earnings', auth, getMyMonthlyEarnings);
 router.get('/my/summary', auth, getMySalesSummary);
+
+// Closer/Verifier endpoints (auth required)
+router.get('/my/closes', auth, getMyCloses);
+router.get('/my/closes/stats', auth, getMyClosesStats);
 
 // Static routes BEFORE dynamic routes
 router.get('/pending/count', auth, admin, getPendingCount);

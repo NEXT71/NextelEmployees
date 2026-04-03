@@ -9,20 +9,22 @@ const validateEmployee = (data, isUpdate = false) => {
     department: Joi.string().valid(
       'Sales', 
       'Quality Assurance', 
-      'HR'
+      'HR',
+      'Verifier'
     ).required(),
+    isCloser: Joi.boolean().default(false),
     hireDate: Joi.date().required(),
     salary: Joi.object({
       baseSalary: Joi.number().required(),
       bonuses: Joi.number().default(0),
       deductions: Joi.number().default(0)
-    }).optional(), // Changed to optional
+    }).optional(),
     status: Joi.string().valid('Active', 'Inactive', 'On Leave').default('Active'),
     contact: Joi.object({
-      phone: Joi.string(),
-      address: Joi.string()
+      phone: Joi.string().allow(''),
+      address: Joi.string().allow('')
     }).optional()
-  });
+  }).options({ allowUnknown: true });
 
   return schema.validate(data);
 };

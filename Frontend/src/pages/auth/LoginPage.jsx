@@ -33,6 +33,7 @@ const LoginPage = () => {
         const redirectPath =
           response.user.role === 'superadmin' ? '/superadmindashboard'
           : response.user.role === 'admin' ? '/admindashboard'
+          : response.user.isCloser ? '/closerdashboard'
           : '/employeedashboard';
         navigate(redirectPath);
       } else {

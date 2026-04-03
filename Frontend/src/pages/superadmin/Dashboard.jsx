@@ -70,7 +70,7 @@ const CSRDetailModal = ({ employee, onClose }) => {
     const load = async () => {
       try {
         const data = await apiFetch(`/superadmin/employees/${employee._id}/full-history`);
-        setHistory(data);
+        setHistory(data.data);
       } catch (e) {
         setError('Failed to load history.');
       } finally {
@@ -163,9 +163,9 @@ const CSRDetailModal = ({ employee, onClose }) => {
                             <Badge text={row.pending} color="pending" />
                           </td>
                           <td className="py-3 px-3 text-center">
-                            <Badge text={row.rejected} color="rejected" />
+                            <Badge text={row.disapproved} color="rejected" />
                           </td>
-                          <td className="py-3 px-3 text-right text-white/80">{fmtCurrency(row.baseEarnings)}</td>
+                          <td className="py-3 px-3 text-right text-white/80">{fmtCurrency(row.earnings)}</td>
                           <td className="py-3 px-3 text-right text-yellow-300">{fmtCurrency(row.tierBonus)}</td>
                           <td className="py-3 px-3 text-right text-green-300 font-semibold">{fmtCurrency(row.totalEarnings)}</td>
                         </tr>
@@ -175,7 +175,7 @@ const CSRDetailModal = ({ employee, onClose }) => {
                       <tr>
                         <td colSpan={4} className="py-3 px-3 text-white/60 text-sm">All-time totals</td>
                         <td className="py-3 px-3 text-right text-white font-semibold">
-                          {fmtCurrency(history?.salesByMonth?.reduce((s, r) => s + (r.baseEarnings || 0), 0))}
+                          {fmtCurrency(history?.salesByMonth?.reduce((s, r) => s + (r.earnings || 0), 0))}
                         </td>
                         <td className="py-3 px-3 text-right text-yellow-300 font-semibold">
                           {fmtCurrency(history?.salesByMonth?.reduce((s, r) => s + (r.tierBonus || 0), 0))}
@@ -194,7 +194,7 @@ const CSRDetailModal = ({ employee, onClose }) => {
           {/* Salary History Tab */}
           {!loading && !error && tab === 'salary' && (
             <div>
-              {history?.salaryRecords?.length === 0 ? (
+              {history?.salaryHistory?.length === 0 ? (
                 <p className="text-white/50 text-center py-8">No salary records found.</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -203,20 +203,20 @@ const CSRDetailModal = ({ employee, onClose }) => {
                       <tr className="text-white/50 border-b border-white/10">
                         <th className="text-left py-3 px-3">Month</th>
                         <th className="text-right py-3 px-3">Base Salary</th>
-                        <th className="text-right py-3 px-3">Sales Bonus</th>
+                        <th className="text-right py-3 px-3">Bonuses</th>
                         <th className="text-right py-3 px-3">Deductions</th>
                         <th className="text-right py-3 px-3">Net Pay</th>
                         <th className="text-left py-3 px-3">Notes</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {history?.salaryRecords?.map((s) => (
+                      {history?.salaryHistory?.map((s) => (
                         <tr key={s._id} className="border-b border-white/5 hover:bg-white/5">
-                          <td className="py-3 px-3 text-white font-medium">{s.month}</td>
+                          <td className="py-3 px-3 text-white font-medium">{fmtDate(s.month)}</td>
                           <td className="py-3 px-3 text-right text-white/80">{fmtCurrency(s.baseSalary)}</td>
-                          <td className="py-3 px-3 text-right text-green-300">{fmtCurrency(s.salesBonus)}</td>
+                          <td className="py-3 px-3 text-right text-green-300">{fmtCurrency(s.bonuses)}</td>
                           <td className="py-3 px-3 text-right text-red-300">{fmtCurrency(s.deductions)}</td>
-                          <td className="py-3 px-3 text-right text-white font-bold">{fmtCurrency(s.netPay ?? (s.baseSalary + (s.salesBonus || 0) - (s.deductions || 0)))}</td>
+                          <td className="py-3 px-3 text-right text-white font-bold">{fmtCurrency((s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0))}</td>
                           <td className="py-3 px-3 text-white/50 text-xs max-w-xs truncate">{s.notes || '—'}</td>
                         </tr>
                       ))}
@@ -256,19 +256,19 @@ const SuperAdminDashboard = () => {
     try {
       if (tab === 'overview') {
         const d = await apiFetch('/superadmin/stats');
-        setStats(d);
+        setStats(d.data);
       } else if (tab === 'users') {
         const d = await apiFetch('/superadmin/users');
-        setUsers(d.users || d);
+        setUsers(d.data || []);
       } else if (tab === 'employees') {
         const d = await apiFetch('/superadmin/employees');
-        setEmployees(d.employees || d);
+        setEmployees(d.data || []);
       } else if (tab === 'sales') {
         const d = await apiFetch(`/superadmin/sales?status=${salesFilter}&limit=100`);
-        setSales(d.submissions || d.sales || d);
+        setSales(d.data || []);
       } else if (tab === 'salaries') {
         const d = await apiFetch('/superadmin/salaries?limit=100');
-        setSalaries(d.salaries || d);
+        setSalaries(d.data || []);
       }
     } catch (e) {
       setError('Failed to load data. ' + e.message);
@@ -295,7 +295,7 @@ const SuperAdminDashboard = () => {
       }
       const data = await res.json();
       setUsers((prev) =>
-        prev.map((u) => (u._id === userId ? { ...u, isActive: data.user?.isActive ?? !u.isActive } : u))
+        prev.map((u) => (u._id === userId ? { ...u, isActive: data.data?.isActive ?? !u.isActive } : u))
       );
     } catch {
       alert('Network error.');
@@ -614,10 +614,10 @@ const SuperAdminDashboard = () => {
                         </td>
                         <td className="py-3 px-4 text-white/70">{s.month}</td>
                         <td className="py-3 px-4 text-right text-white/80">{fmtCurrency(s.baseSalary)}</td>
-                        <td className="py-3 px-4 text-right text-green-300">{fmtCurrency(s.salesBonus)}</td>
+                        <td className="py-3 px-4 text-right text-green-300">{fmtCurrency(s.bonuses)}</td>
                         <td className="py-3 px-4 text-right text-red-300">{fmtCurrency(s.deductions)}</td>
                         <td className="py-3 px-4 text-right text-white font-bold">
-                          {fmtCurrency(s.netPay ?? (s.baseSalary + (s.salesBonus || 0) - (s.deductions || 0)))}
+                          {fmtCurrency(s.netPay ?? ((s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0)))}
                         </td>
                       </tr>
                     ))}

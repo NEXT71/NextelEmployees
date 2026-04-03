@@ -1,5 +1,10 @@
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import SalesTarget from '../models/SalesTarget.js';
+
+dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '../.env') });
 
 /**
  * Fix script to drop bad unique indexes on SalesTarget model
@@ -9,7 +14,7 @@ import SalesTarget from '../models/SalesTarget.js';
 const fixIndexes = async () => {
   try {
     console.log('🔧 Connecting to MongoDB...');
-    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/nextel-employees';
+    const mongoUri = process.env.MONGO_URI;
     console.log('🔧 MongoDB URI:', mongoUri.substring(0, 50) + '...');
     await mongoose.connect(mongoUri);
     

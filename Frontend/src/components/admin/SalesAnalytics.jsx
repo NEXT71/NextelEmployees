@@ -147,9 +147,11 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h4 className="text-white font-semibold text-lg">
-                  {stats.topPerformer.employee?.firstName} {stats.topPerformer.employee?.lastName}
+                  {stats.topPerformer.agent?.firstName
+                    ? `${stats.topPerformer.agent.firstName} ${stats.topPerformer.agent.lastName}`
+                    : stats.topPerformer.agentName || 'Unknown'}
                 </h4>
-                <p className="text-xs text-gray-400">{stats.topPerformer.employee?.employeeId}</p>
+                <p className="text-xs text-gray-400">{stats.topPerformer.agent?.employeeId || ''}</p>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-yellow-400">{stats.topPerformer.totalEarnings.toLocaleString()}</p>
@@ -163,11 +165,18 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
               </div>
               <div className="bg-yellow-800/30 rounded p-2">
                 <p className="text-gray-400 text-xs">Days Worked</p>
-                <p className="text-yellow-300 font-bold">{stats.topPerformer.daysWorked}</p>
+                <p className="text-yellow-300 font-bold">
+                  {new Set(stats.topPerformer.records?.map(r => new Date(r.saleDate).toDateString())).size || 1}
+                </p>
               </div>
               <div className="bg-yellow-800/30 rounded p-2">
                 <p className="text-gray-400 text-xs">Avg/Day</p>
-                <p className="text-yellow-300 font-bold">{(stats.topPerformer.totalSales / stats.topPerformer.daysWorked).toFixed(1)}</p>
+                <p className="text-yellow-300 font-bold">
+                  {(() => {
+                    const days = new Set(stats.topPerformer.records?.map(r => new Date(r.saleDate).toDateString())).size || 1;
+                    return (stats.topPerformer.totalSales / days).toFixed(1);
+                  })()}
+                </p>
               </div>
             </div>
           </div>
@@ -213,19 +222,21 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
                     <td className="px-6 py-4 text-sm">
                       <div>
                         <p className="text-white font-medium">
-                          {record.employee?.firstName} {record.employee?.lastName}
+                          {record.agent?.firstName
+                            ? `${record.agent.firstName} ${record.agent.lastName}`
+                            : record.agentName || 'Unknown'}
                         </p>
-                        <p className="text-xs text-gray-400">{record.employee?.employeeId}</p>
+                        <p className="text-xs text-gray-400">{record.agent?.employeeId || ''}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-center text-gray-300">
-                      {new Date(record.date).toLocaleDateString('en-GB')}
+                      {record.saleDate ? new Date(record.saleDate).toLocaleDateString('en-GB') : '—'}
                     </td>
                     <td className="px-6 py-4 text-sm text-center font-semibold text-amber-400">
-                      {record.salesCount}
+                      {record.salesCount || 1}
                     </td>
                     <td className="px-6 py-4 text-sm text-right text-gray-300">
-                      RS {record.baseSalaryForDay?.toLocaleString()}
+                      RS {(record.pricePerSale ?? record.baseSalary ?? 1000).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-sm text-right">
                       {record.tierBonus > 0 ? (
@@ -235,10 +246,10 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm text-right font-semibold text-green-400">
-                      RS {record.totalEarningForDay?.toLocaleString()}
+                      RS {(record.totalEarning ?? (record.pricePerSale || 1000) + (record.tierBonus || 0)).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-sm text-center">
-                      {getTierBadge(record.achievedTier)}
+                      {getTierBadge(record.achievedTier ?? 0)}
                     </td>
                   </tr>
                 ))}

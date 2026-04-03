@@ -8,7 +8,7 @@
     "check:db": "node scripts/checkDatabaseRelationships.js",
     "cleanup:orphaned": "node scripts/cleanupOrphanedRecords.js",
     "fix:index": "node scripts/fixEmployeeUserIndex.js",
-    "fix:db-indexes": "node scripts/fixDatabaseIndexes.js",
+    "fix:sales-indexes": "node scripts/fixSalesIndexes.js",
     "reset:employees": "node scripts/resetEmployeeData.js",
     "check:admin": "node scripts/checkAdminRole.js",
     "archive:run": "node scripts/runArchive.js",

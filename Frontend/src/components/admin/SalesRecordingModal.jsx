@@ -40,8 +40,13 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
   }, [isOpen, loadEmployees]);
 
   const handlePreview = async () => {
+    // Validate all required fields
     if (!selectedEmployee) {
       setError('Please select an employee');
+      return;
+    }
+    if (!date) {
+      setError('Please select a date');
       return;
     }
 
@@ -137,7 +142,7 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
 
                 {/* Employee Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Select CSR</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-2">Select CSR <span className="text-red-400">*</span></label>
                   {loading ? (
                     <div className="w-full bg-blue-800/80 border border-blue-600/50 text-white rounded-lg px-3 py-2 text-sm text-gray-400">
                       Loading employees...
@@ -164,7 +169,7 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
 
                 {/* Date */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Date</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-2">Date <span className="text-red-400">*</span></label>
                   <input
                     type="date"
                     value={date}

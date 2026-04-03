@@ -2,6 +2,28 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Check, X, AlertCircle, Loader, ChevronDown, ChevronUp } from 'lucide-react';
 import { API_BASE_URL } from '../../utils/constants';
 
+// Helper to get auth token from localStorage
+const getAuthToken = () => {
+  try {
+    return localStorage.getItem('token');
+  } catch (err) {
+    console.warn('Failed to get token from localStorage:', err);
+    return null;
+  }
+};
+
+// Helper to build headers with auth token
+const getHeaders = (token) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 const PendingSalesReview = ({ onRefresh }) => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -23,17 +45,19 @@ const PendingSalesReview = ({ onRefresh }) => {
       setError(null);
       setCurrentPage(1); // Reset to first page
       
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+      
       const queryUrl = `${API_BASE_URL}/sales-submissions?status=${filter}&limit=100`;
       console.log('📤 Fetching from URL:', queryUrl);
-      console.log('Cookie available:', document.cookie ? '✓ Yes' : '✗ No');
+      console.log('🔐 Token:', token ? '✓ Present' : '✗ Missing');
       
       const response = await fetch(queryUrl, {
         method: 'GET',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+        headers: getHeaders(token)
       });
 
       console.log('📥 Response Status:', response.status, response.statusText);
@@ -41,16 +65,6 @@ const PendingSalesReview = ({ onRefresh }) => {
         contentType: response.headers.get('content-type'),
         contentLength: response.headers.get('content-length')
       });
-
-      // Check if response is HTML (error page)
-      const contentType = response.headers.get('content-type');
-      const isHTML = contentType && contentType.includes('text/html');
-      
-      if (isHTML) {
-        const htmlContent = await response.text();
-        console.error('❌ Received HTML instead of JSON:', htmlContent.substring(0, 200));
-        throw new Error(`Server returned HTML (Status ${response.status}). This usually means: 401 Unauthorized, 403 Forbidden, or 404 Not Found`);
-      }
 
       if (!response.ok) {
         let errorData;
@@ -77,8 +91,10 @@ const PendingSalesReview = ({ onRefresh }) => {
   // Fetch database status for debugging
   const checkDatabaseStatus = useCallback(async () => {
     try {
+      const token = getAuthToken();
       const response = await fetch(`${API_BASE_URL}/sales-submissions/debug/status`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: getHeaders(token)
       });
       const data = await response.json();
       setDbStatus(data);
@@ -107,10 +123,11 @@ const PendingSalesReview = ({ onRefresh }) => {
   // Single approve
   const handleApprove = async (id) => {
     try {
+      const token = getAuthToken();
       const response = await fetch(`${API_BASE_URL}/sales-submissions/${id}/approve`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' }
+        headers: getHeaders(token)
       });
 
       if (!response.ok) throw new Error('Failed to approve');
@@ -127,10 +144,11 @@ const PendingSalesReview = ({ onRefresh }) => {
   // Single disapprove
   const handleDisapprove = async (id) => {
     try {
+      const token = getAuthToken();
       const response = await fetch(`${API_BASE_URL}/sales-submissions/${id}/disapprove`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(token),
         body: JSON.stringify({
           rejectionReason: rejectReason
         })
@@ -158,10 +176,11 @@ const PendingSalesReview = ({ onRefresh }) => {
 
     try {
       setLoading(true);
+      const token = getAuthToken();
       const response = await fetch(`${API_BASE_URL}/sales-submissions/bulk/approve`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(token),
         body: JSON.stringify({
           submissionIds: Array.from(selectedIds)
         })
@@ -191,10 +210,11 @@ const PendingSalesReview = ({ onRefresh }) => {
 
     try {
       setLoading(true);
+      const token = getAuthToken();
       const response = await fetch(`${API_BASE_URL}/sales-submissions/bulk/disapprove`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(token),
         body: JSON.stringify({
           submissionIds: Array.from(selectedIds),
           rejectionReason: rejectReason

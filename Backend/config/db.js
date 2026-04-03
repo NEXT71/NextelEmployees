@@ -16,17 +16,21 @@ const connectDB = async () => {
         const SalesTarget = (await import('../models/SalesTarget.js')).default;
         const indexes = await SalesTarget.collection.getIndexes();
         
-        // Check for bad unique indexes on single fields
+        console.log('📋 Current indexes:', Object.keys(indexes));
+        
+        // Drop all unique indexes on single fields (except _id)
         for (const [indexName, indexSpec] of Object.entries(indexes)) {
           if (indexSpec.unique && Object.keys(indexSpec.key).length === 1) {
             const field = Object.keys(indexSpec.key)[0];
-            // Don't drop _id index
+            // Keep only: _id
             if (field !== '_id') {
-              console.log(`🗑️  Dropping bad unique index on ${field}...`);
+              console.log(`🗑️  Dropping unique index on '${field}'...`);
               await SalesTarget.collection.dropIndex(indexName);
             }
           }
         }
+        
+        console.log('✅ Index cleanup complete - allowing duplicate DIDs and employee submissions');
       } catch (err) {
         console.warn('⚠️  Index cleanup warning:', err.message);
         // Don't fail connection if cleanup fails

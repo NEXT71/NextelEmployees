@@ -106,6 +106,7 @@ const CSRSalesSubmission = ({ onBack }) => {
       }
     } catch (err) {
       setError(err.message || 'Failed to submit sales record');
+      console.error('❌ Submission error:', err);
     } finally {
       setLoading(false);
     }

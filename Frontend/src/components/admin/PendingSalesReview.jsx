@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Check, X, AlertCircle, Loader, ChevronDown, ChevronUp } from 'lucide-react';
 
-const PendingSalesReview = () => {
+const PendingSalesReview = ({ onRefresh }) => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -99,6 +99,7 @@ const PendingSalesReview = () => {
 
       alert('Submission approved successfully');
       setSubmissions(submissions.filter(s => s._id !== id));
+      onRefresh?.();
     } catch (error) {
       console.error('Error:', error);
       alert('Failed to approve submission');
@@ -123,6 +124,7 @@ const PendingSalesReview = () => {
       setShowRejectForm(null);
       setRejectReason('');
       setSubmissions(submissions.filter(s => s._id !== id));
+      onRefresh?.();
     } catch (error) {
       console.error('Error:', error);
       alert('Failed to disapprove submission');
@@ -152,6 +154,7 @@ const PendingSalesReview = () => {
       const data = await response.json();
       alert(`Successfully approved ${data.data.summary.approved} submissions`);
       setSelectedIds(new Set());
+      onRefresh?.();
       fetchSubmissions();
     } catch (error) {
       console.error('Error:', error);

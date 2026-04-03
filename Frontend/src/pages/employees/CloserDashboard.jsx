@@ -4,7 +4,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { salesTargetAPI } from '../../utils/api';
 import {
   CheckCircle,
-  Clock,
   DollarSign,
   Trophy,
   RefreshCw,

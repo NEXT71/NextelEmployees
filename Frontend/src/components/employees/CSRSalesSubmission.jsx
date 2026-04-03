@@ -80,9 +80,27 @@ const CSRSalesSubmission = ({ onBack }) => {
         submissionSource: 'CSR Portal'
       };
 
+      console.log('📤 Submitting sales form with payload:', payload);
+
       const response = await salesTargetAPI.submitSalesForm(payload);
 
-      console.log('📤 Submit response:', response);
+      console.log('📥 Submit response:', response);
+
+      // Check for API error response
+      if (response?.error) {
+        let errorMsg = response.message || 'Failed to submit sales record';
+        
+        // Parse common error messages
+        if (response.message?.includes('duplicate')) {
+          errorMsg = '⚠️  You may have already submitted this sale. Please check your pending sales and try again with a different customer or DID.';
+        } else if (response.message?.includes('already exists')) {
+          errorMsg = '⚠️  A record with this customer/DID combination already exists. Please submit with different details.';
+        }
+        
+        setError(errorMsg);
+        console.error('❌ API Error:', response);
+        return;
+      }
 
       if (response) {
         setSuccess(`✅ Sales submission successful! Your record is pending admin approval.`);
@@ -105,7 +123,14 @@ const CSRSalesSubmission = ({ onBack }) => {
         throw new Error('Failed to submit sales record');
       }
     } catch (err) {
-      setError(err.message || 'Failed to submit sales record');
+      let errorMsg = err.message || 'Failed to submit sales record';
+      
+      // Parse HTTP error messages
+      if (err.message?.includes('duplicate')) {
+        errorMsg = '⚠️  Duplicate submission detected. This customer/DID may already be submitted.';
+      }
+      
+      setError(errorMsg);
       console.error('❌ Submission error:', err);
     } finally {
       setLoading(false);

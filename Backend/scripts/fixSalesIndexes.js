@@ -9,7 +9,9 @@ import SalesTarget from '../models/SalesTarget.js';
 const fixIndexes = async () => {
   try {
     console.log('🔧 Connecting to MongoDB...');
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/nextel-employees');
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/nextel-employees';
+    console.log('🔧 MongoDB URI:', mongoUri.substring(0, 50) + '...');
+    await mongoose.connect(mongoUri);
     
     console.log('📋 Current indexes:');
     const indexes = await SalesTarget.collection.getIndexes();

@@ -14,30 +14,42 @@ const connectDB = async () => {
     const cleanupIndexes = async () => {
       try {
         const SalesTarget = (await import('../models/SalesTarget.js')).default;
-        const indexes = await SalesTarget.collection.getIndexes();
+        const db = mongoose.connection.db;
         
-        console.log('📋 Current indexes:', Object.keys(indexes));
+        // Get the actual collection name from the model
+        const collectionName = SalesTarget.collection.name;
+        console.log(`📋 Cleaning up indexes on collection: ${collectionName}`);
         
-        // Drop all unique indexes on single fields (except _id)
-        for (const [indexName, indexSpec] of Object.entries(indexes)) {
-          if (indexSpec.unique && Object.keys(indexSpec.key).length === 1) {
-            const field = Object.keys(indexSpec.key)[0];
-            // Keep only: _id
-            if (field !== '_id') {
-              console.log(`🗑️  Dropping unique index on '${field}'...`);
-              await SalesTarget.collection.dropIndex(indexName);
+        const indexInfo = await db.collection(collectionName).getIndexes();
+        console.log('📋 Current indexes:', Object.keys(indexInfo));
+        
+        // Drop ALL indexes except _id
+        let droppedCount = 0;
+        for (const [indexName, indexSpec] of Object.entries(indexInfo)) {
+          if (indexName !== '_id_') {
+            console.log(`🗑️  Dropping index: ${indexName}`, JSON.stringify(indexSpec));
+            try {
+              await db.collection(collectionName).dropIndex(indexName);
+              droppedCount++;
+            } catch (err) {
+              console.warn(`⚠️  Could not drop index ${indexName}:`, err.message);
             }
           }
         }
         
-        console.log('✅ Index cleanup complete - allowing duplicate DIDs and employee submissions');
+        console.log(`✅ Dropped ${droppedCount} indexes. Now accepting duplicate agents and DIDs.`);
+        
+        // List remaining indexes
+        const newIndexes = await db.collection(collectionName).getIndexes();
+        console.log('📋 Remaining indexes:', Object.keys(newIndexes));
       } catch (err) {
         console.warn('⚠️  Index cleanup warning:', err.message);
         // Don't fail connection if cleanup fails
       }
     };
     
-    await cleanupIndexes();
+    // Run cleanup after short delay to ensure connection is ready
+    setTimeout(cleanupIndexes, 1000);
   } catch (err) {
     console.error('Database connection error:', err);
     process.exit(1);

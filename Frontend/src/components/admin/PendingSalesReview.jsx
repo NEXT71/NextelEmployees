@@ -4,6 +4,7 @@ import { Check, X, AlertCircle, Loader, ChevronDown, ChevronUp } from 'lucide-re
 const PendingSalesReview = ({ onRefresh }) => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [expandedId, setExpandedId] = useState(null);
   const [filter, setFilter] = useState('pending');
@@ -11,12 +12,14 @@ const PendingSalesReview = ({ onRefresh }) => {
   const [showRejectForm, setShowRejectForm] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [dbStatus, setDbStatus] = useState(null);
   const ITEMS_PER_PAGE = 15;
 
   // Fetch submissions
   const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       setCurrentPage(1); // Reset to first page
       
       const queryUrl = `/api/sales-submissions?status=${filter}&limit=100`;
@@ -64,11 +67,25 @@ const PendingSalesReview = ({ onRefresh }) => {
       setSubmissions(data.data || []);
     } catch (error) {
       console.error('❌ Error fetching submissions:', error.message);
-      alert(`Failed to fetch submissions:\n\n${error.message}\n\nCheck browser console for details.`);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   }, [filter]);
+
+  // Fetch database status for debugging
+  const checkDatabaseStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/sales-submissions/debug/status', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      setDbStatus(data);
+      console.log('📊 Database status:', data);
+    } catch (err) {
+      console.error('❌ Failed to check database status:', err);
+    }
+  }, []);
 
   useEffect(() => {
     fetchSubmissions();
@@ -229,7 +246,50 @@ const PendingSalesReview = ({ onRefresh }) => {
             {filteredByDate.filter(s => s.status === 'pending').length} Pending
           </span>
         </div>
+        <button
+          onClick={checkDatabaseStatus}
+          className="px-3 py-1 text-xs bg-blue-600/30 hover:bg-blue-600/50 border border-blue-400/30 rounded text-blue-300 transition"
+          title="Check database for total sales records"
+        >
+          🔍 Database Status
+        </button>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <div className="mb-6 p-4 rounded-lg bg-red-900/30 border border-red-600/50 flex items-start justify-between">
+          <div className="flex items-start gap-3 flex-1">
+            <AlertCircle className="text-red-400 flex-shrink-0 mt-0.5" size={20} />
+            <div>
+              <p className="text-red-400 font-semibold">Error Loading Sales</p>
+              <p className="text-red-300 text-sm mt-1">{error}</p>
+              {dbStatus && (
+                <p className="text-blue-300 text-xs mt-2">
+                  💾 Database shows {dbStatus.database?.totalRecords || 0} total records
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={fetchSubmissions}
+            className="ml-4 px-3 py-1 bg-red-600/50 hover:bg-red-600 rounded text-white text-sm transition flex-shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Database Status Info */}
+      {dbStatus && (
+        <div className="mb-6 p-3 rounded-lg bg-blue-900/30 border border-blue-600/30 text-xs text-blue-300">
+          <div className="font-semibold mb-2">📊 Database Status:</div>
+          <ul className="space-y-1">
+            <li>Total Records: {dbStatus.database?.totalRecords || 0}</li>
+            <li>By Status: {JSON.stringify(dbStatus.database?.byStatus || {})}</li>
+            <li>Has Problematic Indexes: {dbStatus.database?.hasUniqueIndexes?.length > 0 ? '⚠️ Yes' : '✅ No'}</li>
+          </ul>
+        </div>
+      )}
 
       {/* Date Filter */}
       <div className="mb-6 flex items-center gap-4">

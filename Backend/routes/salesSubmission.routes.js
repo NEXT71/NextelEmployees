@@ -22,6 +22,62 @@ router.get('/debug/health', (req, res) => {
   });
 });
 
+// DEBUG: Comprehensive diagnostic endpoint (no auth required - for debugging)
+router.get('/debug/status', async (req, res) => {
+  try {
+    const SalesTarget = (await import('../models/SalesTarget.js')).default;
+    const db = SalesTarget.collection.conn.db;
+    
+    // Get total records
+    const totalRecords = await SalesTarget.countDocuments();
+    
+    // Get records by status
+    const recordsByStatus = await SalesTarget.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    
+    // Get current indexes
+    const indexes = await db.collection('salestartgets').getIndexes();
+    
+    // Get recent records
+    const records = await SalesTarget.find()
+      .populate('agent', 'firstName lastName employeeId phone')
+      .sort({ createdAt: -1 })
+      .limit(20);
+    
+    const statusBreakdown = {};
+    recordsByStatus.forEach(item => {
+      statusBreakdown[item._id || 'unknown'] = item.count;
+    });
+    
+    res.json({
+      success: true,
+      database: {
+        totalRecords,
+        byStatus: statusBreakdown,
+        indexes: Object.keys(indexes),
+        hasUniqueIndexes: Object.entries(indexes).filter(([k, v]) => v.unique).map(([k]) => k)
+      },
+      recentRecords: records.map(r => ({
+        _id: r._id,
+        agent: r.agent,
+        agentName: r.agentName,
+        customer: r.customer,
+        stat: r.status,
+        saleDate: r.saleDate,
+        createdAt: r.createdAt
+      })),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // DEBUG: Show all sales records (no auth required - for debugging)
 router.get('/debug/all-records', async (req, res) => {
   try {

@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
 import {
   Users, Shield, TrendingUp, DollarSign, Clock, CheckCircle,
-  XCircle, ChevronDown, ChevronUp, LogOut, RefreshCw,
+  LogOut, RefreshCw,
   User as UserIcon, BarChart2, FileText, Award, X,
   AlertTriangle, ToggleLeft, ToggleRight, Eye
 } from 'lucide-react';

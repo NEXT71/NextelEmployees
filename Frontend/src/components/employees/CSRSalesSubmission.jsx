@@ -64,16 +64,20 @@ const CSRSalesSubmission = ({ onBack }) => {
       setLoading(true);
       
       const payload = {
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        phone: formData.phone.trim(),
-        state: formData.state.trim(),
-        zipCode: formData.zipCode.trim(),
+        agent: user._id,
+        agentName: `${user.firstName} ${user.lastName}`,
+        agentPhone: user.phone || 'N/A',
+        customer: {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          phone: formData.phone.trim(),
+          state: formData.state.trim(),
+          zipCode: formData.zipCode.trim()
+        },
         dids: formData.dids.trim(),
         closer: formData.closer.trim(),
-        agentName: `${user.firstName} ${user.lastName}`,
-        selectedAgentId: user._id,
-        submissionDate: formData.submissionDate
+        saleDate: formData.submissionDate,
+        submissionSource: 'CSR Portal'
       };
 
       const response = await salesTargetAPI.submitSalesForm(payload);

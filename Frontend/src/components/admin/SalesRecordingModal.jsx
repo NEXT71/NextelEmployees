@@ -19,7 +19,8 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
       setLoading(true);
       setError('');
       const response = await employeeAPI.getEmployees({ department });
-      if (response && response.data) {
+      if (response && response.data && Array.isArray(response.data)) {
+        console.log(`✅ Loaded ${response.data.length} employees for department: ${department}`, response.data.slice(0, 2));
         setEmployees(response.data);
       } else {
         console.warn('No employee data in response:', response);
@@ -73,13 +74,31 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
       setSubmitting(true);
       setError('');
 
+      // Validate employee selection
+      if (!selectedEmployee) {
+        setError('Employee selection is required');
+        setSubmitting(false);
+        return;
+      }
+
+      const employee = employees.find(e => e._id === selectedEmployee);
+      if (!employee) {
+        setError('Selected employee not found in employee list');
+        setSubmitting(false);
+        return;
+      }
+
       const payload = {
         employeeId: selectedEmployee,
         salesCount: 1,  // Each record = 1 sale
         date: date  // Backend will convert to Date object
       };
 
-      console.log('📤 Submitting sales record with payload:', payload);
+      console.log('📤 Submitting sales record', { 
+        employeeId: selectedEmployee,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        payload 
+      });
       const response = await salesTargetAPI.recordDailySales(payload);
 
       if (response.success) {
@@ -88,9 +107,17 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
           resetModal();
           onSuccess?.();
         }, 1500);
+      } else {
+        setError(response.message || 'Failed to record sales');
       }
     } catch (err) {
-      setError(err.message || 'Failed to record sales');
+      console.error('❌ Sales submission error:', err);
+      // Provide more helpful error messages
+      if (err.message?.includes('Employee')) {
+        setError(`Employee issue: ${err.message}. Please refresh and reselect the employee.`);
+      } else {
+        setError(err.message || 'Failed to record sales');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -142,7 +169,17 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
 
                 {/* Employee Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Select CSR <span className="text-red-400">*</span></label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-200">Select CSR <span className="text-red-400">*</span></label>
+                    <button
+                      type="button"
+                      onClick={loadEmployees}
+                      disabled={loading}
+                      className="text-xs text-blue-400 hover:text-blue-300 disabled:text-gray-500"
+                    >
+                      {loading ? 'Loading...' : 'Refresh'}
+                    </button>
+                  </div>
                   {loading ? (
                     <div className="w-full bg-blue-800/80 border border-blue-600/50 text-white rounded-lg px-3 py-2 text-sm text-gray-400">
                       Loading employees...
@@ -186,6 +223,7 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
                     <div>
                       <h3 className="text-white font-medium">{preview.employee.firstName} {preview.employee.lastName}</h3>
                       <p className="text-xs text-gray-400">{preview.employee.employeeId}</p>
+                      <p className="text-xs text-gray-600 mt-1">ID: {selectedEmployee?.substring(0, 12)}...</p>
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-amber-400">{preview.salesCount}</div>

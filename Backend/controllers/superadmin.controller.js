@@ -197,6 +197,69 @@ export const getAllSalaries = async (req, res, next) => {
   }
 };
 
+// ── Sales leaderboard — CSRs sorted by approved sales count ────────────────
+export const getSalesLeaderboard = async (req, res, next) => {
+  try {
+    const { month, year } = req.query; // optional month/year filter
+
+    const matchFilter = { status: 'approved' };
+    if (month && year) {
+      const start = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const end   = new Date(parseInt(year), parseInt(month), 1);
+      matchFilter.saleDate = { $gte: start, $lt: end };
+    }
+
+    const agg = await SalesTarget.aggregate([
+      { $match: matchFilter },
+      {
+        $group: {
+          _id: { $ifNull: ['$agent', '$agentName'] },
+          agentObjId: { $first: '$agent' },
+          agentName:  { $first: '$agentName' },
+          approvedSales: { $sum: 1 },
+          totalEarnings: { $sum: '$pricePerSale' },
+          lastSaleDate: { $max: '$saleDate' }
+        }
+      },
+      { $sort: { approvedSales: -1 } }
+    ]);
+
+    // Populate employee details for those that have an agent ObjectId
+    const populated = await Employee.populate(agg, {
+      path: 'agentObjId',
+      select: 'firstName lastName employeeId department'
+    });
+
+    // Also fetch pending count per agent
+    const pendingAgg = await SalesTarget.aggregate([
+      { $match: { status: 'pending' } },
+      { $group: { _id: { $ifNull: ['$agent', '$agentName'] }, pending: { $sum: 1 } } }
+    ]);
+    const pendingMap = {};
+    pendingAgg.forEach(p => { pendingMap[String(p._id)] = p.pending; });
+
+    const leaderboard = populated.map((row, idx) => ({
+      rank: idx + 1,
+      agentId: row._id,
+      agentName: row.agentObjId?.firstName
+        ? `${row.agentObjId.firstName} ${row.agentObjId.lastName}`
+        : row.agentName || 'Unknown',
+      employeeId: row.agentObjId?.employeeId || '—',
+      department: row.agentObjId?.department || '—',
+      approvedSales: row.approvedSales,
+      pendingSales: pendingMap[String(row._id)] || 0,
+      totalEarnings: row.totalEarnings,
+      lastSaleDate: row.lastSaleDate
+    }));
+
+    const topPerformer = leaderboard[0] || null;
+
+    res.json({ success: true, data: leaderboard, topPerformer });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── Dashboard summary stats ─────────────────────────────────────────────────
 export const getSuperAdminStats = async (req, res, next) => {
   try {

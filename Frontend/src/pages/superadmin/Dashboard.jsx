@@ -242,11 +242,14 @@ const SuperAdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [sales, setSales] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [topPerformer, setTopPerformer] = useState(null);
   const [salaries, setSalaries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [salesFilter, setSalesFilter] = useState('all');
+  const [salesView, setSalesView] = useState('leaderboard'); // 'leaderboard' | 'all'
   const [togglingUser, setTogglingUser] = useState(null);
 
   // load data for active tab
@@ -264,8 +267,13 @@ const SuperAdminDashboard = () => {
         const d = await apiFetch('/superadmin/employees');
         setEmployees(d.data || []);
       } else if (tab === 'sales') {
-        const d = await apiFetch(`/superadmin/sales?status=${salesFilter}&limit=100`);
-        setSales(d.data || []);
+        const [lb, all] = await Promise.all([
+          apiFetch('/superadmin/sales/leaderboard'),
+          apiFetch(`/superadmin/sales?status=${salesFilter}&limit=100`)
+        ]);
+        setLeaderboard(lb.data || []);
+        setTopPerformer(lb.topPerformer || null);
+        setSales(all.data || []);
       } else if (tab === 'salaries') {
         const d = await apiFetch('/superadmin/salaries?limit=100');
         setSalaries(d.data || []);
@@ -523,66 +531,163 @@ const SuperAdminDashboard = () => {
 
         {/* ── Sales ── */}
         {!loading && activeTab === 'sales' && (
-          <div>
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-              <h2 className="text-white text-2xl font-bold">All Sales Submissions</h2>
-              <div className="flex items-center gap-2">
-                <select
-                  value={salesFilter}
-                  onChange={(e) => setSalesFilter(e.target.value)}
-                  className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          <div className="space-y-6">
+            {/* Top Performer card */}
+            {topPerformer && (
+              <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="p-3 bg-yellow-500/30 rounded-xl">
+                  <Award size={28} className="text-yellow-300" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-yellow-300 text-xs font-semibold uppercase tracking-widest mb-1">Top Performer</p>
+                  <p className="text-white text-2xl font-bold">{topPerformer.agentName}</p>
+                  <p className="text-white/50 text-sm">{topPerformer.employeeId} · {topPerformer.department}</p>
+                </div>
+                <div className="flex gap-6">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-green-300">{topPerformer.approvedSales}</p>
+                    <p className="text-white/50 text-xs mt-1">Approved</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-white">{fmtCurrency(topPerformer.totalEarnings)}</p>
+                    <p className="text-white/50 text-xs mt-1">Earned</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* View toggle + filter */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 gap-1">
+                <button
+                  onClick={() => setSalesView('leaderboard')}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${salesView === 'leaderboard' ? 'bg-purple-500/40 text-purple-200' : 'text-white/50 hover:text-white/80'}`}
                 >
-                  <option value="all" className="bg-slate-800">All</option>
-                  <option value="pending" className="bg-slate-800">Pending</option>
-                  <option value="approved" className="bg-slate-800">Approved</option>
-                  <option value="rejected" className="bg-slate-800">Rejected</option>
-                </select>
+                  Leaderboard
+                </button>
+                <button
+                  onClick={() => setSalesView('all')}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${salesView === 'all' ? 'bg-purple-500/40 text-purple-200' : 'text-white/50 hover:text-white/80'}`}
+                >
+                  All Submissions
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                {salesView === 'all' && (
+                  <select
+                    value={salesFilter}
+                    onChange={(e) => setSalesFilter(e.target.value)}
+                    className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="all" className="bg-slate-800">All</option>
+                    <option value="pending" className="bg-slate-800">Pending</option>
+                    <option value="approved" className="bg-slate-800">Approved</option>
+                    <option value="rejected" className="bg-slate-800">Rejected</option>
+                  </select>
+                )}
                 <button onClick={() => load('sales')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
                   <RefreshCw size={14} />
                 </button>
               </div>
             </div>
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-white/50 border-b border-white/10">
-                      <th className="text-left py-3 px-4">Employee</th>
-                      <th className="text-left py-3 px-4">Customer</th>
-                      <th className="text-left py-3 px-4">Phone</th>
-                      <th className="text-left py-3 px-4">DIDs</th>
-                      <th className="text-left py-3 px-4">Closer</th>
-                      <th className="text-center py-3 px-4">Status</th>
-                      <th className="text-left py-3 px-4">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sales.map((s) => (
-                      <tr key={s._id} className="border-b border-white/5 hover:bg-white/5">
-                        <td className="py-3 px-4 text-white">
-                          {s.agentName || (s.agent?.firstName ? `${s.agent.firstName} ${s.agent.lastName}` : '—')}
-                        </td>
-                        <td className="py-3 px-4 text-white/70">
-                          {s.customer?.firstName ? `${s.customer.firstName} ${s.customer.lastName}` : '—'}
-                        </td>
-                        <td className="py-3 px-4 text-white/70">{s.customer?.phone || '—'}</td>
-                        <td className="py-3 px-4 text-white/70">{s.dids || '—'}</td>
-                        <td className="py-3 px-4 text-white/70">{s.closer || '—'}</td>
-                        <td className="py-3 px-4 text-center">
-                          <Badge text={s.status} color={s.status} />
-                        </td>
-                        <td className="py-3 px-4 text-white/50">{fmtDate(s.submittedAt || s.createdAt)}</td>
+
+            {/* Leaderboard view */}
+            {salesView === 'leaderboard' && (
+              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-white/50 border-b border-white/10">
+                        <th className="text-center py-3 px-4 w-12">Rank</th>
+                        <th className="text-left py-3 px-4">CSR Name</th>
+                        <th className="text-left py-3 px-4">Employee ID</th>
+                        <th className="text-left py-3 px-4">Department</th>
+                        <th className="text-center py-3 px-4">Approved</th>
+                        <th className="text-center py-3 px-4">Pending</th>
+                        <th className="text-right py-3 px-4">Total Earned</th>
+                        <th className="text-left py-3 px-4">Last Sale</th>
                       </tr>
-                    ))}
-                    {sales.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="py-10 text-center text-white/40">No sales found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {leaderboard.map((row) => (
+                        <tr key={String(row.agentId)} className={`border-b border-white/5 hover:bg-white/5 ${row.rank === 1 ? 'bg-yellow-500/5' : ''}`}>
+                          <td className="py-3 px-4 text-center">
+                            {row.rank === 1 ? (
+                              <span className="text-yellow-300 font-bold text-base">🥇</span>
+                            ) : row.rank === 2 ? (
+                              <span className="text-gray-300 font-bold">🥈</span>
+                            ) : row.rank === 3 ? (
+                              <span className="text-orange-400 font-bold">🥉</span>
+                            ) : (
+                              <span className="text-white/40">{row.rank}</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-white font-medium">{row.agentName}</td>
+                          <td className="py-3 px-4 text-white/60">{row.employeeId}</td>
+                          <td className="py-3 px-4 text-white/60">{row.department}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="bg-green-500/20 text-green-300 border border-green-500/30 px-2 py-0.5 rounded-full text-xs font-bold">{row.approvedSales}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 px-2 py-0.5 rounded-full text-xs font-bold">{row.pendingSales}</span>
+                          </td>
+                          <td className="py-3 px-4 text-right text-green-300 font-semibold">{fmtCurrency(row.totalEarnings)}</td>
+                          <td className="py-3 px-4 text-white/50">{fmtDate(row.lastSaleDate)}</td>
+                        </tr>
+                      ))}
+                      {leaderboard.length === 0 && (
+                        <tr><td colSpan={8} className="py-10 text-center text-white/40">No approved sales yet.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* All submissions view */}
+            {salesView === 'all' && (
+              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-white/50 border-b border-white/10">
+                        <th className="text-left py-3 px-4">Employee</th>
+                        <th className="text-left py-3 px-4">Customer</th>
+                        <th className="text-left py-3 px-4">Phone</th>
+                        <th className="text-left py-3 px-4">DIDs</th>
+                        <th className="text-left py-3 px-4">Closer</th>
+                        <th className="text-center py-3 px-4">Status</th>
+                        <th className="text-left py-3 px-4">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sales.map((s) => (
+                        <tr key={s._id} className="border-b border-white/5 hover:bg-white/5">
+                          <td className="py-3 px-4 text-white">
+                            {s.agentName || (s.agent?.firstName ? `${s.agent.firstName} ${s.agent.lastName}` : '—')}
+                          </td>
+                          <td className="py-3 px-4 text-white/70">
+                            {s.customer?.firstName ? `${s.customer.firstName} ${s.customer.lastName}` : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-white/70">{s.customer?.phone || '—'}</td>
+                          <td className="py-3 px-4 text-white/70">{s.dids || '—'}</td>
+                          <td className="py-3 px-4 text-white/70">{s.closer || '—'}</td>
+                          <td className="py-3 px-4 text-center">
+                            <Badge text={s.status} color={s.status} />
+                          </td>
+                          <td className="py-3 px-4 text-white/50">{fmtDate(s.submittedAt || s.createdAt)}</td>
+                        </tr>
+                      ))}
+                      {sales.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="py-10 text-center text-white/40">No sales found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

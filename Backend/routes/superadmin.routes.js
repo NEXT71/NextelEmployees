@@ -7,6 +7,7 @@ import {
   getAllEmployees,
   getEmployeeFullHistory,
   getAllSalesSubmissions,
+  getSalesLeaderboard,
   getAllSalaries,
   getSuperAdminStats
 } from '../controllers/superadmin.controller.js';
@@ -22,6 +23,7 @@ router.patch('/users/:id/toggle-active', toggleUserActive);
 router.get('/employees',        getAllEmployees);
 router.get('/employees/:id/full-history', getEmployeeFullHistory);
 router.get('/sales',            getAllSalesSubmissions);
+router.get('/sales/leaderboard', getSalesLeaderboard);
 router.get('/salaries',         getAllSalaries);
 
 export default router;

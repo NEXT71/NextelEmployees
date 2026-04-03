@@ -3,7 +3,7 @@ const errorHandler = (err, req, res, next) => {
   error.message = err.message;
 
   // Log error
-  console.error(err);
+  console.error('⚠️ Error:', err.name, err.code, err.message);
 
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
@@ -13,7 +13,9 @@ const errorHandler = (err, req, res, next) => {
 
   // Mongoose duplicate key
   if (err.code === 11000) {
-    const message = 'Duplicate field value entered';
+    // Extract the field that caused the duplicate error
+    const field = Object.keys(err.keyValue || {})[0] || 'field';
+    const message = `A record with this ${field} already exists`;
     error = { message, statusCode: 400 };
   }
 
@@ -26,7 +28,10 @@ const errorHandler = (err, req, res, next) => {
   res.status(error.statusCode || 500).json({
     success: false,
     message: error.message || 'Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    ...(process.env.NODE_ENV === 'development' && { 
+      stack: err.stack,
+      details: err.code === 11000 ? { duplicateField: Object.keys(err.keyValue || {})[0], value: Object.values(err.keyValue || {})[0] } : undefined
+    })
   });
 };
 

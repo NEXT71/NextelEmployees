@@ -6,11 +6,29 @@ const createSubmission = async (req, res, next) => {
   try {
     const { agent, agentName, agentPhone, customer, dids, closer, saleDate, submissionSource, googleFormResponseId } = req.body;
 
+    console.log('📥 Received submission request:', {
+      agent,
+      agentName,
+      customer,
+      dids,
+      closer,
+      saleDate,
+      submissionSource
+    });
+
     // Validate required fields
     if (!agent || !agentName || !customer || !dids || !closer) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: agent, agentName, customer, dids, closer'
+      });
+    }
+
+    // Validate customer object structure
+    if (!customer.firstName || !customer.lastName || !customer.phone || !customer.state || !customer.zipCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid customer data. Required: firstName, lastName, phone, state, zipCode'
       });
     }
 
@@ -27,7 +45,11 @@ const createSubmission = async (req, res, next) => {
       pricePerSale: 1000
     });
 
+    console.log('✅ Created submission object:', submission);
+
     await submission.save();
+
+    console.log('✅ Saved successfully:', submission._id);
 
     res.status(201).json({
       success: true,
@@ -35,6 +57,7 @@ const createSubmission = async (req, res, next) => {
       data: submission
     });
   } catch (error) {
+    console.error('❌ Error creating submission:', error.message);
     next(error);
   }
 };

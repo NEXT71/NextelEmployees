@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle, Send } from 'lucide-react';
+import { TrendingUp, Calendar, Target, Award, AlertCircle, MessageCircle, Send } from 'lucide-react';
 import { salesTargetAPI, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import CSRSalesSubmission from '../../components/employees/CSRSalesSubmission';
@@ -68,39 +68,7 @@ const CSRSalesDashboard = () => {
     }
   }, [user, loadMonthlyData]);
 
-  const getTierColor = (tier) => {
-    const colors = {
-      'Tier 1 (5-6 sales)': 'text-blue-400 bg-blue-900/30 border-blue-600/50',
-      'Tier 2 (7-9 sales)': 'text-green-400 bg-green-900/30 border-green-600/50',
-      'Tier 3 (10+ sales)': 'text-purple-400 bg-purple-900/30 border-purple-600/50',
-      'No Tier (Below 5 sales)': 'text-gray-400 bg-gray-900/30 border-gray-600/50'
-    };
-    return colors[tier] || colors['No Tier (Below 5 sales)'];
-  };
 
-  const TierProgressBar = ({ tier, minSales }) => {
-    if (!monthlyData) return null;
-    const total = monthlyData.totalDays;
-    const percentage = Math.min((monthlyData.daysPerTier[tier.toLowerCase()] / total) * 100, 100);
-    
-    return (
-      <div className="flex items-center gap-3">
-        <div className="flex-1">
-          <div className="bg-black/30 rounded-full h-2 overflow-hidden">
-            <div
-              className={`h-full transition-all duration-300 ${
-                tier === 'tier1' ? 'bg-blue-500' : tier === 'tier2' ? 'bg-green-500' : 'bg-purple-500'
-              }`}
-              style={{ width: `${percentage}%` }}
-            />
-          </div>
-        </div>
-        <span className="text-sm font-medium text-gray-300 min-w-fit">
-          {monthlyData.daysPerTier[tier.toLowerCase()] || 0} days
-        </span>
-      </div>
-    );
-  };
 
   const handleLogout = async () => {
     try {

@@ -1,5 +1,28 @@
 import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
+import mongoose from 'mongoose';
+
+// Helper: resolve employee._id from a user _id (for consistent agent storage)
+const resolveEmployeeId = async (userId) => {
+  if (!userId) return null;
+  try {
+    const emp = await Employee.findOne({ user: userId }).select('_id');
+    return emp ? emp._id : null;
+  } catch {
+    return null;
+  }
+};
+
+// Helper: get employee._id for the currently logged-in CSR
+const getMyEmployeeId = async (userId) => {
+  if (!userId) return null;
+  try {
+    const emp = await Employee.findOne({ user: userId }).select('_id');
+    return emp ? emp._id : null;
+  } catch {
+    return null;
+  }
+};
 
 // Create a new sales submission (from Google Form or manual)
 const createSubmission = async (req, res, next) => {
@@ -13,15 +36,20 @@ const createSubmission = async (req, res, next) => {
         : 'Unknown Agent';
     }
 
-    console.log('📥 Received submission request:', {
-      agent,
-      agentName,
-      customer,
-      dids,
-      closer,
-      saleDate,
-      submissionSource
-    });
+    // If agent is a user _id, resolve to employee _id for consistency
+    let resolvedAgent = null;
+    if (agent) {
+      // Try to resolve as employee directly first, then as user
+      if (mongoose.Types.ObjectId.isValid(agent)) {
+        const empDirect = await Employee.findById(agent).select('_id');
+        if (empDirect) {
+          resolvedAgent = empDirect._id;
+        } else {
+          // Try as user reference
+          resolvedAgent = await resolveEmployeeId(agent);
+        }
+      }
+    }
 
     // Validate required fields
     if (!agentName || !customer || !dids || !closer) {
@@ -41,22 +69,18 @@ const createSubmission = async (req, res, next) => {
 
     // Create submission with PENDING status
     const submission = new SalesTarget({
-      agent: agent || null,  // agent can be null if not provided
+      agent: resolvedAgent,  // always store employee _id (or null for Google Form without match)
       agentName,
       customer,
       dids,
       closer,
       saleDate: saleDate || new Date(),
-      status: 'pending',  // Start as pending
+      status: 'pending',
       baseSalary: 1000,
       pricePerSale: 1000
     });
 
-    console.log('✅ Created submission object:', submission);
-
     await submission.save();
-
-    console.log('✅ Saved successfully:', submission._id);
 
     res.status(201).json({
       success: true,
@@ -65,6 +89,80 @@ const createSubmission = async (req, res, next) => {
     });
   } catch (error) {
     console.error('❌ Error creating submission:', error.message);
+    next(error);
+  }
+};
+
+// Handle Google Form webhook submissions
+const handleGoogleFormWebhook = async (req, res, next) => {
+  try {
+    // Validate webhook secret
+    const webhookSecret = req.headers['x-webhook-secret'] || req.body.webhookSecret;
+    const expectedSecret = process.env.GOOGLE_FORM_WEBHOOK_SECRET;
+    if (expectedSecret && webhookSecret !== expectedSecret) {
+      return res.status(401).json({ success: false, message: 'Invalid webhook secret' });
+    }
+
+    // Map Google Form fields — the script sends pre-mapped data
+    const {
+      agentName,
+      customerFirstName,
+      customerLastName,
+      customerPhone,
+      customerState,
+      customerZipCode,
+      dids,
+      closer,
+      saleDate
+    } = req.body;
+
+    if (!agentName || !customerFirstName || !customerLastName || !customerPhone || !customerState || !customerZipCode || !dids || !closer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required Google Form fields'
+      });
+    }
+
+    // Try to match agent by name to an employee record
+    const nameParts = agentName.trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    let matchedEmployee = null;
+    if (firstName) {
+      matchedEmployee = await Employee.findOne({
+        firstName: { $regex: new RegExp(`^${firstName}$`, 'i') },
+        ...(lastName && { lastName: { $regex: new RegExp(`^${lastName}$`, 'i') } })
+      }).select('_id');
+    }
+
+    const submission = new SalesTarget({
+      agent: matchedEmployee ? matchedEmployee._id : null,
+      agentName: agentName.trim(),
+      customer: {
+        firstName: customerFirstName.trim(),
+        lastName: customerLastName.trim(),
+        phone: customerPhone.trim(),
+        state: customerState.trim(),
+        zipCode: customerZipCode.trim()
+      },
+      dids: dids.trim(),
+      closer: closer.trim(),
+      saleDate: saleDate ? new Date(saleDate) : new Date(),
+      status: 'pending',
+      baseSalary: 1000,
+      pricePerSale: 1000,
+      submissionSource: 'Google Form'
+    });
+
+    await submission.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Google Form submission received and queued for admin review',
+      submissionId: submission._id
+    });
+  } catch (error) {
+    console.error('❌ Google Form webhook error:', error.message);
     next(error);
   }
 };
@@ -492,24 +590,37 @@ const getAnalyticsSummary = async (req, res, next) => {
   }
 };
 
+// Helper: calculate daily tier bonus for a day's sale count
+const calcTierBonus = (count) => {
+  if (count >= 12) return 5000;
+  if (count >= 8) return 3000;
+  if (count >= 5) return 1000;
+  if (count >= 3) return 500;
+  return 0;
+};
+
+// Helper: get tier name from count
+const getTierNameFromCount = (count) => {
+  if (count >= 12) return 'tier4';
+  if (count >= 8) return 'tier3';
+  if (count >= 5) return 'tier2';
+  if (count >= 3) return 'tier1';
+  return 'noTier';
+};
+
 // Get CSR's own sales submissions (with all statuses)
 const getMySales = async (req, res, next) => {
   try {
-    const userId = req.user._id;
     const { startDate, endDate, status, page = 1, limit = 50 } = req.query;
 
-    // Build filters
-    const filter = { agent: userId };
-    
-    if (status && status !== 'all') {
-      filter.status = status;
-    }
+    // Resolve employee._id from logged-in user
+    const employeeId = await getMyEmployeeId(req.user._id);
+    const agentFilter = employeeId ? { agent: employeeId } : { agent: req.user._id };
 
+    const filter = { ...agentFilter };
+    if (status && status !== 'all') filter.status = status;
     if (startDate && endDate) {
-      filter.saleDate = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
+      filter.saleDate = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -518,6 +629,7 @@ const getMySales = async (req, res, next) => {
 
     const sales = await SalesTarget.find(filter)
       .populate('approvedBy', 'firstName lastName')
+      .populate('disapprovedBy', 'firstName lastName')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
@@ -527,12 +639,7 @@ const getMySales = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: sales,
-      pagination: {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        pages: Math.ceil(total / limitNum)
-      }
+      pagination: { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) }
     });
   } catch (error) {
     next(error);
@@ -542,7 +649,6 @@ const getMySales = async (req, res, next) => {
 // Get CSR's monthly earnings from sales submissions
 const getMyMonthlyEarnings = async (req, res, next) => {
   try {
-    const userId = req.user._id;
     const { month, year } = req.query;
 
     const monthNum = month ? parseInt(month) : new Date().getMonth() + 1;
@@ -551,40 +657,50 @@ const getMyMonthlyEarnings = async (req, res, next) => {
     const startDate = new Date(yearNum, monthNum - 1, 1);
     const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
-    // Get only APPROVED sales for this month
-    const approvedSales = await SalesTarget.find({
-      agent: userId,
-      status: 'approved',
-      saleDate: {
-        $gte: startDate,
-        $lte: endDate
-      }
-    }).populate('approvedBy', 'firstName lastName');
+    // Resolve to employee._id for consistent querying
+    const employeeId = await getMyEmployeeId(req.user._id);
+    const agentFilter = employeeId ? { agent: employeeId } : { agent: req.user._id };
 
-    // Get pending sales (for visibility)
-    const pendingSales = await SalesTarget.find({
-      agent: userId,
-      status: 'pending',
-      saleDate: {
-        $gte: startDate,
-        $lte: endDate
-      }
+    const [approvedSales, pendingSales, disapprovedSales] = await Promise.all([
+      SalesTarget.find({ ...agentFilter, status: 'approved', saleDate: { $gte: startDate, $lte: endDate } })
+        .populate('approvedBy', 'firstName lastName')
+        .sort({ saleDate: 1 }),
+      SalesTarget.find({ ...agentFilter, status: 'pending', saleDate: { $gte: startDate, $lte: endDate } })
+        .sort({ saleDate: -1 }),
+      SalesTarget.find({ ...agentFilter, status: 'disapproved', saleDate: { $gte: startDate, $lte: endDate } })
+        .populate('disapprovedBy', 'firstName lastName')
+        .sort({ saleDate: -1 })
+    ]);
+
+    // Calculate daily tier bonuses from approved sales
+    const salesByDay = {};
+    approvedSales.forEach(sale => {
+      const dayKey = new Date(sale.saleDate).toDateString();
+      salesByDay[dayKey] = (salesByDay[dayKey] || 0) + 1;
     });
 
-    // Get disapproved sales
-    const disapprovedSales = await SalesTarget.find({
-      agent: userId,
-      status: 'disapproved',
-      saleDate: {
-        $gte: startDate,
-        $lte: endDate
-      }
+    let totalTierBonus = 0;
+    const daysPerTier = { tier1: 0, tier2: 0, tier3: 0, tier4: 0, noTier: 0 };
+    Object.values(salesByDay).forEach(count => {
+      totalTierBonus += calcTierBonus(count);
+      const tierKey = getTierNameFromCount(count);
+      daysPerTier[tierKey]++;
     });
 
     const totalApproved = approvedSales.length;
-    const totalEarnings = totalApproved * 1000; // Each approved sale = 1000 RS
-    const totalPending = pendingSales.length;
-    const totalDisapproved = disapprovedSales.length;
+    const totalBaseSalary = totalApproved * 1000;
+    const totalEarnings = totalBaseSalary + totalTierBonus;
+    const totalDays = Object.keys(salesByDay).length;
+
+    // Build daily breakdown for the dashboard table
+    const dailyBreakdown = Object.entries(salesByDay).map(([date, count]) => ({
+      date,
+      sales: count,
+      tier: getTierNameFromCount(count),
+      baseSalary: count * 1000,
+      tierBonus: calcTierBonus(count),
+      totalEarning: count * 1000 + calcTierBonus(count)
+    }));
 
     res.status(200).json({
       success: true,
@@ -592,16 +708,20 @@ const getMyMonthlyEarnings = async (req, res, next) => {
       year: yearNum,
       data: {
         monthlyStats: {
-          totalApprovedSales: totalApproved,
-          totalPendingSales: totalPending,
-          totalDisapprovedSales: totalDisapproved,
+          month: new Date(yearNum, monthNum - 1).toLocaleDateString('default', { month: 'long', year: 'numeric' }),
+          totalDays,
+          totalSales: totalApproved,
+          totalBaseSalary,
+          totalTierBonus,
           totalEarnings,
-          pricePerSale: 1000,
-          approvalRate: totalApproved + totalDisapproved > 0 
-            ? Math.round((totalApproved / (totalApproved + totalDisapproved)) * 100)
-            : 0
+          totalPendingSales: pendingSales.length,
+          totalDisapprovedSales: disapprovedSales.length,
+          approvalRate: totalApproved + disapprovedSales.length > 0
+            ? Math.round((totalApproved / (totalApproved + disapprovedSales.length)) * 100)
+            : 0,
+          daysPerTier
         },
-        dailyBreakdown: approvedSales,
+        dailyBreakdown,
         pendingBreakdown: pendingSales,
         disapprovedBreakdown: disapprovedSales
       }
@@ -614,12 +734,14 @@ const getMyMonthlyEarnings = async (req, res, next) => {
 // Get CSR's 30-day sales summary
 const getMySalesSummary = async (req, res, next) => {
   try {
-    const userId = req.user._id;
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    const employeeId = await getMyEmployeeId(req.user._id);
+    const agentFilter = employeeId ? { agent: employeeId } : { agent: req.user._id };
+
     const approvedSales = await SalesTarget.find({
-      agent: userId,
+      ...agentFilter,
       status: 'approved',
       saleDate: { $gte: thirtyDaysAgo }
     });
@@ -632,7 +754,7 @@ const getMySalesSummary = async (req, res, next) => {
       data: {
         totalApprovedSales: approvedSales.length,
         totalEarnings,
-        averagePerDay: approvedSales.length > 0 ? (totalEarnings / 30).toFixed(0) : 0,
+        averagePerDay: approvedSales.length > 0 ? Math.round(totalEarnings / 30) : 0,
         sales: approvedSales
       }
     });
@@ -643,6 +765,7 @@ const getMySalesSummary = async (req, res, next) => {
 
 export {
   createSubmission,
+  handleGoogleFormWebhook,
   getSubmissions,
   getSubmissionById,
   approveSubmission,

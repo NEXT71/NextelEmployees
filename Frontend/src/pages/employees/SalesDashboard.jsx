@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Calendar, Target, Award, AlertCircle, MessageCircle, Send } from 'lucide-react';
+import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle, Send, ClipboardList, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
 import { salesTargetAPI, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import CSRSalesSubmission from '../../components/employees/CSRSalesSubmission';
@@ -13,9 +13,12 @@ const CSRSalesDashboard = () => {
   const { user } = useAuth();
   const [activeMonth, setActiveMonth] = useState(new Date().getMonth() + 1);
   const [activeYear, setActiveYear] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'submit'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'submit' | 'submissions'
   const [monthlyData, setMonthlyData] = useState(null);
   const [dailyRecords, setDailyRecords] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [submissionStatusFilter, setSubmissionStatusFilter] = useState('all');
   const [error, setError] = useState('');
   const [showMessageCenter, setShowMessageCenter] = useState(false);
 
@@ -23,44 +26,35 @@ const CSRSalesDashboard = () => {
     try {
       setError('');
 
-      // Get monthly stats
-      const earningsResponse = await salesTargetAPI.getCsrMonthlyEarnings({
+      const response = await salesTargetAPI.getCsrMonthlyEarnings({
         year: activeYear,
         month: activeMonth
       });
 
-      console.log('📊 Monthly earnings response:', earningsResponse);
-
-      // Get individual sales records for the month
-      const startDate = new Date(activeYear, activeMonth - 1, 1);
-      const endDate = new Date(activeYear, activeMonth, 0);
-      
-      const salesResponse = await salesTargetAPI.getCsrDailySalesReport({
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString()
-      });
-
-      console.log('📊 Daily sales response:', salesResponse);
-
-      if (earningsResponse && earningsResponse.data) {
-        const monthlyStats = earningsResponse.data.monthlyStats || earningsResponse.data;
-        const dailyRecords = salesResponse?.data || [];
-        
-        setMonthlyData(monthlyStats);
-        setDailyRecords(dailyRecords);
-        
-        console.log('✅ Loaded all sales data:', {
-          monthlyStats,
-          dailyCount: dailyRecords.length
-        });
-      } else {
-        throw new Error('No data received from server');
+      if (response.data) {
+        setMonthlyData(response.data.monthlyStats);
+        setDailyRecords(response.data.dailyBreakdown || []);
       }
     } catch (err) {
-      console.error('❌ Error loading sales:', err);
       setError(err.message || 'Failed to load sales data');
     }
   }, [activeYear, activeMonth]);
+
+  const loadSubmissions = useCallback(async () => {
+    try {
+      setSubmissionsLoading(true);
+      const params = {};
+      if (submissionStatusFilter !== 'all') params.status = submissionStatusFilter;
+      const response = await salesTargetAPI.getMySubmissions(params);
+      if (response?.data) {
+        setSubmissions(response.data);
+      }
+    } catch (err) {
+      // silently fail - submissions tab will show empty state
+    } finally {
+      setSubmissionsLoading(false);
+    }
+  }, [submissionStatusFilter]);
 
   useEffect(() => {
     if (user) {
@@ -68,7 +62,45 @@ const CSRSalesDashboard = () => {
     }
   }, [user, loadMonthlyData]);
 
+  useEffect(() => {
+    if (user && activeTab === 'submissions') {
+      loadSubmissions();
+    }
+  }, [user, activeTab, loadSubmissions]);
 
+  const getTierColor = (tier) => {
+    const colors = {
+      'Tier 1 (5-6 sales)': 'text-blue-400 bg-blue-900/30 border-blue-600/50',
+      'Tier 2 (7-9 sales)': 'text-green-400 bg-green-900/30 border-green-600/50',
+      'Tier 3 (10+ sales)': 'text-purple-400 bg-purple-900/30 border-purple-600/50',
+      'No Tier (Below 5 sales)': 'text-gray-400 bg-gray-900/30 border-gray-600/50'
+    };
+    return colors[tier] || colors['No Tier (Below 5 sales)'];
+  };
+
+  const TierProgressBar = ({ tier, minSales }) => {
+    if (!monthlyData) return null;
+    const total = monthlyData.totalDays;
+    const percentage = Math.min((monthlyData.daysPerTier[tier.toLowerCase()] / total) * 100, 100);
+    
+    return (
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <div className="bg-black/30 rounded-full h-2 overflow-hidden">
+            <div
+              className={`h-full transition-all duration-300 ${
+                tier === 'tier1' ? 'bg-blue-500' : tier === 'tier2' ? 'bg-green-500' : 'bg-purple-500'
+              }`}
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+        </div>
+        <span className="text-sm font-medium text-gray-300 min-w-fit">
+          {monthlyData.daysPerTier[tier.toLowerCase()] || 0} days
+        </span>
+      </div>
+    );
+  };
 
   const handleLogout = async () => {
     try {
@@ -98,7 +130,7 @@ const CSRSalesDashboard = () => {
 
             {/* Tab Navigation */}
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 relative z-10">
-        <div className="flex gap-2 mb-6 bg-blue-900/40 backdrop-blur-md border border-blue-600/30 rounded-lg p-1 w-fit">
+        <div className="flex gap-2 mb-6 bg-blue-900/40 backdrop-blur-md border border-blue-600/30 rounded-lg p-1 w-fit flex-wrap">
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
@@ -121,12 +153,172 @@ const CSRSalesDashboard = () => {
             <Send size={20} />
             Submit Sale
           </button>
+          <button
+            onClick={() => setActiveTab('submissions')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
+              activeTab === 'submissions'
+                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
+                : 'text-gray-300 hover:text-white'
+            }`}
+          >
+            <ClipboardList size={20} />
+            My Submissions
+            {monthlyData?.totalPendingSales > 0 && (
+              <span className="bg-amber-500 text-black text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                {monthlyData.totalPendingSales}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
       {/* Content */}
       {activeTab === 'submit' ? (
         <CSRSalesSubmission />
+      ) : activeTab === 'submissions' ? (
+        /* My Submissions Tab */
+        <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
+          <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-xl overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-blue-600/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-blue-400" />
+                My Sale Submissions
+              </h2>
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Status filter */}
+                <div className="flex gap-1 bg-black/30 rounded-lg p-1">
+                  {['all', 'pending', 'approved', 'disapproved'].map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setSubmissionStatusFilter(s)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-all ${
+                        submissionStatusFilter === s
+                          ? s === 'approved' ? 'bg-green-600 text-white'
+                            : s === 'disapproved' ? 'bg-red-600 text-white'
+                            : s === 'pending' ? 'bg-amber-600 text-white'
+                            : 'bg-blue-600 text-white'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={loadSubmissions}
+                  disabled={submissionsLoading}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-700/50 hover:bg-blue-700 text-white rounded-lg text-sm transition-all"
+                >
+                  <RefreshCw size={14} className={submissionsLoading ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* Summary badges */}
+            {monthlyData && (
+              <div className="px-6 py-4 border-b border-blue-600/20 flex gap-4 flex-wrap">
+                <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-600/30 rounded-lg px-3 py-1.5">
+                  <Clock size={14} className="text-amber-400" />
+                  <span className="text-amber-200 text-sm font-medium">{monthlyData.totalPendingSales} Pending</span>
+                </div>
+                <div className="flex items-center gap-2 bg-green-900/30 border border-green-600/30 rounded-lg px-3 py-1.5">
+                  <CheckCircle size={14} className="text-green-400" />
+                  <span className="text-green-200 text-sm font-medium">{monthlyData.totalSales} Approved</span>
+                </div>
+                <div className="flex items-center gap-2 bg-red-900/30 border border-red-600/30 rounded-lg px-3 py-1.5">
+                  <XCircle size={14} className="text-red-400" />
+                  <span className="text-red-200 text-sm font-medium">{monthlyData.totalDisapprovedSales} Rejected</span>
+                </div>
+              </div>
+            )}
+
+            {/* Table */}
+            {submissionsLoading ? (
+              <div className="p-12 flex flex-col items-center gap-3 text-gray-400">
+                <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
+                <p>Loading submissions...</p>
+              </div>
+            ) : submissions.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-blue-600/30 text-xs font-semibold text-gray-300 uppercase tracking-wider bg-black/20">
+                      <th className="px-4 py-3 text-left">Date</th>
+                      <th className="px-4 py-3 text-left">Customer</th>
+                      <th className="px-4 py-3 text-left">DIDs</th>
+                      <th className="px-4 py-3 text-left">Closer</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-left">Note</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-blue-600/20">
+                    {submissions.map((sub) => (
+                      <tr key={sub._id} className="hover:bg-blue-800/20 transition-colors">
+                        <td className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">
+                          {new Date(sub.saleDate).toLocaleDateString('en-GB')}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-white">
+                          {sub.customer?.firstName} {sub.customer?.lastName}
+                          <div className="text-xs text-gray-400">{sub.customer?.phone}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-300">{sub.dids}</td>
+                        <td className="px-4 py-3 text-sm text-gray-300">{sub.closer}</td>
+                        <td className="px-4 py-3 text-center">
+                          {sub.status === 'approved' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-900/40 text-green-300 border border-green-600/40">
+                              <CheckCircle size={11} /> Approved
+                            </span>
+                          )}
+                          {sub.status === 'pending' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-900/40 text-amber-300 border border-amber-600/40">
+                              <Clock size={11} /> Pending
+                            </span>
+                          )}
+                          {sub.status === 'disapproved' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-900/40 text-red-300 border border-red-600/40">
+                              <XCircle size={11} /> Rejected
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {sub.status === 'approved' && (
+                            <span className="text-green-400 text-xs">
+                              RS 1,000 earned
+                            </span>
+                          )}
+                          {sub.status === 'disapproved' && sub.rejectionReason && (
+                            <span className="text-red-300 text-xs italic">{sub.rejectionReason}</span>
+                          )}
+                          {sub.status === 'pending' && (
+                            <span className="text-gray-400 text-xs">Awaiting review</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-12 flex flex-col items-center gap-3 text-gray-400">
+                <ClipboardList className="w-10 h-10 opacity-40" />
+                <p className="font-medium">No submissions found</p>
+                <p className="text-sm text-gray-500">
+                  {submissionStatusFilter !== 'all'
+                    ? `No ${submissionStatusFilter} submissions`
+                    : 'Submit a sale to see it here'}
+                </p>
+                <button
+                  onClick={() => setActiveTab('submit')}
+                  className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all"
+                >
+                  Submit a Sale
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       ) : (
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">
         <div className="space-y-6">
@@ -170,78 +362,92 @@ const CSRSalesDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard
               icon={<TrendingUp className="w-5 h-5" />}
-              title="Approved Sales"
-              value={monthlyData?.totalApprovedSales || 0}
+              title="Total Sales"
+              value={monthlyData.totalSales}
               subtitle="This month"
-              trend={monthlyData?.totalApprovedSales > 0 ? 'up' : 'stable'}
+              trend={monthlyData.totalSales > 30 ? 'up' : 'stable'}
             />
             <StatsCard
-              icon={<AlertCircle className="w-5 h-5" />}
-              title="Pending Review"
-              value={monthlyData?.totalPendingSales || 0}
-              subtitle="Awaiting approval"
-              trend="stable"
+              icon={<DollarSign className="w-5 h-5" />}
+              title="Base Salary"
+              value={`RS ${(monthlyData.totalBaseSalary / 1000).toFixed(1)}K`}
+              subtitle={`${monthlyData.totalDays} days worked`}
+              trend="up"
             />
             <StatsCard
               icon={<Award className="w-5 h-5" />}
-              title="Approval Rate"
-              value={`${monthlyData?.approvalRate || 0}%`}
-              subtitle="Of submitted sales"
-              trend={monthlyData?.approvalRate > 80 ? 'up' : 'stable'}
+              title="Tier Bonus"
+              value={`RS ${(monthlyData.totalTierBonus / 1000).toFixed(1)}K`}
+              subtitle="Performance bonus"
+              trend={monthlyData.totalTierBonus > 0 ? 'up' : 'stable'}
             />
             <StatsCard
               icon={<Target className="w-5 h-5" />}
               title="Total Earnings"
-              value={`RS ${((monthlyData?.totalEarnings || 0) / 1000).toFixed(1)}K`}
-              subtitle="From approved sales"
-              trend={monthlyData?.totalEarnings > 0 ? 'up' : 'stable'}
+              value={`RS ${(monthlyData.totalEarnings / 1000).toFixed(1)}K`}
+              subtitle="Base + Bonus"
+              trend="up"
             />
           </div>
 
-          {/* Sales Status Breakdown */}
+          {/* Tier Breakdown */}
           <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-xl p-6">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <Award className="w-5 h-5 text-amber-400" />
-              Sales Summary
+              Tier Performance
             </h3>
 
             <div className="space-y-4">
-              {/* Approved */}
+              {/* Tier 1 */}
+              <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-600/30">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="text-blue-200 font-medium">Tier 1</h4>
+                    <p className="text-xs text-gray-400">5-6 sales (Base rate)</p>
+                  </div>
+                  <span className="text-2xl font-bold text-blue-400">{monthlyData.daysPerTier.tier1}</span>
+                </div>
+                <TierProgressBar tier="tier1" minSales={5} />
+              </div>
+
+              {/* Tier 2 */}
               <div className="bg-green-900/20 rounded-lg p-4 border border-green-600/30">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <h4 className="text-green-200 font-medium">✅ Approved</h4>
-                    <p className="text-xs text-gray-400">Approved by admin</p>
+                    <h4 className="text-green-200 font-medium">Tier 2</h4>
+                    <p className="text-xs text-gray-400">7-9 sales (+20% bonus)</p>
                   </div>
-                  <span className="text-2xl font-bold text-green-400">{monthlyData?.totalApprovedSales || 0}</span>
+                  <span className="text-2xl font-bold text-green-400">{monthlyData.daysPerTier.tier2}</span>
                 </div>
-                <div className="bg-green-900/30 rounded-full h-2 w-full"></div>
+                <TierProgressBar tier="tier2" minSales={7} />
               </div>
 
-              {/* Pending */}
-              <div className="bg-yellow-900/20 rounded-lg p-4 border border-yellow-600/30">
+              {/* Tier 3 */}
+              <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-600/30">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <h4 className="text-yellow-200 font-medium">⏳ Pending</h4>
-                    <p className="text-xs text-gray-400">Awaiting admin review</p>
+                    <h4 className="text-purple-200 font-medium">Tier 3</h4>
+                    <p className="text-xs text-gray-400">10+ sales (+50% bonus)</p>
                   </div>
-                  <span className="text-2xl font-bold text-yellow-400">{monthlyData?.totalPendingSales || 0}</span>
+                  <span className="text-2xl font-bold text-purple-400">{monthlyData.daysPerTier.tier3}</span>
                 </div>
-                <div className="bg-yellow-900/30 rounded-full h-2 w-full"></div>
-              </div>
-
-              {/* Disapproved */}
-              <div className="bg-red-900/20 rounded-lg p-4 border border-red-600/30">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="text-red-200 font-medium">❌ Disapproved</h4>
-                    <p className="text-xs text-gray-400">Rejected by admin</p>
-                  </div>
-                  <span className="text-2xl font-bold text-red-400">{monthlyData?.totalDisapprovedSales || 0}</span>
-                </div>
-                <div className="bg-red-900/30 rounded-full h-2 w-full"></div>
+                <TierProgressBar tier="tier3" minSales={10} />
               </div>
             </div>
+
+            {/* Best Day */}
+            {monthlyData.bestDay && (
+              <div className="mt-4 pt-4 border-t border-blue-600/30">
+                <p className="text-xs text-gray-400 mb-2">Best Day</p>
+                <div className="flex items-center justify-between bg-green-900/30 rounded p-3 border border-green-600/40">
+                  <span className="text-green-200">{new Date(monthlyData.bestDay.date).toLocaleDateString('en-GB')}</span>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-green-400">{monthlyData.bestDay.sales} sales</p>
+                    <p className="text-xs text-green-300">RS {monthlyData.bestDay.earning.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Daily Records */}
@@ -259,58 +465,42 @@ const CSRSalesDashboard = () => {
                   <thead>
                     <tr className="border-b border-blue-600/30 text-xs font-semibold text-gray-300 uppercase tracking-wider bg-black/20">
                       <th className="px-6 py-3 text-left">Date</th>
-                      <th className="px-6 py-3 text-left">Customer</th>
-                      <th className="px-6 py-3 text-center">Status</th>
-                      <th className="px-6 py-3 text-right">DIDs</th>
-                      <th className="px-6 py-3 text-right">Amount</th>
-                      <th className="px-6 py-3 text-right">Earned</th>
+                      <th className="px-6 py-3 text-center">Sales</th>
+                      <th className="px-6 py-3 text-right">Base</th>
+                      <th className="px-6 py-3 text-right">Bonus</th>
+                      <th className="px-6 py-3 text-right">Total</th>
+                      <th className="px-6 py-3 text-center">Tier</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-blue-600/20">
-                    {dailyRecords.map((record, idx) => {
-                      const isApproved = record.status === 'approved';
-                      const earned = isApproved ? 1000 : 0;
-                      const statusColors = {
-                        approved: 'bg-green-900/40 text-green-300 border-green-600/40',
-                        pending: 'bg-yellow-900/40 text-yellow-300 border-yellow-600/40',
-                        disapproved: 'bg-red-900/40 text-red-300 border-red-600/40'
-                      };
-                      
-                      const customerName = record.customer 
-                        ? `${record.customer.firstName} ${record.customer.lastName}`.trim()
-                        : 'N/A';
-                      
-                      return (
-                        <tr key={idx} className="hover:bg-blue-800/20 transition-colors">
-                          <td className="px-6 py-4 text-sm text-gray-300">
-                            {new Date(record.saleDate).toLocaleDateString('en-GB')}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-300">
-                            {customerName}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-center">
-                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${statusColors[record.status] || 'bg-gray-900/40 text-gray-300 border-gray-600/40'}`}>
-                              {record.status === 'approved' && '✅ Approved'}
-                              {record.status === 'pending' && '⏳ Pending'}
-                              {record.status === 'disapproved' && '❌ Disapproved'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-right text-gray-300">
-                            {(record.dids && record.dids.length) ? record.dids.split(',').length : 0}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-right font-semibold text-amber-400">
-                            RS {(record.pricePerSale || record.baseSalary || 0).toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-right font-semibold">
-                            {isApproved ? (
-                              <span className="text-green-400">+ RS {earned.toLocaleString()}</span>
-                            ) : (
-                              <span className="text-gray-500">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {dailyRecords.map((record, idx) => (
+                      <tr key={idx} className="hover:bg-blue-800/20 transition-colors">
+                        <td className="px-6 py-4 text-sm text-gray-300">
+                          {new Date(record.date).toLocaleDateString('en-GB')}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-center font-semibold text-amber-400">
+                          {record.sales}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-right text-gray-300">
+                          RS {record.baseSalary.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-right">
+                          {record.tierBonus > 0 ? (
+                            <span className="text-green-400 font-medium">+ RS {record.tierBonus.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-right font-semibold text-green-400">
+                          RS {record.totalEarning.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-center">
+                          <span className={`inline-block px-2 py-1 rounded text-xs font-medium border ${getTierColor(record.tier)}`}>
+                            {record.tier}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

@@ -2,6 +2,7 @@ import express from 'express';
 const router = express.Router();
 import {
   createSubmission,
+  handleGoogleFormWebhook,
   getSubmissions,
   getSubmissionById,
   approveSubmission,
@@ -115,8 +116,11 @@ router.get('/debug/all-records', async (req, res) => {
   }
 });
 
-// Public endpoint - Google Form webhook
+// Public endpoint - CSR portal form submission
 router.post('/create', createSubmission);
+
+// Google Form webhook (dedicated endpoint with optional secret key validation)
+router.post('/google-form-webhook', handleGoogleFormWebhook);
 
 // Analytics endpoints (admin only)
 router.get('/analytics/summary', auth, admin, getAnalyticsSummary);

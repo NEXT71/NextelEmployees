@@ -2,6 +2,16 @@ import Salary from '../models/Salary.js';
 import Employee from '../models/Employee.js';
 import Fine from '../models/Fine.js';
 import Attendance from '../models/Attendance.js';
+import SalesTarget from '../models/SalesTarget.js';
+
+// Helper: calculate daily tier bonus from sales count
+const calcDailyTierBonus = (count) => {
+  if (count >= 12) return 5000;
+  if (count >= 8) return 3000;
+  if (count >= 5) return 1000;
+  if (count >= 3) return 500;
+  return 0;
+};
 
 /**
  * Generate Monthly Salary
@@ -69,8 +79,31 @@ export const generateMonthlySalary = async (req, res, next) => {
     // Calculate total deductions
     const totalDeductions = totalFines + leaveDeduction;
 
+    // --- Sales earnings from approved SalesTarget submissions ---
+    const approvedSales = await SalesTarget.find({
+      agent: employeeId,
+      status: 'approved',
+      saleDate: { $gte: monthStart, $lte: monthEnd }
+    }).select('saleDate pricePerSale');
+
+    // Group by day to calculate tier bonuses
+    const salesByDay = {};
+    approvedSales.forEach(sale => {
+      const dayKey = new Date(sale.saleDate).toDateString();
+      salesByDay[dayKey] = (salesByDay[dayKey] || 0) + 1;
+    });
+
+    let totalTierBonus = 0;
+    Object.values(salesByDay).forEach(count => {
+      totalTierBonus += calcDailyTierBonus(count);
+    });
+
+    const totalSalesBase = approvedSales.length * 1000; // RS 1000 per approved sale
+    const totalSalesEarnings = totalSalesBase + totalTierBonus;
+    // --- End sales earnings ---
+
     // Create notes breakdown
-    const notes = `Fines: ${totalFines} | Unpaid Leaves: ${leaveDeduction.toFixed(2)} (${absentDays} absent days)`;
+    const notes = `Base Salary: ${baseSalary} | Fines: ${totalFines} | Unpaid Leaves: ${leaveDeduction.toFixed(2)} (${absentDays} absent days) | Sales Earnings: ${totalSalesBase} (${approvedSales.length} approved sales) | Tier Bonus: ${totalTierBonus}`;
 
     // Check if salary record already exists for this month
     const existingSalary = await Salary.findOne({
@@ -91,7 +124,7 @@ export const generateMonthlySalary = async (req, res, next) => {
       employee: employeeId,
       month: monthStart,
       baseSalary,
-      bonuses: 0, // Default bonuses to 0, can be updated separately
+      bonuses: totalSalesEarnings, // approved sales base + tier bonus
       deductions: totalDeductions,
       notes
     });
@@ -106,11 +139,15 @@ export const generateMonthlySalary = async (req, res, next) => {
         ...salary.toObject(),
         breakdown: {
           baseSalary,
+          salesBase: totalSalesBase,
+          salesTierBonus: totalTierBonus,
+          totalSalesEarnings,
+          approvedSalesCount: approvedSales.length,
           fines: totalFines,
           leaveDeduction,
           absentDays,
           totalDeductions,
-          netPay: baseSalary + (salary.bonuses || 0) - totalDeductions
+          netPay: baseSalary + totalSalesEarnings - totalDeductions
         }
       }
     });

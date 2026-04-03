@@ -508,6 +508,12 @@ export const salesTargetAPI = {
     return apiRequest(`/sales-submissions/my/summary${queryString ? `?${queryString}` : ''}`);
   },
 
+  // Get CSR's own submissions with status filter
+  getMySubmissions: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/sales-submissions/my/sales${queryString ? `?${queryString}` : ''}`);
+  },
+
   // Get all CSR sales (Admin)
   getAllCsrSales: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
@@ -520,7 +526,7 @@ export const salesTargetAPI = {
       method: 'DELETE',
     }),
 
-  // Submit sales form (CSR - for Google Form equivalent)
+  // Submit sales form (CSR - for in-app form)
   submitSalesForm: (formData) =>
     apiRequest('/sales-submissions/create', {
       method: 'POST',

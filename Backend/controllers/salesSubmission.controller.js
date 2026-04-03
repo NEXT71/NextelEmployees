@@ -371,17 +371,24 @@ const getAnalytics = async (req, res, next) => {
     // Build date filter
     let dateFilter = {};
     if (startDate && endDate) {
+      // Parse dates properly (YYYY-MM-DD format from frontend)
+      const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+      const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+      
+      const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0);
+      const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59);
+      
       dateFilter = {
         saleDate: {
-          $gte: new Date(startDate),
-          $lte: new Date(endDate)
+          $gte: start,
+          $lte: end
         }
       };
     } else if (month && year) {
       const monthNum = parseInt(month) - 1;
       const yearNum = parseInt(year);
       const start = new Date(yearNum, monthNum, 1);
-      const end = new Date(yearNum, monthNum + 1, 0);
+      const end = new Date(yearNum, monthNum + 1, 0, 23, 59, 59);
       dateFilter = {
         saleDate: {
           $gte: start,
@@ -398,6 +405,11 @@ const getAnalytics = async (req, res, next) => {
       .populate('agent', 'firstName lastName employeeId phone')
       .populate('approvedBy', 'firstName lastName')
       .sort({ saleDate: -1 });
+
+    console.log('📊 Analytics Query:', {
+      filter: { status: 'approved', ...dateFilter },
+      foundCount: approvedSales.length
+    });
 
     if (approvedSales.length === 0) {
       return res.status(200).json({

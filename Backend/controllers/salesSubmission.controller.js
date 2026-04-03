@@ -374,83 +374,31 @@ const getPendingCount = async (req, res, next) => {
 const getAnalytics = async (req, res, next) => {
   try {
     const { startDate, endDate, month, year } = req.query;
+
+    console.log('📊 Analytics request received with query:', { startDate, endDate, month, year });
     
-    // Build date filter
-    let dateFilter = {};
-    if (startDate && endDate) {
-      // Parse dates properly (YYYY-MM-DD format from frontend)
-      const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
-      const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
-      
-      const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0);
-      const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59);
-      
-      dateFilter = {
-        saleDate: {
-          $gte: start,
-          $lte: end
-        }
-      };
-    } else if (month && year) {
-      const monthNum = parseInt(month) - 1;
-      const yearNum = parseInt(year);
-      const start = new Date(yearNum, monthNum, 1);
-      const end = new Date(yearNum, monthNum + 1, 0, 23, 59, 59);
-      dateFilter = {
-        saleDate: {
-          $gte: start,
-          $lte: end
-        }
-      };
-    }
-
-    // Get ALL approved sales first to debug
+    // Query ALL approved sales first (no date filter) to see what we have
     const allApprovedSales = await SalesTarget.find({ status: 'approved' })
-      .select('saleDate agentName createdAt updatedAt')
-      .sort({ saleDate: -1 })
-      .limit(10);
-
-    console.log('🔍 All approved sales in DB:', allApprovedSales.map(s => ({
-      agentName: s.agentName,
-      saleDate: s.saleDate,
-      createdAt: s.createdAt
-    })));
-
-    // Now apply date filter
-    const approvedSales = await SalesTarget.find({
-      status: 'approved',
-      ...dateFilter
-    })
       .populate('agent', 'firstName lastName employeeId phone')
       .populate('approvedBy', 'firstName lastName')
       .sort({ saleDate: -1 });
 
-    console.log('📊 Analytics Query:', {
-      filter: { status: 'approved', ...dateFilter },
-      foundCount: approvedSales.length,
-      salesDetails: approvedSales.slice(0, 3).map(s => ({
-        id: s._id,
-        agentName: s.agentName,
-        saleDate: s.saleDate,
-        status: s.status
-      }))
-    });
+    console.log('🔍 Total approved sales in DB:', allApprovedSales.length);
+    console.log('📋 Sales details:', allApprovedSales.map(s => ({
+      id: s._id,
+      agentName: s.agentName,
+      saleDate: s.saleDate,
+      approvedAt: s.approvedAt,
+      status: s.status
+    })));
 
-    if (approvedSales.length === 0) {
-      // Still show stats structure even with 0 sales
-      return res.status(200).json({
-        success: true,
-        data: [],
-        byAgent: [],
-        stats: {
-          totalSales: 0,
-          totalCSRs: 0,
-          averageSalesPerCSR: 0,
-          totalEarnings: 0,
-          topPerformer: null
-        }
-      });
-    }
+    // Use all approved sales (no date filtering for now, to test)
+    const approvedSales = allApprovedSales;
+
+    console.log('📊 Analytics Query:', {
+      totalFound: approvedSales.length,
+      salesCount: approvedSales.length > 0 ? 'Has data ✓' : 'No data ✗'
+    });
 
     // Group by agent and calculate statistics
     const byAgent = {};

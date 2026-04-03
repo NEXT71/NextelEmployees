@@ -516,7 +516,7 @@ export const salesTargetAPI = {
 
   // Submit sales form (CSR - for Google Form equivalent)
   submitSalesForm: (formData) =>
-    apiRequest('/sales-targets/create', {
+    apiRequest('/sales-submissions/create', {
       method: 'POST',
       body: JSON.stringify(formData),
     }),

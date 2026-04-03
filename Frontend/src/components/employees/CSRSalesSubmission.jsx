@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const CSRSalesSubmission = ({ onBack }) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
+    csrName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
     firstName: '',
     lastName: '',
     phone: '',
@@ -31,15 +32,16 @@ const CSRSalesSubmission = ({ onBack }) => {
   };
 
   const validateForm = () => {
-    const { firstName, lastName, phone, state, zipCode, dids, closer } = formData;
+    const { csrName, firstName, lastName, phone, state, zipCode, dids, closer } = formData;
     
+    if (!csrName?.trim()) return 'CSR name is required';
     if (!firstName?.trim()) return 'Customer first name is required';
     if (!lastName?.trim()) return 'Customer last name is required';
     if (!phone?.trim()) return 'Customer phone is required';
     if (!state?.trim()) return 'Customer state is required';
     if (!zipCode?.trim()) return 'ZIP code is required';
     if (!dids?.trim()) return 'DIDs is required';
-    if (!closer?.trim()) return 'Closer name is required';
+    if (!closer?.trim()) return 'Closer verified name is required';
     
     // Phone validation - basic check
     if (!/^[0-9+\-\s()]{7,}$/.test(phone)) {
@@ -65,7 +67,7 @@ const CSRSalesSubmission = ({ onBack }) => {
       
       const payload = {
         agent: user._id,
-        agentName: `${user.firstName} ${user.lastName}`,
+        agentName: formData.csrName.trim(),
         agentPhone: user.phone || 'N/A',
         customer: {
           firstName: formData.firstName.trim(),
@@ -106,6 +108,7 @@ const CSRSalesSubmission = ({ onBack }) => {
         setSuccess(`✅ Sales submission successful! Your record is pending admin approval.`);
         // Reset form
         setFormData({
+          csrName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
           firstName: '',
           lastName: '',
           phone: '',
@@ -277,6 +280,22 @@ const CSRSalesSubmission = ({ onBack }) => {
             <h2 className="text-lg font-semibold text-cyan-400 mb-4">Sale Details</h2>
             
             <div className="space-y-4">
+              {/* CSR Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  CSR Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="csrName"
+                  value={formData.csrName}
+                  onChange={handlechange}
+                  placeholder="Your full name"
+                  className="w-full px-4 py-2.5 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
+                />
+                <p className="text-xs text-gray-400 mt-1">Auto-filled from your profile — edit if needed</p>
+              </div>
+
               {/* DIDs */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -296,14 +315,14 @@ const CSRSalesSubmission = ({ onBack }) => {
               {/* Closer */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Who closed this sale? <span className="text-red-500">*</span>
+                  Closer Verified Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   name="closer"
                   value={formData.closer}
                   onChange={handlechange}
-                  placeholder="Your name or team member name"
+                  placeholder="Name of the verified closer"
                   className="w-full px-4 py-2.5 rounded-lg bg-slate-700/50 border border-slate-600 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
                 />
               </div>
@@ -325,11 +344,7 @@ const CSRSalesSubmission = ({ onBack }) => {
             </div>
           </div>
 
-          {/* Agent Info (Auto-filled) */}
-          <div className="bg-slate-800/30 border border-slate-700 rounded-lg p-4 backdrop-blur">
-            <p className="text-xs text-gray-400 mb-2">Submitting as:</p>
-            <p className="text-white font-semibold">{user?.firstName} {user?.lastName}</p>
-          </div>
+
 
           {/* Preview Section */}
           {showPreview && (
@@ -352,8 +367,12 @@ const CSRSalesSubmission = ({ onBack }) => {
                   <p className="text-gray-400">DIDs</p>
                   <p className="text-white font-semibold">{formData.dids}</p>
                 </div>
-                <div className="col-span-2">
-                  <p className="text-gray-400">Closed By</p>
+                <div>
+                  <p className="text-gray-400">CSR Name</p>
+                  <p className="text-white font-semibold">{formData.csrName}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Closer Verified Name</p>
                   <p className="text-white font-semibold">{formData.closer}</p>
                 </div>
               </div>

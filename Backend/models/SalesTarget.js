@@ -5,7 +5,8 @@ const salesTargetSchema = new mongoose.Schema({
   agent: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Employee',
-    required: true
+    required: false,
+    default: null
   },
   agentName: {
     type: String,

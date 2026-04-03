@@ -4,7 +4,14 @@ import Employee from '../models/Employee.js';
 // Create a new sales submission (from Google Form or manual)
 const createSubmission = async (req, res, next) => {
   try {
-    const { agent, agentName, agentPhone, customer, dids, closer, saleDate, submissionSource, googleFormResponseId } = req.body;
+    let { agent, agentName, agentPhone, customer, dids, closer, saleDate, submissionSource, googleFormResponseId } = req.body;
+
+    // Fallback: If agentName is undefined/empty, use customer name
+    if (!agentName || agentName === 'undefined' || agentName === 'undefined undefined') {
+      agentName = customer && customer.firstName 
+        ? `${customer.firstName} ${customer.lastName}`.trim()
+        : 'Unknown Agent';
+    }
 
     console.log('📥 Received submission request:', {
       agent,
@@ -17,10 +24,10 @@ const createSubmission = async (req, res, next) => {
     });
 
     // Validate required fields
-    if (!agent || !agentName || !customer || !dids || !closer) {
+    if (!agentName || !customer || !dids || !closer) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: agent, agentName, customer, dids, closer'
+        message: 'Missing required fields: agentName, customer, dids, closer'
       });
     }
 
@@ -34,7 +41,7 @@ const createSubmission = async (req, res, next) => {
 
     // Create submission with PENDING status
     const submission = new SalesTarget({
-      agent,
+      agent: agent || null,  // agent can be null if not provided
       agentName,
       customer,
       dids,
@@ -397,7 +404,19 @@ const getAnalytics = async (req, res, next) => {
       };
     }
 
-    // Get approved sales only
+    // Get ALL approved sales first to debug
+    const allApprovedSales = await SalesTarget.find({ status: 'approved' })
+      .select('saleDate agentName createdAt updatedAt')
+      .sort({ saleDate: -1 })
+      .limit(10);
+
+    console.log('🔍 All approved sales in DB:', allApprovedSales.map(s => ({
+      agentName: s.agentName,
+      saleDate: s.saleDate,
+      createdAt: s.createdAt
+    })));
+
+    // Now apply date filter
     const approvedSales = await SalesTarget.find({
       status: 'approved',
       ...dateFilter
@@ -408,13 +427,21 @@ const getAnalytics = async (req, res, next) => {
 
     console.log('📊 Analytics Query:', {
       filter: { status: 'approved', ...dateFilter },
-      foundCount: approvedSales.length
+      foundCount: approvedSales.length,
+      salesDetails: approvedSales.slice(0, 3).map(s => ({
+        id: s._id,
+        agentName: s.agentName,
+        saleDate: s.saleDate,
+        status: s.status
+      }))
     });
 
     if (approvedSales.length === 0) {
+      // Still show stats structure even with 0 sales
       return res.status(200).json({
         success: true,
         data: [],
+        byAgent: [],
         stats: {
           totalSales: 0,
           totalCSRs: 0,

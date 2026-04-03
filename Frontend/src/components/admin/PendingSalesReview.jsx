@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Check, X, AlertCircle, Loader, ChevronDown, ChevronUp } from 'lucide-react';
+import { API_BASE_URL } from '../../utils/constants';
 
 const PendingSalesReview = ({ onRefresh }) => {
   const [submissions, setSubmissions] = useState([]);
@@ -22,7 +23,7 @@ const PendingSalesReview = ({ onRefresh }) => {
       setError(null);
       setCurrentPage(1); // Reset to first page
       
-      const queryUrl = `/api/sales-submissions?status=${filter}&limit=100`;
+      const queryUrl = `${API_BASE_URL}/sales-submissions?status=${filter}&limit=100`;
       console.log('📤 Fetching from URL:', queryUrl);
       console.log('Cookie available:', document.cookie ? '✓ Yes' : '✗ No');
       
@@ -76,7 +77,7 @@ const PendingSalesReview = ({ onRefresh }) => {
   // Fetch database status for debugging
   const checkDatabaseStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/sales-submissions/debug/status', {
+      const response = await fetch(`${API_BASE_URL}/sales-submissions/debug/status`, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -106,7 +107,7 @@ const PendingSalesReview = ({ onRefresh }) => {
   // Single approve
   const handleApprove = async (id) => {
     try {
-      const response = await fetch(`/api/sales-submissions/${id}/approve`, {
+      const response = await fetch(`${API_BASE_URL}/sales-submissions/${id}/approve`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
@@ -126,7 +127,7 @@ const PendingSalesReview = ({ onRefresh }) => {
   // Single disapprove
   const handleDisapprove = async (id) => {
     try {
-      const response = await fetch(`/api/sales-submissions/${id}/disapprove`, {
+      const response = await fetch(`${API_BASE_URL}/sales-submissions/${id}/disapprove`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -157,7 +158,7 @@ const PendingSalesReview = ({ onRefresh }) => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/sales-submissions/bulk/approve', {
+      const response = await fetch(`${API_BASE_URL}/sales-submissions/bulk/approve`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -190,7 +191,7 @@ const PendingSalesReview = ({ onRefresh }) => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/sales-submissions/bulk/disapprove', {
+      const response = await fetch(`${API_BASE_URL}/sales-submissions/bulk/disapprove`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

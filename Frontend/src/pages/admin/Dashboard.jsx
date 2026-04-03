@@ -3,16 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import AdminHeader from '../../components/common/AdminHeader';
 import StatsCard from '../../components/common/StatsCard';
 import AdminMessageCenter from '../../components/admin/AdminMessageCenter';
-<<<<<<< HEAD
-import EmployeesTab from './components/EmployeesTab';
-import FinesTab from './components/FinesTab';
-import SalariesTab from './components/SalariesTab';
-import SalesTab from './components/SalesTab';
-import { 
-  Users, CheckCircle, AlertTriangle, DollarSign, TrendingUp, RefreshCw 
-} from 'lucide-react';
-import { employeeAPI, fineAPI } from '../../utils/api';
-=======
 import BulkFineModal from '../../components/admin/BulkFineModal';
 import GenerateSalaryModal from '../../components/admin/GenerateSalaryModal';
 import BonusModal from '../../components/admin/BonusModal';
@@ -21,7 +11,6 @@ import SalesAnalytics from '../../components/admin/SalesAnalytics';
 import PendingSalesReview from '../../components/admin/PendingSalesReview';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
 import { employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
->>>>>>> parent of 82f3732 (.)
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   Users, CheckCircle, AlertTriangle, 

@@ -33,7 +33,6 @@ const fmtDate = (d) =>
 const STATUS_COLORS = {
   pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
   approved: 'bg-green-500/20 text-green-300 border-green-500/30',
-  rejected: 'bg-red-500/20 text-red-300 border-red-500/30',
   disapproved: 'bg-red-500/20 text-red-300 border-red-500/30',
 };
 
@@ -41,9 +40,9 @@ const StatusBadge = memo(({ status }) => {
   const label = status === 'disapproved' ? 'rejected' : status;
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border capitalize ${STATUS_COLORS[status] || STATUS_COLORS.pending}`}>
-      {label === 'pending' && <Clock size={10} className="mr-1" />}
-      {(label === 'approved') && <CheckCircle size={10} className="mr-1" />}
-      {(label === 'rejected') && <XCircle size={10} className="mr-1" />}
+      {status === 'pending' && <Clock size={10} className="mr-1" />}
+      {status === 'approved' && <CheckCircle size={10} className="mr-1" />}
+      {status === 'disapproved' && <XCircle size={10} className="mr-1" />}
       {label}
     </span>
   );
@@ -98,11 +97,11 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expa
   const isExpanded = expandedId === sub._id;
   const canAct = sub.status === 'pending';
 
-  const agentName = sub.agentName?.trim()
-    || (sub.agent && typeof sub.agent === 'object'
-        ? `${sub.agent.firstName || ''} ${sub.agent.lastName || ''}`.trim()
-        : null)
-    || 'Unknown';
+  const agentName = sub.agentName?.trim() || 'Unknown';
+  const customerName = sub.customer
+    ? `${sub.customer.firstName || ''} ${sub.customer.lastName || ''}`.trim() || '—'
+    : '—';
+  const amount = sub.pricePerSale ?? sub.baseSalary ?? sub.totalEarning;
 
   return (
     <>
@@ -119,9 +118,9 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expa
         </td>
         <td className="px-4 py-3 text-white/80 text-sm">{fmtDate(sub.saleDate)}</td>
         <td className="px-4 py-3 text-white text-sm font-medium">{agentName}</td>
-        <td className="px-4 py-3 text-white/80 text-sm">{sub.customerName || '—'}</td>
-        <td className="px-4 py-3 text-white/80 text-sm">{sub.packageName || sub.saleType || '—'}</td>
-        <td className="px-4 py-3 text-white/80 text-sm">{sub.saleAmount ? `RS ${sub.saleAmount.toLocaleString()}` : '—'}</td>
+        <td className="px-4 py-3 text-white/80 text-sm">{customerName}</td>
+        <td className="px-4 py-3 text-white/80 text-sm">{sub.dids || '—'}</td>
+        <td className="px-4 py-3 text-white/80 text-sm">{amount != null ? `RS ${amount.toLocaleString()}` : '—'}</td>
         <td className="px-4 py-3"><StatusBadge status={sub.status} /></td>
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
@@ -159,13 +158,13 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expa
           <td colSpan={8} className="px-6 py-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               {[
-                ['Form ID', sub.formId || sub._id],
-                ['Phone', sub.customerPhone || '—'],
-                ['Email', sub.customerEmail || '—'],
-                ['Address', sub.customerAddress || '—'],
-                ['Closer', sub.closerName || (sub.closer && typeof sub.closer === 'object' ? `${sub.closer.firstName} ${sub.closer.lastName}` : null) || '—'],
-                ['Verifier', sub.verifierName || '—'],
-                ['Source', sub.saleSource || '—'],
+                ['Form ID', sub.googleFormResponseId || sub._id],
+                ['Phone', sub.customer?.phone || '—'],
+                ['State', sub.customer?.state || '—'],
+                ['Zip Code', sub.customer?.zipCode || '—'],
+                ['Closer', typeof sub.closer === 'string' ? sub.closer : '—'],
+                ['DIDs', sub.dids || '—'],
+                ['Price/Sale', sub.pricePerSale != null ? `RS ${sub.pricePerSale.toLocaleString()}` : '—'],
                 ['Submitted', fmtDate(sub.createdAt)],
               ].map(([label, value]) => (
                 <div key={label}>
@@ -327,12 +326,13 @@ const QADashboard = () => {
   const filtered = submissions.filter((s) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    const agentName = s.agentName || (s.agent && typeof s.agent === 'object' ? `${s.agent.firstName} ${s.agent.lastName}` : '');
+    const customerName = s.customer ? `${s.customer.firstName || ''} ${s.customer.lastName || ''}` : '';
     return (
-      agentName.toLowerCase().includes(q) ||
-      (s.customerName || '').toLowerCase().includes(q) ||
-      (s.packageName || '').toLowerCase().includes(q) ||
-      (s.formId || '').toLowerCase().includes(q)
+      (s.agentName || '').toLowerCase().includes(q) ||
+      customerName.toLowerCase().includes(q) ||
+      (s.dids || '').toLowerCase().includes(q) ||
+      (s.closer || '').toLowerCase().includes(q) ||
+      (s.googleFormResponseId || '').toLowerCase().includes(q)
     );
   });
 
@@ -402,7 +402,7 @@ const QADashboard = () => {
             { label: 'Total Loaded', value: submissions.length, color: 'bg-blue-500/30', icon: ClipboardList },
             { label: 'Pending', value: submissions.filter(s => s.status === 'pending').length, color: 'bg-yellow-500/30', icon: Clock },
             { label: 'Approved', value: submissions.filter(s => s.status === 'approved').length, color: 'bg-green-500/30', icon: CheckCircle },
-            { label: 'Rejected', value: submissions.filter(s => ['rejected', 'disapproved'].includes(s.status)).length, color: 'bg-red-500/30', icon: XCircle },
+            { label: 'Rejected', value: submissions.filter(s => s.status === 'disapproved').length, color: 'bg-red-500/30', icon: XCircle },
           ].map(({ label, value, color, icon: Icon }) => (
             <div key={label} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 flex items-center gap-3">
               <div className={`p-2.5 rounded-lg ${color}`}>

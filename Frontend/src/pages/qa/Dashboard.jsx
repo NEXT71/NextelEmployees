@@ -4,8 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
 import {
   CheckCircle, XCircle, Clock, RefreshCw, LogOut, AlertCircle,
-  ChevronDown, ChevronUp, ClipboardList, User as UserIcon,
-  Filter, Search
+  ChevronDown, ChevronUp, ClipboardList, Search
 } from 'lucide-react';
 
 // ─── helpers ────────────────────────────────────────────────────────────────

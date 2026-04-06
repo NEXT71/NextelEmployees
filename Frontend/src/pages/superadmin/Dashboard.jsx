@@ -6,7 +6,7 @@ import {
   Users, Shield, TrendingUp, DollarSign, Clock, CheckCircle,
   LogOut, RefreshCw,
   User as UserIcon, BarChart2, FileText, Award, X,
-  AlertTriangle, ToggleLeft, ToggleRight, Eye
+  AlertTriangle, ToggleLeft, ToggleRight, Eye, Trash2
 } from 'lucide-react';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -253,6 +253,7 @@ const SuperAdminDashboard = () => {
   const [salesFilter, setSalesFilter] = useState('all');
   const [salesView, setSalesView] = useState('leaderboard'); // 'leaderboard' | 'all'
   const [togglingUser, setTogglingUser] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   // load data for active tab
   const load = useCallback(async (tab) => {
@@ -314,6 +315,48 @@ const SuperAdminDashboard = () => {
       alert('Network error.');
     } finally {
       setTogglingUser(null);
+    }
+  };
+
+  const handleDeleteSale = async (id) => {
+    if (!window.confirm('Permanently delete this sale record? This cannot be undone.')) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/sales/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Failed to delete sale.');
+        return;
+      }
+      setSales((prev) => prev.filter((s) => s._id !== id));
+    } catch {
+      alert('Network error.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteSalary = async (id) => {
+    if (!window.confirm('Permanently delete this salary record? This cannot be undone.')) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/salaries/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Failed to delete salary record.');
+        return;
+      }
+      setSalaries((prev) => prev.filter((s) => s._id !== id));
+    } catch {
+      alert('Network error.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -728,6 +771,7 @@ const SuperAdminDashboard = () => {
                         <th className="text-left py-3 px-4">Closer</th>
                         <th className="text-center py-3 px-4">Status</th>
                         <th className="text-left py-3 px-4">Date</th>
+                        <th className="text-center py-3 px-4">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -746,11 +790,21 @@ const SuperAdminDashboard = () => {
                             <Badge text={s.status} color={s.status} />
                           </td>
                           <td className="py-3 px-4 text-white/50">{fmtDate(s.submittedAt || s.createdAt)}</td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              disabled={deletingId === s._id}
+                              onClick={() => handleDeleteSale(s._id)}
+                              className="flex items-center gap-1 mx-auto px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors disabled:opacity-50"
+                            >
+                              {deletingId === s._id ? <RefreshCw size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                              Delete
+                            </button>
+                          </td>
                         </tr>
                       ))}
                       {sales.length === 0 && (
                         <tr>
-                          <td colSpan={7} className="py-10 text-center text-white/40">No sales found.</td>
+                          <td colSpan={8} className="py-10 text-center text-white/40">No sales found.</td>
                         </tr>
                       )}
                     </tbody>
@@ -781,6 +835,7 @@ const SuperAdminDashboard = () => {
                       <th className="text-right py-3 px-4">Sales Bonus</th>
                       <th className="text-right py-3 px-4">Deductions</th>
                       <th className="text-right py-3 px-4">Net Pay</th>
+                      <th className="text-center py-3 px-4">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -798,11 +853,21 @@ const SuperAdminDashboard = () => {
                         <td className="py-3 px-4 text-right text-white font-bold">
                           {fmtCurrency(s.netPay ?? ((s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0)))}
                         </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            disabled={deletingId === s._id}
+                            onClick={() => handleDeleteSalary(s._id)}
+                            className="flex items-center gap-1 mx-auto px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors disabled:opacity-50"
+                          >
+                            {deletingId === s._id ? <RefreshCw size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                            Delete
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {salaries.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="py-10 text-center text-white/40">No salary records found.</td>
+                        <td colSpan={7} className="py-10 text-center text-white/40">No salary records found.</td>
                       </tr>
                     )}
                   </tbody>

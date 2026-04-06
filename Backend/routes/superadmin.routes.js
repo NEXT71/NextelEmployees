@@ -10,7 +10,9 @@ import {
   getSalesLeaderboard,
   getCloserLeaderboard,
   getAllSalaries,
-  getSuperAdminStats
+  getSuperAdminStats,
+  deleteSale,
+  deleteSalary
 } from '../controllers/superadmin.controller.js';
 
 const router = express.Router();
@@ -27,5 +29,7 @@ router.get('/sales',            getAllSalesSubmissions);
 router.get('/sales/leaderboard', getSalesLeaderboard);
 router.get('/sales/closer-leaderboard', getCloserLeaderboard);
 router.get('/salaries',         getAllSalaries);
+router.delete('/sales/:id',     deleteSale);
+router.delete('/salaries/:id',  deleteSalary);
 
 export default router;

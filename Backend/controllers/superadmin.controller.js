@@ -308,6 +308,34 @@ export const getCloserLeaderboard = async (req, res, next) => {
   }
 };
 
+// ── Delete a single sale record ─────────────────────────────────────────────
+export const deleteSale = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const sale = await SalesTarget.findByIdAndDelete(id);
+    if (!sale) {
+      return res.status(404).json({ success: false, message: 'Sale not found' });
+    }
+    res.json({ success: true, message: 'Sale deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Delete a single salary record ──────────────────────────────────────────
+export const deleteSalary = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const salary = await Salary.findByIdAndDelete(id);
+    if (!salary) {
+      return res.status(404).json({ success: false, message: 'Salary record not found' });
+    }
+    res.json({ success: true, message: 'Salary record deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── Dashboard summary stats ─────────────────────────────────────────────────
 export const getSuperAdminStats = async (req, res, next) => {
   try {

@@ -233,11 +233,14 @@ const CSRDetailModal = ({ employee, onClose }) => {
 
 // ─── Tab config (module-scope constant – never recreated) ────────────────────
 const TABS = [
-  { key: 'overview',    label: 'Overview',    icon: BarChart2 },
-  { key: 'users',       label: 'Users',       icon: Shield },
-  { key: 'employees',   label: 'Employees',   icon: Users },
-  { key: 'sales',       label: 'Sales',       icon: TrendingUp },
-  { key: 'salaries',    label: 'Salaries',    icon: DollarSign },
+  { key: 'overview',   label: 'Overview',   icon: BarChart2 },
+  { key: 'users',      label: 'Users',      icon: Shield },
+  { key: 'employees',  label: 'Employees',  icon: Users },
+  { key: 'sales',      label: 'Sales',      icon: TrendingUp },
+  { key: 'salaries',   label: 'Salaries',   icon: DollarSign },
+  { key: 'fines',      label: 'Fines',      icon: AlertTriangle },
+  { key: 'attendance', label: 'Attendance', icon: Clock },
+  { key: 'messages',   label: 'Messages',   icon: FileText },
 ];
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────

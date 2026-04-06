@@ -254,6 +254,10 @@ const SuperAdminDashboard = () => {
   const [salesView, setSalesView] = useState('leaderboard'); // 'leaderboard' | 'all'
   const [togglingUser, setTogglingUser] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [selectedSaleIds, setSelectedSaleIds] = useState(new Set());
+  const [selectedSalaryIds, setSelectedSalaryIds] = useState(new Set());
+  const [selectedEmpIds, setSelectedEmpIds] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // load data for active tab
   const load = useCallback(async (tab) => {
@@ -294,6 +298,70 @@ const SuperAdminDashboard = () => {
   useEffect(() => {
     load(activeTab);
   }, [activeTab, load]);
+
+  const toggleSelect = (setter, id) => {
+    setter(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (items, setter) => {
+    setter(prev =>
+      prev.size === items.length ? new Set() : new Set(items.map(i => i._id))
+    );
+  };
+
+  const handleBulkDelete = async (type, ids, all) => {
+    const label = all ? 'ALL' : `${ids.size} selected`;
+    const entityLabel = { sales: 'sale', salaries: 'salary record', employees: 'employee' }[type];
+    if (!window.confirm(`Permanently delete ${label} ${entityLabel}(s)? This cannot be undone.`)) return;
+    if (all && !window.confirm(`⚠️ FINAL WARNING: This will delete every ${entityLabel} record in the database. Are you absolutely sure?`)) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/${type}/bulk`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+        body: JSON.stringify(all ? { all: true } : { ids: [...ids] }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Bulk delete failed.');
+        return;
+      }
+      await load(activeTab);
+      if (type === 'sales') setSelectedSaleIds(new Set());
+      if (type === 'salaries') setSelectedSalaryIds(new Set());
+      if (type === 'employees') setSelectedEmpIds(new Set());
+    } catch {
+      alert('Network error.');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleDeleteEmployee = async (id) => {
+    if (!window.confirm('Permanently delete this employee and all their associated records? This cannot be undone.')) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/employees/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Failed to delete employee.');
+        return;
+      }
+      setEmployees(prev => prev.filter(e => e._id !== id));
+      setSelectedEmpIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+    } catch {
+      alert('Network error.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleToggleUser = async (userId) => {
     setTogglingUser(userId);
@@ -529,27 +597,68 @@ const SuperAdminDashboard = () => {
         {/* ── Employees ── */}
         {!loading && activeTab === 'employees' && (
           <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-white text-2xl font-bold">All Employees</h2>
-              <button onClick={() => load('employees')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
-                <RefreshCw size={14} /> Refresh
-              </button>
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+              <div>
+                <h2 className="text-white text-2xl font-bold">All Employees</h2>
+                {selectedEmpIds.size > 0 && (
+                  <p className="text-white/50 text-sm mt-1">{selectedEmpIds.size} selected</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedEmpIds.size > 0 && (
+                  <button
+                    disabled={bulkDeleting}
+                    onClick={() => handleBulkDelete('employees', selectedEmpIds, false)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {bulkDeleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    Delete Selected ({selectedEmpIds.size})
+                  </button>
+                )}
+                <button
+                  disabled={bulkDeleting || employees.length === 0}
+                  onClick={() => handleBulkDelete('employees', null, true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-600/30 hover:bg-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Trash2 size={14} /> Delete All
+                </button>
+                <button onClick={() => load('employees')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
+                  <RefreshCw size={14} /> Refresh
+                </button>
+              </div>
             </div>
             <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-white/50 border-b border-white/10">
+                      <th className="w-10 py-3 px-4">
+                        <input
+                          type="checkbox"
+                          checked={employees.length > 0 && selectedEmpIds.size === employees.length}
+                          onChange={() => toggleSelectAll(employees, setSelectedEmpIds)}
+                          className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
+                        />
+                      </th>
                       <th className="text-left py-3 px-4">Name</th>
                       <th className="text-left py-3 px-4">Employee ID</th>
                       <th className="text-left py-3 px-4">Department</th>
                       <th className="text-left py-3 px-4">Hire Date</th>
                       <th className="text-center py-3 px-4">History</th>
+                      <th className="text-center py-3 px-4">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {employees.map((emp) => (
-                      <tr key={emp._id} className="border-b border-white/5 hover:bg-white/5">
+                      <tr key={emp._id} className={`border-b border-white/5 hover:bg-white/5 ${selectedEmpIds.has(emp._id) ? 'bg-purple-500/5' : ''}`}>
+                        <td className="w-10 py-3 px-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedEmpIds.has(emp._id)}
+                            onChange={() => toggleSelect(setSelectedEmpIds, emp._id)}
+                            className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="py-3 px-4 text-white font-medium">{emp.firstName} {emp.lastName}</td>
                         <td className="py-3 px-4 text-white/70">{emp.employeeId}</td>
                         <td className="py-3 px-4 text-white/70">{emp.department}</td>
@@ -563,11 +672,21 @@ const SuperAdminDashboard = () => {
                             View History
                           </button>
                         </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            disabled={deletingId === emp._id || bulkDeleting}
+                            onClick={() => handleDeleteEmployee(emp._id)}
+                            className="flex items-center gap-1 mx-auto px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors disabled:opacity-50"
+                          >
+                            {deletingId === emp._id ? <RefreshCw size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                            Delete
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {employees.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="py-10 text-center text-white/40">No employees found.</td>
+                        <td colSpan={7} className="py-10 text-center text-white/40">No employees found.</td>
                       </tr>
                     )}
                   </tbody>
@@ -628,16 +747,35 @@ const SuperAdminDashboard = () => {
               </div>
               <div className="flex items-center gap-2">
                 {salesView === 'all' && (
-                  <select
-                    value={salesFilter}
-                    onChange={(e) => setSalesFilter(e.target.value)}
-                    className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="all" className="bg-slate-800">All</option>
-                    <option value="pending" className="bg-slate-800">Pending</option>
-                    <option value="approved" className="bg-slate-800">Approved</option>
-                    <option value="rejected" className="bg-slate-800">Rejected</option>
-                  </select>
+                  <>
+                    <select
+                      value={salesFilter}
+                      onChange={(e) => setSalesFilter(e.target.value)}
+                      className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="all" className="bg-slate-800">All</option>
+                      <option value="pending" className="bg-slate-800">Pending</option>
+                      <option value="approved" className="bg-slate-800">Approved</option>
+                      <option value="rejected" className="bg-slate-800">Rejected</option>
+                    </select>
+                    {selectedSaleIds.size > 0 && (
+                      <button
+                        disabled={bulkDeleting}
+                        onClick={() => handleBulkDelete('sales', selectedSaleIds, false)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {bulkDeleting ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                        Delete ({selectedSaleIds.size})
+                      </button>
+                    )}
+                    <button
+                      disabled={bulkDeleting || sales.length === 0}
+                      onClick={() => handleBulkDelete('sales', null, true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-600/30 hover:bg-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 size={13} /> Delete All
+                    </button>
+                  </>
                 )}
                 <button onClick={() => load('sales')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
                   <RefreshCw size={14} />
@@ -764,6 +902,14 @@ const SuperAdminDashboard = () => {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-white/50 border-b border-white/10">
+                        <th className="w-10 py-3 px-4">
+                          <input
+                            type="checkbox"
+                            checked={sales.length > 0 && selectedSaleIds.size === sales.length}
+                            onChange={() => toggleSelectAll(sales, setSelectedSaleIds)}
+                            className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
+                          />
+                        </th>
                         <th className="text-left py-3 px-4">Employee</th>
                         <th className="text-left py-3 px-4">Customer</th>
                         <th className="text-left py-3 px-4">Phone</th>
@@ -776,7 +922,15 @@ const SuperAdminDashboard = () => {
                     </thead>
                     <tbody>
                       {sales.map((s) => (
-                        <tr key={s._id} className="border-b border-white/5 hover:bg-white/5">
+                        <tr key={s._id} className={`border-b border-white/5 hover:bg-white/5 ${selectedSaleIds.has(s._id) ? 'bg-purple-500/5' : ''}`}>
+                          <td className="w-10 py-3 px-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedSaleIds.has(s._id)}
+                              onChange={() => toggleSelect(setSelectedSaleIds, s._id)}
+                              className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
+                            />
+                          </td>
                           <td className="py-3 px-4 text-white">
                             {s.agentName || (s.agent?.firstName ? `${s.agent.firstName} ${s.agent.lastName}` : '—')}
                           </td>
@@ -792,7 +946,7 @@ const SuperAdminDashboard = () => {
                           <td className="py-3 px-4 text-white/50">{fmtDate(s.submittedAt || s.createdAt)}</td>
                           <td className="py-3 px-4 text-center">
                             <button
-                              disabled={deletingId === s._id}
+                              disabled={deletingId === s._id || bulkDeleting}
                               onClick={() => handleDeleteSale(s._id)}
                               className="flex items-center gap-1 mx-auto px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors disabled:opacity-50"
                             >
@@ -804,7 +958,7 @@ const SuperAdminDashboard = () => {
                       ))}
                       {sales.length === 0 && (
                         <tr>
-                          <td colSpan={8} className="py-10 text-center text-white/40">No sales found.</td>
+                          <td colSpan={9} className="py-10 text-center text-white/40">No sales found.</td>
                         </tr>
                       )}
                     </tbody>
@@ -818,17 +972,49 @@ const SuperAdminDashboard = () => {
         {/* ── Salaries ── */}
         {!loading && activeTab === 'salaries' && (
           <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-white text-2xl font-bold">All Salary Records</h2>
-              <button onClick={() => load('salaries')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
-                <RefreshCw size={14} /> Refresh
-              </button>
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+              <div>
+                <h2 className="text-white text-2xl font-bold">All Salary Records</h2>
+                {selectedSalaryIds.size > 0 && (
+                  <p className="text-white/50 text-sm mt-1">{selectedSalaryIds.size} selected</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedSalaryIds.size > 0 && (
+                  <button
+                    disabled={bulkDeleting}
+                    onClick={() => handleBulkDelete('salaries', selectedSalaryIds, false)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {bulkDeleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    Delete Selected ({selectedSalaryIds.size})
+                  </button>
+                )}
+                <button
+                  disabled={bulkDeleting || salaries.length === 0}
+                  onClick={() => handleBulkDelete('salaries', null, true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-600/30 hover:bg-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Trash2 size={14} /> Delete All
+                </button>
+                <button onClick={() => load('salaries')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
+                  <RefreshCw size={14} /> Refresh
+                </button>
+              </div>
             </div>
             <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-white/50 border-b border-white/10">
+                      <th className="w-10 py-3 px-4">
+                        <input
+                          type="checkbox"
+                          checked={salaries.length > 0 && selectedSalaryIds.size === salaries.length}
+                          onChange={() => toggleSelectAll(salaries, setSelectedSalaryIds)}
+                          className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
+                        />
+                      </th>
                       <th className="text-left py-3 px-4">Employee</th>
                       <th className="text-left py-3 px-4">Month</th>
                       <th className="text-right py-3 px-4">Base Salary</th>
@@ -840,7 +1026,15 @@ const SuperAdminDashboard = () => {
                   </thead>
                   <tbody>
                     {salaries.map((s) => (
-                      <tr key={s._id} className="border-b border-white/5 hover:bg-white/5">
+                      <tr key={s._id} className={`border-b border-white/5 hover:bg-white/5 ${selectedSalaryIds.has(s._id) ? 'bg-purple-500/5' : ''}`}>
+                        <td className="w-10 py-3 px-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedSalaryIds.has(s._id)}
+                            onChange={() => toggleSelect(setSelectedSalaryIds, s._id)}
+                            className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="py-3 px-4 text-white">
                           {s.employee?.firstName
                             ? `${s.employee.firstName} ${s.employee.lastName}`
@@ -855,7 +1049,7 @@ const SuperAdminDashboard = () => {
                         </td>
                         <td className="py-3 px-4 text-center">
                           <button
-                            disabled={deletingId === s._id}
+                            disabled={deletingId === s._id || bulkDeleting}
                             onClick={() => handleDeleteSalary(s._id)}
                             className="flex items-center gap-1 mx-auto px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors disabled:opacity-50"
                           >
@@ -867,7 +1061,7 @@ const SuperAdminDashboard = () => {
                     ))}
                     {salaries.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="py-10 text-center text-white/40">No salary records found.</td>
+                        <td colSpan={8} className="py-10 text-center text-white/40">No salary records found.</td>
                       </tr>
                     )}
                   </tbody>

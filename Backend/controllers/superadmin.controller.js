@@ -336,6 +336,90 @@ export const deleteSalary = async (req, res, next) => {
   }
 };
 
+// ── Delete a single employee (+ linked user + all associated data) ──────────
+export const deleteEmployee = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const employee = await Employee.findById(id);
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+    await Promise.all([
+      Salary.deleteMany({ employee: id }),
+      SalesTarget.deleteMany({ agent: id }),
+      Fine.deleteMany({ employee: id }),
+      employee.user ? User.findByIdAndDelete(employee.user) : Promise.resolve(),
+    ]);
+    await Employee.findByIdAndDelete(id);
+    res.json({ success: true, message: 'Employee and all associated records deleted' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Bulk delete sales ────────────────────────────────────────────────────────
+export const bulkDeleteSales = async (req, res, next) => {
+  try {
+    const { ids, all } = req.body;
+    let result;
+    if (all === true) {
+      result = await SalesTarget.deleteMany({});
+    } else if (Array.isArray(ids) && ids.length > 0) {
+      result = await SalesTarget.deleteMany({ _id: { $in: ids } });
+    } else {
+      return res.status(400).json({ success: false, message: 'Provide ids array or all: true' });
+    }
+    res.json({ success: true, message: `${result.deletedCount} sale(s) deleted` });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Bulk delete salaries ─────────────────────────────────────────────────────
+export const bulkDeleteSalaries = async (req, res, next) => {
+  try {
+    const { ids, all } = req.body;
+    let result;
+    if (all === true) {
+      result = await Salary.deleteMany({});
+    } else if (Array.isArray(ids) && ids.length > 0) {
+      result = await Salary.deleteMany({ _id: { $in: ids } });
+    } else {
+      return res.status(400).json({ success: false, message: 'Provide ids array or all: true' });
+    }
+    res.json({ success: true, message: `${result.deletedCount} salary record(s) deleted` });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Bulk delete employees (+ all associated data per employee) ───────────────
+export const bulkDeleteEmployees = async (req, res, next) => {
+  try {
+    const { ids, all } = req.body;
+    let employeesToDelete;
+    if (all === true) {
+      employeesToDelete = await Employee.find({}).select('_id user');
+    } else if (Array.isArray(ids) && ids.length > 0) {
+      employeesToDelete = await Employee.find({ _id: { $in: ids } }).select('_id user');
+    } else {
+      return res.status(400).json({ success: false, message: 'Provide ids array or all: true' });
+    }
+    const empIds = employeesToDelete.map(e => e._id);
+    const userIds = employeesToDelete.map(e => e.user).filter(Boolean);
+    await Promise.all([
+      Employee.deleteMany({ _id: { $in: empIds } }),
+      User.deleteMany({ _id: { $in: userIds } }),
+      Salary.deleteMany({ employee: { $in: empIds } }),
+      SalesTarget.deleteMany({ agent: { $in: empIds } }),
+      Fine.deleteMany({ employee: { $in: empIds } }),
+    ]);
+    res.json({ success: true, message: `${empIds.length} employee(s) and all associated records deleted` });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── Dashboard summary stats ─────────────────────────────────────────────────
 export const getSuperAdminStats = async (req, res, next) => {
   try {

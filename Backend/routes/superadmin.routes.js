@@ -12,7 +12,11 @@ import {
   getAllSalaries,
   getSuperAdminStats,
   deleteSale,
-  deleteSalary
+  deleteSalary,
+  deleteEmployee,
+  bulkDeleteSales,
+  bulkDeleteSalaries,
+  bulkDeleteEmployees
 } from '../controllers/superadmin.controller.js';
 
 const router = express.Router();
@@ -29,7 +33,15 @@ router.get('/sales',            getAllSalesSubmissions);
 router.get('/sales/leaderboard', getSalesLeaderboard);
 router.get('/sales/closer-leaderboard', getCloserLeaderboard);
 router.get('/salaries',         getAllSalaries);
-router.delete('/sales/:id',     deleteSale);
-router.delete('/salaries/:id',  deleteSalary);
+
+// Bulk delete routes (must be registered BEFORE /:id routes)
+router.delete('/sales/bulk',      bulkDeleteSales);
+router.delete('/salaries/bulk',   bulkDeleteSalaries);
+router.delete('/employees/bulk',  bulkDeleteEmployees);
+
+// Single delete routes
+router.delete('/sales/:id',       deleteSale);
+router.delete('/salaries/:id',    deleteSalary);
+router.delete('/employees/:id',   deleteEmployee);
 
 export default router;

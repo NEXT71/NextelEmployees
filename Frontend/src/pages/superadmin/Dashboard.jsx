@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
@@ -28,7 +28,7 @@ const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
 // ─── StatsCard ───────────────────────────────────────────────────────────────
-const StatsCard = ({ icon: Icon, label, value, color }) => (
+const StatsCard = memo(({ icon: Icon, label, value, color }) => (
   <div className={`bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20 flex items-center gap-4`}>
     <div className={`p-3 rounded-lg ${color}`}>
       <Icon size={22} className="text-white" />
@@ -38,26 +38,25 @@ const StatsCard = ({ icon: Icon, label, value, color }) => (
       <p className="text-white text-xl font-bold">{value}</p>
     </div>
   </div>
-);
+));
 
 // ─── Badge ───────────────────────────────────────────────────────────────────
-const Badge = ({ text, color }) => {
-  const colors = {
-    superadmin: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-    admin: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-    employee: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-    active: 'bg-green-500/20 text-green-300 border-green-500/30',
-    inactive: 'bg-red-500/20 text-red-300 border-red-500/30',
-    approved: 'bg-green-500/20 text-green-300 border-green-500/30',
-    pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-    rejected: 'bg-red-500/20 text-red-300 border-red-500/30',
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${colors[color] || colors.employee}`}>
-      {text}
-    </span>
-  );
+const BADGE_COLORS = {
+  superadmin: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  admin: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  employee: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  active: 'bg-green-500/20 text-green-300 border-green-500/30',
+  inactive: 'bg-red-500/20 text-red-300 border-red-500/30',
+  approved: 'bg-green-500/20 text-green-300 border-green-500/30',
+  pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  rejected: 'bg-red-500/20 text-red-300 border-red-500/30',
 };
+
+const Badge = memo(({ text, color }) => (
+  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${BADGE_COLORS[color] || BADGE_COLORS.employee}`}>
+    {text}
+  </span>
+));
 
 // ─── CSR Detail Modal ─────────────────────────────────────────────────────────
 const CSRDetailModal = ({ employee, onClose }) => {
@@ -232,6 +231,15 @@ const CSRDetailModal = ({ employee, onClose }) => {
   );
 };
 
+// ─── Tab config (module-scope constant – never recreated) ────────────────────
+const TABS = [
+  { key: 'overview',    label: 'Overview',    icon: BarChart2 },
+  { key: 'users',       label: 'Users',       icon: Shield },
+  { key: 'employees',   label: 'Employees',   icon: Users },
+  { key: 'sales',       label: 'Sales',       icon: TrendingUp },
+  { key: 'salaries',    label: 'Salaries',    icon: DollarSign },
+];
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
@@ -259,6 +267,10 @@ const SuperAdminDashboard = () => {
   const [selectedEmpIds, setSelectedEmpIds] = useState(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // ── Refs for filter values so `load` stays stable ──────────────────────────
+  const salesFilterRef = useRef(salesFilter);
+  salesFilterRef.current = salesFilter;
+
   // load data for active tab
   const load = useCallback(async (tab) => {
     setLoading(true);
@@ -277,7 +289,7 @@ const SuperAdminDashboard = () => {
         const [lb, clb, all] = await Promise.all([
           apiFetch('/superadmin/sales/leaderboard'),
           apiFetch('/superadmin/sales/closer-leaderboard'),
-          apiFetch(`/superadmin/sales?status=${salesFilter}&limit=100`)
+          apiFetch(`/superadmin/sales?status=${salesFilterRef.current}&limit=100`)
         ]);
         setLeaderboard(lb.data || []);
         setTopPerformer(lb.topPerformer || null);
@@ -293,27 +305,34 @@ const SuperAdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [salesFilter]);
+  }, []); // stable – reads filter values via refs
+
+  // Re-fetch sales when filter dropdown changes (only if on sales tab)
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  useEffect(() => {
+    if (activeTabRef.current === 'sales') load('sales');
+  }, [salesFilter, load]);
 
   useEffect(() => {
     load(activeTab);
   }, [activeTab, load]);
 
-  const toggleSelect = (setter, id) => {
+  const toggleSelect = useCallback((setter, id) => {
     setter(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  const toggleSelectAll = (items, setter) => {
+  const toggleSelectAll = useCallback((items, setter) => {
     setter(prev =>
       prev.size === items.length ? new Set() : new Set(items.map(i => i._id))
     );
-  };
+  }, []);
 
-  const handleBulkDelete = async (type, ids, all) => {
+  const handleBulkDelete = useCallback(async (type, ids, all) => {
     const label = all ? 'ALL' : `${ids.size} selected`;
     const entityLabel = { sales: 'sale', salaries: 'salary record', employees: 'employee' }[type];
     if (!window.confirm(`Permanently delete ${label} ${entityLabel}(s)? This cannot be undone.`)) return;
@@ -330,7 +349,7 @@ const SuperAdminDashboard = () => {
         alert(err.message || 'Bulk delete failed.');
         return;
       }
-      await load(activeTab);
+      await load(activeTabRef.current);
       if (type === 'sales') setSelectedSaleIds(new Set());
       if (type === 'salaries') setSelectedSalaryIds(new Set());
       if (type === 'employees') setSelectedEmpIds(new Set());
@@ -339,9 +358,9 @@ const SuperAdminDashboard = () => {
     } finally {
       setBulkDeleting(false);
     }
-  };
+  }, [load]);
 
-  const handleDeleteEmployee = async (id) => {
+  const handleDeleteEmployee = useCallback(async (id) => {
     if (!window.confirm('Permanently delete this employee and all their associated records? This cannot be undone.')) return;
     setDeletingId(id);
     try {
@@ -361,9 +380,9 @@ const SuperAdminDashboard = () => {
     } finally {
       setDeletingId(null);
     }
-  };
+  }, []);
 
-  const handleToggleUser = async (userId) => {
+  const handleToggleUser = useCallback(async (userId) => {
     setTogglingUser(userId);
     try {
       const res = await fetch(`${API_BASE_URL}/superadmin/users/${userId}/toggle-active`, {
@@ -384,9 +403,9 @@ const SuperAdminDashboard = () => {
     } finally {
       setTogglingUser(null);
     }
-  };
+  }, []);
 
-  const handleDeleteSale = async (id) => {
+  const handleDeleteSale = useCallback(async (id) => {
     if (!window.confirm('Permanently delete this sale record? This cannot be undone.')) return;
     setDeletingId(id);
     try {
@@ -405,9 +424,9 @@ const SuperAdminDashboard = () => {
     } finally {
       setDeletingId(null);
     }
-  };
+  }, []);
 
-  const handleDeleteSalary = async (id) => {
+  const handleDeleteSalary = useCallback(async (id) => {
     if (!window.confirm('Permanently delete this salary record? This cannot be undone.')) return;
     setDeletingId(id);
     try {
@@ -426,20 +445,18 @@ const SuperAdminDashboard = () => {
     } finally {
       setDeletingId(null);
     }
-  };
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     logout();
     navigate('/login');
-  };
+  }, [logout, navigate]);
 
-  const TABS = [
-    { key: 'overview', label: 'Overview', icon: BarChart2 },
-    { key: 'users', label: 'Users', icon: Shield },
-    { key: 'employees', label: 'Employees', icon: Users },
-    { key: 'sales', label: 'Sales', icon: TrendingUp },
-    { key: 'salaries', label: 'Salaries', icon: DollarSign },
-  ];
+  // ── Derived / memoised values ─────────────────────────────────────────────
+  const salariesTotalPaid = useMemo(
+    () => salaries.reduce((sum, s) => sum + (s.netPay ?? (s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0)), 0),
+    [salaries]
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">

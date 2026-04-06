@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo, memo } from 'react';
+import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
@@ -451,12 +451,6 @@ const SuperAdminDashboard = () => {
     logout();
     navigate('/login');
   }, [logout, navigate]);
-
-  // ── Derived / memoised values ─────────────────────────────────────────────
-  const salariesTotalPaid = useMemo(
-    () => salaries.reduce((sum, s) => sum + (s.netPay ?? (s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0)), 0),
-    [salaries]
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">

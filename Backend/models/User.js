@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['superadmin', 'admin', 'employee'],
+    enum: ['superadmin', 'admin', 'employee', 'qa'],
     default: 'employee'
   },
   employeeId: {
@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
     validate: {
       validator: async function(v) {
         // Only validate if the field exists and user is employee
-        if (!v || this.role !== 'employee') return true;
+        if (!v || (this.role !== 'employee')) return true;
         const employee = await mongoose.model('Employee').findById(v);
         return !!employee;
       },

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-const ProtectedRoute = ({ children, adminOnly, superAdminOnly }) => {
+const ProtectedRoute = ({ children, adminOnly, superAdminOnly, qaOnly }) => {
   const navigate = useNavigate();
   const { user, isLoading, isLoggedIn } = useAuth();
 
@@ -19,6 +19,12 @@ const ProtectedRoute = ({ children, adminOnly, superAdminOnly }) => {
 
   // Admin-only routes (admin + superadmin both allowed)
   if (!isLoading && adminOnly && user?.role !== 'admin' && user?.role !== 'superadmin') {
+    navigate('/employeedashboard');
+    return null;
+  }
+
+  // QA-only routes (qa + admin + superadmin allowed)
+  if (!isLoading && qaOnly && !['qa', 'admin', 'superadmin'].includes(user?.role)) {
     navigate('/employeedashboard');
     return null;
   }

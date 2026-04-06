@@ -20,6 +20,7 @@ import {
 } from '../controllers/salesSubmission.controller.js';
 import auth from '../middlewares/auth.js';
 import admin from '../middlewares/admin.js';
+import qa from '../middlewares/qa.js';
 
 // DEBUG: Health check endpoint (no auth)
 router.get('/debug/health', (req, res) => {
@@ -138,20 +139,20 @@ router.get('/my/closes', auth, getMyCloses);
 router.get('/my/closes/stats', auth, getMyClosesStats);
 
 // Static routes BEFORE dynamic routes
-router.get('/pending/count', auth, admin, getPendingCount);
-router.post('/bulk/approve', auth, admin, bulkApproveSubmissions);
-router.post('/bulk/disapprove', auth, admin, bulkDisapproveSubmissions);
+router.get('/pending/count', auth, qa, getPendingCount);
+router.post('/bulk/approve', auth, qa, bulkApproveSubmissions);
+router.post('/bulk/disapprove', auth, qa, bulkDisapproveSubmissions);
 
-// Get all submissions (admin only)
-router.get('/', auth, admin, getSubmissions);
+// Get all submissions (qa + admin + superadmin)
+router.get('/', auth, qa, getSubmissions);
 
-// Dynamic routes - Get submission by ID (admin only)
-router.get('/:id', auth, admin, getSubmissionById);
+// Dynamic routes - Get submission by ID (qa + admin + superadmin)
+router.get('/:id', auth, qa, getSubmissionById);
 
-// Single approval (admin only)
-router.post('/:id/approve', auth, admin, approveSubmission);
+// Single approval (qa + admin + superadmin)
+router.post('/:id/approve', auth, qa, approveSubmission);
 
-// Single disapproval (admin only)
-router.post('/:id/disapprove', auth, admin, disapproveSubmission);
+// Single disapproval (qa + admin + superadmin)
+router.post('/:id/disapprove', auth, qa, disapproveSubmission);
 
 export default router;

@@ -15,6 +15,7 @@ const AdminDashboard = lazy(() => import('./pages/admin/Dashboard.jsx'));
 const EmployeeManagement = lazy(() => import('./pages/admin/EmployeeManagement.jsx'));
 const AdminAttendance = lazy(() => import('./pages/admin/AdminAttendance.jsx'));
 const SuperAdminDashboard = lazy(() => import('./pages/superadmin/Dashboard.jsx'));
+const QADashboard = lazy(() => import('./pages/qa/Dashboard.jsx'));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -111,6 +112,16 @@ const App = () => {
                 element={
                   <ProtectedRoute superAdminOnly>
                     <SuperAdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* QA routes */}
+              <Route
+                path="/qadashboard"
+                element={
+                  <ProtectedRoute qaOnly>
+                    <QADashboard />
                   </ProtectedRoute>
                 }
               />

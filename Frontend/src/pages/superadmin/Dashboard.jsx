@@ -270,9 +270,23 @@ const SuperAdminDashboard = () => {
   const [selectedEmpIds, setSelectedEmpIds] = useState(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // ── Fines / Attendance / Messages state ───────────────────────────────────
+  const [fines, setFines] = useState([]);
+  const [finesFilter, setFinesFilter] = useState('all'); // 'all' | 'pending' | 'approved'
+  const [attendance, setAttendance] = useState([]);
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [messages, setMessages] = useState([]);
+  const [messageReplyId, setMessageReplyId] = useState(null);
+  const [messageReplyText, setMessageReplyText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
   // ── Refs for filter values so `load` stays stable ──────────────────────────
   const salesFilterRef = useRef(salesFilter);
   salesFilterRef.current = salesFilter;
+  const finesFilterRef = useRef(finesFilter);
+  finesFilterRef.current = finesFilter;
+  const attendanceDateRef = useRef(attendanceDate);
+  attendanceDateRef.current = attendanceDate;
 
   // load data for active tab
   const load = useCallback(async (tab) => {
@@ -302,6 +316,16 @@ const SuperAdminDashboard = () => {
       } else if (tab === 'salaries') {
         const d = await apiFetch('/superadmin/salaries?limit=100');
         setSalaries(d.data || []);
+      } else if (tab === 'fines') {
+        const q = finesFilterRef.current !== 'all' ? `?status=${finesFilterRef.current}` : '';
+        const d = await apiFetch(`/superadmin/fines${q}`);
+        setFines(d.data || []);
+      } else if (tab === 'attendance') {
+        const d = await apiFetch(`/superadmin/attendance?date=${attendanceDateRef.current}`);
+        setAttendance(d.data || []);
+      } else if (tab === 'messages') {
+        const d = await apiFetch('/superadmin/messages');
+        setMessages(d.data || []);
       }
     } catch (e) {
       setError('Failed to load data. ' + e.message);
@@ -316,6 +340,14 @@ const SuperAdminDashboard = () => {
   useEffect(() => {
     if (activeTabRef.current === 'sales') load('sales');
   }, [salesFilter, load]);
+
+  useEffect(() => {
+    if (activeTabRef.current === 'fines') load('fines');
+  }, [finesFilter, load]);
+
+  useEffect(() => {
+    if (activeTabRef.current === 'attendance') load('attendance');
+  }, [attendanceDate, load]);
 
   useEffect(() => {
     load(activeTab);
@@ -1081,6 +1113,259 @@ const SuperAdminDashboard = () => {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Fines ── */}
+        {!loading && activeTab === 'fines' && (
+          <div>
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+              <h2 className="text-white text-2xl font-bold">All Fines</h2>
+              <div className="flex items-center gap-2">
+                <select
+                  value={finesFilter}
+                  onChange={e => setFinesFilter(e.target.value)}
+                  className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="all" className="bg-slate-800">All</option>
+                  <option value="pending" className="bg-slate-800">Pending</option>
+                  <option value="approved" className="bg-slate-800">Approved</option>
+                </select>
+                <button onClick={() => load('fines')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
+                  <RefreshCw size={14} /> Refresh
+                </button>
+              </div>
+            </div>
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-white/50 border-b border-white/10">
+                      <th className="text-left py-3 px-4">Employee</th>
+                      <th className="text-left py-3 px-4">Type</th>
+                      <th className="text-right py-3 px-4">Amount</th>
+                      <th className="text-left py-3 px-4">Date</th>
+                      <th className="text-center py-3 px-4">Status</th>
+                      <th className="text-center py-3 px-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fines.map(f => (
+                      <tr key={f._id} className="border-b border-white/5 hover:bg-white/5">
+                        <td className="py-3 px-4 text-white font-medium">
+                          {f.employee ? `${f.employee.firstName} ${f.employee.lastName}` : '—'}
+                          <span className="block text-white/40 text-xs">{f.employee?.employeeId}</span>
+                        </td>
+                        <td className="py-3 px-4 text-white/70">{f.type}</td>
+                        <td className="py-3 px-4 text-right text-red-300 font-semibold">RS {f.amount?.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-white/60">{fmtDate(f.date)}</td>
+                        <td className="py-3 px-4 text-center">
+                          <Badge text={f.approved ? 'Approved' : 'Pending'} color={f.approved ? 'approved' : 'pending'} />
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            {!f.approved && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch(`${API_BASE_URL}/superadmin/fines/${f._id}/approve`, { method: 'PATCH', headers: authHeaders() });
+                                    if (!res.ok) throw new Error();
+                                    setFines(prev => prev.map(x => x._id === f._id ? { ...x, approved: true } : x));
+                                  } catch { alert('Failed to approve fine.'); }
+                                }}
+                                className="px-2.5 py-1 rounded-lg text-xs bg-green-500/20 hover:bg-green-500/30 text-green-300 transition-colors"
+                              >
+                                Approve
+                              </button>
+                            )}
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm('Delete this fine?')) return;
+                                try {
+                                  const res = await fetch(`${API_BASE_URL}/superadmin/fines/${f._id}`, { method: 'DELETE', headers: authHeaders() });
+                                  if (!res.ok) throw new Error();
+                                  setFines(prev => prev.filter(x => x._id !== f._id));
+                                } catch { alert('Failed to delete fine.'); }
+                              }}
+                              className="px-2.5 py-1 rounded-lg text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {fines.length === 0 && (
+                      <tr><td colSpan={6} className="py-10 text-center text-white/40">No fines found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Attendance ── */}
+        {!loading && activeTab === 'attendance' && (
+          <div>
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+              <h2 className="text-white text-2xl font-bold">Attendance</h2>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={attendanceDate}
+                  onChange={e => setAttendanceDate(e.target.value)}
+                  className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <button onClick={() => load('attendance')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
+                  <RefreshCw size={14} /> Refresh
+                </button>
+              </div>
+            </div>
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-white/50 border-b border-white/10">
+                      <th className="text-left py-3 px-4">Employee</th>
+                      <th className="text-left py-3 px-4">Date</th>
+                      <th className="text-center py-3 px-4">Status</th>
+                      <th className="text-left py-3 px-4">Clock In</th>
+                      <th className="text-left py-3 px-4">Clock Out</th>
+                      <th className="text-left py-3 px-4">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendance.map(a => (
+                      <tr key={a._id} className="border-b border-white/5 hover:bg-white/5">
+                        <td className="py-3 px-4 text-white font-medium">
+                          {a.employee ? `${a.employee.firstName} ${a.employee.lastName}` : '—'}
+                          <span className="block text-white/40 text-xs">{a.employee?.employeeId}</span>
+                        </td>
+                        <td className="py-3 px-4 text-white/60">{fmtDate(a.date)}</td>
+                        <td className="py-3 px-4 text-center">
+                          <Badge
+                            text={a.status}
+                            color={a.status === 'Present' ? 'active' : a.status === 'Absent' ? 'inactive' : 'pending'}
+                          />
+                        </td>
+                        <td className="py-3 px-4 text-white/60">
+                          {a.clockIn ? new Date(a.clockIn).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-white/60">
+                          {a.clockOut ? new Date(a.clockOut).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-white/50 text-xs">{a.notes || '—'}</td>
+                      </tr>
+                    ))}
+                    {attendance.length === 0 && (
+                      <tr><td colSpan={6} className="py-10 text-center text-white/40">No attendance records for this date.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Messages ── */}
+        {!loading && activeTab === 'messages' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-white text-2xl font-bold">Messages / Support</h2>
+              <button onClick={() => load('messages')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
+                <RefreshCw size={14} /> Refresh
+              </button>
+            </div>
+            <div className="space-y-3">
+              {messages.map(m => (
+                <div key={m._id} className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <p className="text-white font-semibold">{m.subject}</p>
+                      <p className="text-white/50 text-xs mt-0.5">{m.from?.username} · {m.category} · {fmtDate(m.createdAt)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        text={m.priority}
+                        color={m.priority === 'urgent' ? 'rejected' : m.priority === 'high' ? 'pending' : 'employee'}
+                      />
+                      <Badge
+                        text={m.status}
+                        color={m.status === 'resolved' ? 'approved' : m.status === 'responded' ? 'active' : 'pending'}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-white/70 text-sm mt-3">{m.message}</p>
+                  {m.adminResponse?.message && (
+                    <div className="mt-3 pl-3 border-l-2 border-purple-500/40">
+                      <p className="text-purple-300 text-xs font-semibold mb-1">Admin Response</p>
+                      <p className="text-white/60 text-sm">{m.adminResponse.message}</p>
+                    </div>
+                  )}
+                  {m.status !== 'resolved' && (
+                    <div className="mt-4 flex flex-col gap-2">
+                      {messageReplyId === m._id ? (
+                        <div className="flex gap-2">
+                          <input
+                            value={messageReplyText}
+                            onChange={e => setMessageReplyText(e.target.value)}
+                            placeholder="Type your reply…"
+                            className="flex-1 bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                          <button
+                            disabled={submitting || !messageReplyText.trim()}
+                            onClick={async () => {
+                              setSubmitting(true);
+                              try {
+                                const res = await fetch(`${API_BASE_URL}/superadmin/messages/${m._id}/respond`, {
+                                  method: 'PATCH',
+                                  headers: authHeaders(),
+                                  body: JSON.stringify({ message: messageReplyText }),
+                                });
+                                if (!res.ok) throw new Error();
+                                setMessages(prev => prev.map(x => x._id === m._id ? { ...x, status: 'responded', adminResponse: { message: messageReplyText } } : x));
+                                setMessageReplyId(null);
+                                setMessageReplyText('');
+                              } catch { alert('Failed to send reply.'); }
+                              finally { setSubmitting(false); }
+                            }}
+                            className="px-4 py-2 bg-purple-500/30 hover:bg-purple-500/40 text-purple-200 rounded-lg text-sm transition-colors disabled:opacity-50"
+                          >
+                            {submitting ? <RefreshCw size={14} className="animate-spin" /> : 'Send'}
+                          </button>
+                          <button onClick={() => { setMessageReplyId(null); setMessageReplyText(''); }} className="px-3 py-2 bg-white/10 text-white/60 rounded-lg text-sm">Cancel</button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setMessageReplyId(m._id)}
+                            className="px-3 py-1.5 text-sm bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors"
+                          >
+                            Reply
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`${API_BASE_URL}/superadmin/messages/${m._id}/resolve`, { method: 'PATCH', headers: authHeaders() });
+                                if (!res.ok) throw new Error();
+                                setMessages(prev => prev.map(x => x._id === m._id ? { ...x, status: 'resolved' } : x));
+                              } catch { alert('Failed to resolve message.'); }
+                            }}
+                            className="px-3 py-1.5 text-sm bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-colors"
+                          >
+                            Mark Resolved
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {messages.length === 0 && (
+                <div className="text-center py-16 text-white/40">No messages found.</div>
+              )}
             </div>
           </div>
         )}

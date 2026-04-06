@@ -16,7 +16,15 @@ import {
   deleteEmployee,
   bulkDeleteSales,
   bulkDeleteSalaries,
-  bulkDeleteEmployees
+  bulkDeleteEmployees,
+  getAllFines,
+  approveFine,
+  deleteFine,
+  getAllAttendance,
+  updateAttendance,
+  getAllMessages,
+  respondToMessage,
+  resolveMessage,
 } from '../controllers/superadmin.controller.js';
 
 const router = express.Router();
@@ -43,5 +51,19 @@ router.delete('/employees/bulk',  bulkDeleteEmployees);
 router.delete('/sales/:id',       deleteSale);
 router.delete('/salaries/:id',    deleteSalary);
 router.delete('/employees/:id',   deleteEmployee);
+
+// Fines
+router.get('/fines',              getAllFines);
+router.patch('/fines/:id/approve', approveFine);
+router.delete('/fines/:id',       deleteFine);
+
+// Attendance
+router.get('/attendance',         getAllAttendance);
+router.patch('/attendance/:id',   updateAttendance);
+
+// Messages
+router.get('/messages',           getAllMessages);
+router.patch('/messages/:id/respond', respondToMessage);
+router.patch('/messages/:id/resolve', resolveMessage);
 
 export default router;

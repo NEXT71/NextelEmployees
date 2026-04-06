@@ -3,6 +3,8 @@ import Employee from '../models/Employee.js';
 import SalesTarget from '../models/SalesTarget.js';
 import Salary from '../models/Salary.js';
 import Fine from '../models/Fine.js';
+import Attendance from '../models/Attendance.js';
+import Message from '../models/Message.js';
 
 // ── All users (admins + employees) ─────────────────────────────────────────
 export const getAllUsers = async (req, res, next) => {
@@ -461,6 +463,139 @@ export const getSuperAdminStats = async (req, res, next) => {
         totalEarningsPaid
       }
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── All fines ───────────────────────────────────────────────────────────────
+export const getAllFines = async (req, res, next) => {
+  try {
+    const { status } = req.query; // 'approved' | 'pending' | undefined
+    const filter = {};
+    if (status === 'approved') filter.approved = true;
+    if (status === 'pending')  filter.approved = false;
+
+    const fines = await Fine.find(filter)
+      .populate('employee', 'firstName lastName employeeId department')
+      .populate('approvedBy', 'username')
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    res.json({ success: true, data: fines });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const approveFine = async (req, res, next) => {
+  try {
+    const fine = await Fine.findByIdAndUpdate(
+      req.params.id,
+      { approved: true, approvedBy: req.user._id, approvedAt: new Date() },
+      { new: true }
+    ).populate('employee', 'firstName lastName employeeId');
+    if (!fine) return res.status(404).json({ success: false, message: 'Fine not found' });
+    res.json({ success: true, data: fine });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteFine = async (req, res, next) => {
+  try {
+    const fine = await Fine.findByIdAndDelete(req.params.id);
+    if (!fine) return res.status(404).json({ success: false, message: 'Fine not found' });
+    res.json({ success: true, message: 'Fine deleted' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── All attendance ──────────────────────────────────────────────────────────
+export const getAllAttendance = async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    const filter = {};
+    if (date) {
+      const d = new Date(date);
+      const next = new Date(date);
+      next.setDate(next.getDate() + 1);
+      filter.date = { $gte: d, $lt: next };
+    }
+
+    const records = await Attendance.find(filter)
+      .populate('employee', 'firstName lastName employeeId department')
+      .sort({ date: -1, 'employee.firstName': 1 })
+      .limit(300);
+
+    res.json({ success: true, data: records });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateAttendance = async (req, res, next) => {
+  try {
+    const { status, notes, clockIn, clockOut } = req.body;
+    const record = await Attendance.findByIdAndUpdate(
+      req.params.id,
+      { ...(status && { status }), ...(notes !== undefined && { notes }), ...(clockIn && { clockIn }), ...(clockOut && { clockOut }) },
+      { new: true }
+    ).populate('employee', 'firstName lastName employeeId');
+    if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    res.json({ success: true, data: record });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── All messages ────────────────────────────────────────────────────────────
+export const getAllMessages = async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    const filter = status ? { status } : {};
+
+    const messages = await Message.find(filter)
+      .populate('from', 'username email role')
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    res.json({ success: true, data: messages });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const respondToMessage = async (req, res, next) => {
+  try {
+    const { message: replyText } = req.body;
+    if (!replyText) return res.status(400).json({ success: false, message: 'Reply text is required' });
+
+    const msg = await Message.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'responded',
+        adminResponse: { message: replyText, respondedBy: req.user._id, respondedAt: new Date() }
+      },
+      { new: true }
+    ).populate('from', 'username email');
+    if (!msg) return res.status(404).json({ success: false, message: 'Message not found' });
+    res.json({ success: true, data: msg });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const resolveMessage = async (req, res, next) => {
+  try {
+    const msg = await Message.findByIdAndUpdate(
+      req.params.id,
+      { status: 'resolved' },
+      { new: true }
+    );
+    if (!msg) return res.status(404).json({ success: false, message: 'Message not found' });
+    res.json({ success: true, data: msg });
   } catch (err) {
     next(err);
   }

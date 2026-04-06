@@ -142,6 +142,18 @@ const handleGoogleFormWebhook = async (req, res, next) => {
       }).select('_id');
     }
 
+    // Try to match closer by name to an employee record
+    const closerParts = closer.trim().split(/\s+/);
+    const closerFirst = closerParts[0] || '';
+    const closerLast = closerParts.slice(1).join(' ') || '';
+    let matchedCloser = null;
+    if (closerFirst) {
+      matchedCloser = await Employee.findOne({
+        firstName: { $regex: new RegExp(`^${closerFirst}$`, 'i') },
+        ...(closerLast && { lastName: { $regex: new RegExp(`^${closerLast}$`, 'i') } })
+      }).select('_id');
+    }
+
     const submission = new SalesTarget({
       agent: matchedEmployee ? matchedEmployee._id : null,
       agentName: agentName.trim(),
@@ -154,6 +166,7 @@ const handleGoogleFormWebhook = async (req, res, next) => {
       },
       dids: dids.trim(),
       closer: closer.trim(),
+      closerRef: matchedCloser ? matchedCloser._id : null,
       saleDate: saleDate ? new Date(saleDate) : new Date(),
       status: 'pending',
       baseSalary: 1000,

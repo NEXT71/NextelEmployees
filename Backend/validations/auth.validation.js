@@ -3,28 +3,34 @@ import Joi from 'joi';
 // Validation for employee registration (admin only)
 export const validateEmployeeRegister = (data) => {
   const schema = Joi.object({
-    firstName: Joi.string().min(2).max(50).pattern(/^[a-zA-Z\s]+$/).required()
+    name: Joi.string().min(2).max(100).pattern(/^[a-zA-Z\s.\\/]+$/).required()
       .messages({
-        'string.pattern.base': 'First name can only contain letters and spaces'
+        'string.pattern.base': 'Name can only contain letters, spaces, periods, slashes, and backslashes'
       }),
-    lastName: Joi.string().min(2).max(50).pattern(/^[a-zA-Z\s]+$/).required()
+    role: Joi.string().min(2).max(50).required()
       .messages({
-        'string.pattern.base': 'Last name can only contain letters and spaces'
+        'string.base': 'Role is required'
       }),
-    fatherName: Joi.string().min(2).max(50).pattern(/^[a-zA-Z\s]+$/).optional().allow('')
+    firstName: Joi.string().min(1).max(50).pattern(/^[a-zA-Z\s.]+$/).optional().allow('')
       .messages({
-        'string.pattern.base': 'Father name can only contain letters and spaces'
+        'string.pattern.base': 'First name can only contain letters, spaces, and periods'
       }),
-    email: Joi.string().email().required(),
+    lastName: Joi.string().min(1).max(50).pattern(/^[a-zA-Z\s.]+$/).optional().allow('')
+      .messages({
+        'string.pattern.base': 'Last name can only contain letters, spaces, and periods'
+      }),
+    email: Joi.string().email().optional().allow(''),
+    username: Joi.string().min(2).max(80).optional().allow(''),
     password: Joi.string().min(6).max(50)
       .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{6,}$/)
-      .required()
+      .optional()
+      .allow('')
       .messages({
         'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
       }),
-    department: Joi.string().min(2).max(50).required(),
+    department: Joi.string().min(2).max(50).optional().allow(''),
     isCloser: Joi.boolean().optional().default(false),
-    employeeId: Joi.string().pattern(/^[a-zA-Z0-9]{6,12}$/).required()
+    employeeId: Joi.string().pattern(/^[a-zA-Z0-9]{6,12}$/).optional().allow('')
       .messages({
         'string.pattern.base': 'Employee ID must be 6-12 alphanumeric characters'
       }),

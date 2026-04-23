@@ -4,6 +4,93 @@ import { generateToken } from '../config/jwt.js';
 import { validateLogin, validateEmployeeRegister } from '../validations/auth.validation.js';
 import crypto from 'crypto'; // Node's built-in crypto
 
+const REGISTRATION_EMAIL_DOMAIN = 'nextelbpo.co';
+
+const ROLE_PRESETS = {
+  csr: {
+    userRole: 'employee',
+    department: 'Sales',
+    isCloser: false,
+    defaultPassword: 'Pakistan@786'
+  },
+  closer: {
+    userRole: 'employee',
+    department: 'Verifier',
+    isCloser: true,
+    defaultPassword: 'Pakistan123'
+  },
+  qa: {
+    userRole: 'qa',
+    department: 'Quality Assurance',
+    isCloser: false,
+    defaultPassword: (firstName) => `${capitalizeName(firstName)}@786`
+  }
+};
+
+const normalizeSpaces = (value = '') => String(value).trim().replace(/\s+/g, ' ');
+
+const capitalizeName = (value = '') => {
+  const normalized = normalizeSpaces(value);
+  if (!normalized) return '';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
+};
+
+const slugifyName = (value = '') => normalizeSpaces(value)
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '.')
+  .replace(/^\.+|\.+$/g, '')
+  .replace(/\.+/g, '.');
+
+const splitFullName = (value = '') => {
+  const parts = normalizeSpaces(value).split(' ').filter(Boolean);
+
+  if (parts.length === 0) {
+    return { firstName: '', lastName: '' };
+  }
+
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: '' };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(' ')
+  };
+};
+
+const normalizeRole = (value = '') => {
+  const normalized = normalizeSpaces(value).toLowerCase().replace(/\\/g, '/');
+
+  if (!normalized) return 'csr';
+  if (normalized.includes('qa') || normalized.includes('q/a') || normalized.includes('q a')) return 'qa';
+  if (normalized.includes('verifier')) return 'closer';
+  if (normalized.includes('closer') || normalized.includes('tl')) return 'closer';
+  if (normalized === 'employee' || normalized === 'sales' || normalized === 'csr') return 'csr';
+
+  return 'csr';
+};
+
+const buildUsername = (firstName, lastName) => {
+  const base = [slugifyName(firstName), slugifyName(lastName)]
+    .filter(Boolean)
+    .join('.');
+
+  return base || `user${crypto.randomInt(100000, 999999)}`;
+};
+
+const generateEmployeeId = () => `EMP${crypto.randomInt(100000, 999999)}`;
+
+const getPasswordForRole = (roleKey, firstName, providedPassword) => {
+  if (providedPassword) {
+    return providedPassword;
+  }
+
+  const preset = ROLE_PRESETS[roleKey] || ROLE_PRESETS.csr;
+  return typeof preset.defaultPassword === 'function'
+    ? preset.defaultPassword(firstName)
+    : preset.defaultPassword;
+};
+
 
 const registerEmployee = async (req, res, next) => {
   console.log("📥 Incoming request body:", req.body);
@@ -18,6 +105,19 @@ const registerEmployee = async (req, res, next) => {
       });
     }
 
+    const fullName = normalizeSpaces(req.body.name || [req.body.firstName, req.body.lastName].filter(Boolean).join(' '));
+    const normalizedRole = normalizeRole(req.body.role || req.body.department || (req.body.isCloser ? 'closer' : 'csr'));
+    const rolePreset = ROLE_PRESETS[normalizedRole] || ROLE_PRESETS.csr;
+    const { firstName, lastName } = splitFullName(fullName);
+
+    if (!fullName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: name',
+        field: 'name'
+      });
+    }
+
     // Optional: Use Joi validation first
     const { error: validationError } = validateEmployeeRegister(req.body);
     if (validationError) {
@@ -28,37 +128,22 @@ const registerEmployee = async (req, res, next) => {
       });
     }
 
-    const { 
-      firstName, 
-      lastName, 
-      fatherName,
-      email, 
-      department, 
-      employeeId,
-      hireDate,
-      status,
-      contact,
-      isCloser,
-      password // Add password field for admin to set
-    } = req.body;
+    const fatherName = normalizeSpaces(req.body.fatherName || '');
+    const email = normalizeSpaces(req.body.email || '') || `${buildUsername(firstName, lastName)}@${REGISTRATION_EMAIL_DOMAIN}`;
+    const usernameBase = normalizeSpaces(req.body.username || '') || buildUsername(firstName, lastName);
+    const employeeId = normalizeSpaces(req.body.employeeId || '') || generateEmployeeId();
+    const department = rolePreset.department;
+    const hireDate = req.body.hireDate;
+    const status = req.body.status;
+    const contact = req.body.contact;
+    const password = getPasswordForRole(normalizedRole, firstName, normalizeSpaces(req.body.password || ''));
+    const isCloser = req.body.isCloser === true || req.body.isCloser === 'true' || rolePreset.isCloser;
 
     // ======================
     // Comprehensive Validation (same as before)
     // ======================
 
-    // 1. Check required fields
-    const requiredFields = ['firstName', 'lastName', 'email', 'department', 'employeeId', 'password'];
-    const missingFields = requiredFields.filter(field => !req.body[field]);
-    
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        success: false,
-        message: `Missing required fields: ${missingFields.join(', ')}`,
-        missingFields
-      });
-    }
-
-    // 2. Validate email format
+    // 1. Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({
@@ -68,7 +153,7 @@ const registerEmployee = async (req, res, next) => {
       });
     }
 
-    // 3. Validate employee ID format (alphanumeric, 6-12 characters)
+    // 2. Validate employee ID format (alphanumeric, 6-12 characters)
     if (!/^[a-zA-Z0-9]{6,12}$/.test(employeeId)) {
       return res.status(400).json({
         success: false,
@@ -77,7 +162,7 @@ const registerEmployee = async (req, res, next) => {
       });
     }
 
-    // 4. Validate names (letters and spaces only)
+    // 3. Validate names (letters and spaces only)
     const nameRegex = /^[a-zA-Z\s]+$/;
     if (!nameRegex.test(firstName)) {
       return res.status(400).json({
@@ -86,7 +171,7 @@ const registerEmployee = async (req, res, next) => {
         field: 'firstName'
       });
     }
-    if (!nameRegex.test(lastName)) {
+    if (lastName && !nameRegex.test(lastName)) {
       return res.status(400).json({
         success: false,
         message: 'Last name can only contain letters and spaces',
@@ -101,7 +186,7 @@ const registerEmployee = async (req, res, next) => {
       });
     }
 
-    // 5. Validate department
+    // 4. Validate department
     if (department.length < 2 || department.length > 50) {
       return res.status(400).json({
         success: false,
@@ -110,7 +195,7 @@ const registerEmployee = async (req, res, next) => {
       });
     }
 
-    // 6. Validate hire date if provided
+    // 5. Validate hire date if provided
     if (hireDate) {
       const hireDateObj = new Date(hireDate);
       if (isNaN(hireDateObj.getTime())) {
@@ -130,7 +215,7 @@ const registerEmployee = async (req, res, next) => {
       }
     }
 
-    // 7. Validate contact information if provided
+    // 6. Validate contact information if provided
     if (contact) {
       if (contact.phone && !/^[0-9]{10,15}$/.test(contact.phone)) {
         return res.status(400).json({
@@ -148,7 +233,7 @@ const registerEmployee = async (req, res, next) => {
       }
     }
 
-    // 8. Validate password
+    // 7. Validate password
     if (!password || password.length < 6) {
       return res.status(400).json({
         success: false,
@@ -222,7 +307,7 @@ const registerEmployee = async (req, res, next) => {
       fatherName,
       email,
       department,
-      isCloser: isCloser === true || isCloser === 'true',
+      isCloser,
       employeeId,
       hireDate: hireDate || Date.now(),
       status: status || 'Active',
@@ -235,7 +320,7 @@ const registerEmployee = async (req, res, next) => {
 
     if (!existingUser) {
       // Generate username (firstname.lastname)
-      let username = `${firstName.toLowerCase().trim()}.${lastName.toLowerCase().trim()}`;
+      let username = usernameBase;
       
       // Check if username already exists
       const usernameExists = await User.findOne({ username });
@@ -249,8 +334,8 @@ const registerEmployee = async (req, res, next) => {
       existingUser = await User.create({
         username,
         email,
-        password: password, // Use admin-provided password
-        role: 'employee',
+        password,
+        role: rolePreset.userRole,
         employeeId: newEmployee._id,
         isActive: true,
         verified: true
@@ -270,7 +355,7 @@ const registerEmployee = async (req, res, next) => {
       
       // Update existing user with new password and link to employee
       existingUser.employeeId = newEmployee._id;
-      existingUser.role = 'employee';
+      existingUser.role = rolePreset.userRole;
       existingUser.password = password; // This will be hashed by the pre-save middleware
       existingUser.isActive = true;
       await existingUser.save();
@@ -292,11 +377,15 @@ const registerEmployee = async (req, res, next) => {
       data: {
         id: newEmployee._id,
         employeeId: newEmployee.employeeId,
-        name: `${firstName} ${lastName}`,
+        name: normalizeSpaces([firstName, lastName].filter(Boolean).join(' ')),
         email,
         username: existingUser.username,
         department,
-        message: 'Employee account created with admin-provided password'
+        role: rolePreset.userRole,
+        password: req.body.password ? undefined : password,
+        message: req.body.password
+          ? 'Employee account created with admin-provided password'
+          : 'Employee account created with auto-generated password'
       }
     });
 

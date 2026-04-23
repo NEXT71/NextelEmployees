@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
 import { X, Eye, EyeOff } from 'lucide-react';
 import { authAPI } from '../../utils/api';
-import { DEPARTMENTS } from '../../utils/constants';
 
 const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
   const [employeeForm, setEmployeeForm] = useState({
-    firstName: '',
-    lastName: '',
+    name: '',
+    role: 'CSR',
     email: '',
     password: '',
-    department: 'Sales',
-    isCloser: false,
     employeeId: '',
     hireDate: new Date().toISOString().split('T')[0],
     status: 'Active',
@@ -51,27 +48,26 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
     setError('');
 
     try {
-      // Validate required fields (same as inline modal)
-      if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || 
-          !employeeForm.password || !employeeForm.employeeId || !employeeForm.department) {
-        setError('Please fill all required fields');
+      // Validate required fields
+      if (!employeeForm.name || !employeeForm.role) {
+        setError('Name and role are required');
         setLoading(false);
         return;
       }
 
-      // Validate password strength
-      if (employeeForm.password.length < 6) {
-        setError('Password must be at least 6 characters long');
-        setLoading(false);
-        return;
-      }
+      if (employeeForm.password) {
+        if (employeeForm.password.length < 6) {
+          setError('Password must be at least 6 characters long');
+          setLoading(false);
+          return;
+        }
 
-      // Basic password strength check
-      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{6,}$/;
-      if (!passwordRegex.test(employeeForm.password)) {
-        setError('Password must contain at least one uppercase letter, one lowercase letter, and one number');
-        setLoading(false);
-        return;
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{6,}$/;
+        if (!passwordRegex.test(employeeForm.password)) {
+          setError('Password must contain at least one uppercase letter, one lowercase letter, and one number');
+          setLoading(false);
+          return;
+        }
       }
 
       const response = await authAPI.registerEmployee(employeeForm);
@@ -88,12 +84,10 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
         
         // Reset form to default values (same as inline modal)
         setEmployeeForm({
-          firstName: '',
-          lastName: '',
+          name: '',
+          role: 'CSR',
           email: '',
           password: '',
-          department: 'Sales',
-          isCloser: false,
           employeeId: '',
           hireDate: new Date().toISOString().split('T')[0],
           status: 'Active',
@@ -134,14 +128,10 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
           [contactField]: value
         }
       });
-    } else if (name === 'isCloser') {
-      setEmployeeForm({ ...employeeForm, isCloser: checked });
-    } else if (name === 'department') {
-      // Auto-set isCloser when Verifier is selected
+    } else if (name === 'role') {
       setEmployeeForm({
         ...employeeForm,
-        department: value,
-        isCloser: value === 'Verifier' ? true : employeeForm.isCloser
+        role: value
       });
     } else {
       setEmployeeForm({
@@ -174,48 +164,51 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
             </div>
           )}
 
-          {/* Form Fields matching inline modal exactly */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">First Name</label>
-              <input
-                type="text"
-                name="firstName"
-                value={employeeForm.firstName}
-                onChange={handleEmployeeFormChange}
-                className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Last Name</label>
-              <input
-                type="text"
-                name="lastName"
-                value={employeeForm.lastName}
-                onChange={handleEmployeeFormChange}
-                className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-                required
-              />
-            </div>
-          </div>
-
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Full Name <span className="text-cyan-400">*</span></label>
             <input
-              type="email"
-              name="email"
-              value={employeeForm.email}
+              type="text"
+              name="name"
+              value={employeeForm.name}
               onChange={handleEmployeeFormChange}
+              placeholder="Enter full name"
               className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
               required
             />
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Role <span className="text-cyan-400">*</span></label>
+            <select
+              name="role"
+              value={employeeForm.role}
+              onChange={handleEmployeeFormChange}
+              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
+              required
+            >
+              <option value="CSR" className="bg-slate-800">CSR</option>
+              <option value="Closer/TL" className="bg-slate-800">Closer/TL</option>
+              <option value="QA Manager" className="bg-slate-800">QA Manager</option>
+            </select>
+            <p className="text-xs text-slate-400 mt-2">This determines the account type, department, and default password if you leave it blank.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Email <span className="text-slate-500">(optional)</span></label>
+            <input
+              type="email"
+              name="email"
+              value={employeeForm.email}
+              onChange={handleEmployeeFormChange}
+              placeholder="Leave blank to auto-generate"
+              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
               Password
-              <span className="text-red-400 ml-1">*</span>
+              <span className="text-slate-500 ml-1">(optional)</span>
             </label>
             <div className="relative">
               <input
@@ -223,9 +216,8 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
                 name="password"
                 value={employeeForm.password}
                 onChange={handleEmployeeFormChange}
-                placeholder="Create a secure password"
+                placeholder="Leave blank to auto-generate from role"
                 className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 pr-12 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-                required
               />
               <button
                 type="button"
@@ -235,9 +227,7 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-            <p className="text-xs text-slate-400 mt-2">
-              Password must contain at least 6 characters with uppercase, lowercase, and number
-            </p>
+            <p className="text-xs text-slate-400 mt-2">If you leave this empty, the backend will generate the role-based default password.</p>
             {employeeForm.password && (
               <div className="mt-2">
                 <div className="flex items-center space-x-2">
@@ -263,67 +253,36 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Department</label>
-            <select
-              name="department"
-              value={employeeForm.department}
-              onChange={handleEmployeeFormChange}
-              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-              required
-            >
-              {DEPARTMENTS.map(dept => (
-                <option key={dept} value={dept} className="bg-slate-800">{dept}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* isCloser toggle */}
-          <div className="flex items-center justify-between bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-slate-300">Verifier / Closer Role</p>
-              <p className="text-xs text-slate-500 mt-0.5">Earns RS 100 per approved close. Auto-redirected to Verifier Dashboard.</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer ml-4">
-              <input
-                type="checkbox"
-                name="isCloser"
-                checked={employeeForm.isCloser}
-                onChange={handleEmployeeFormChange}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
-            </label>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Employee ID</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Employee ID <span className="text-slate-500">(optional)</span></label>
             <input
               type="text"
               name="employeeId"
               value={employeeForm.employeeId}
               onChange={handleEmployeeFormChange}
+              placeholder="Leave blank to auto-generate"
               className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-              required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Phone</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Phone <span className="text-slate-500">(optional)</span></label>
             <input
               type="tel"
               name="contact.phone"
               value={employeeForm.contact.phone}
               onChange={handleEmployeeFormChange}
+              placeholder="Optional contact number"
               className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Address</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Address <span className="text-slate-500">(optional)</span></label>
             <textarea
               name="contact.address"
               value={employeeForm.contact.address}
               onChange={handleEmployeeFormChange}
+              placeholder="Optional address"
               rows={3}
               className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors resize-none"
             />

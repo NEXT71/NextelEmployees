@@ -642,9 +642,19 @@ const QADashboard = () => {
               <select
                 multiple
                 value={agentFilter}
-                onChange={(e) => setAgentFilter(Array.from(e.target.selectedOptions).map((opt) => opt.value))}
+                onChange={(e) => {
+                  const values = Array.from(e.target.selectedOptions).map((opt) => opt.value);
+                  if (values.includes('__all')) {
+                    setAgentFilter([]);
+                  } else {
+                    setAgentFilter(values);
+                  }
+                }}
                 className="w-full min-h-[110px] bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
               >
+                <option value="__all" className="bg-slate-900 text-white">
+                  All agents
+                </option>
                 {agentOptions.map((agent) => (
                   <option key={agent} value={agent} className="bg-slate-900 text-white">
                     {agent}

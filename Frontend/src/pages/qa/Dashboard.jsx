@@ -253,7 +253,7 @@ const QADashboard = () => {
     return '';
   };
 
-  const matchesDateRange = (sub) => {
+  const matchesDateRange = useCallback((sub) => {
     if (dateRange === 'all') return true;
     const value = sub.createdAt || sub.saleDate || sub.saleDate;
     if (!value) return false;
@@ -282,7 +282,7 @@ const QADashboard = () => {
       return submitted >= start && submitted <= end;
     }
     return true;
-  };
+  }, [dateRange, customStart, customEnd]);
 
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
@@ -454,7 +454,7 @@ const QADashboard = () => {
         (s.googleFormResponseId || '').toLowerCase().includes(q)
       );
     });
-  }, [submissions, search, dateRange, customStart, customEnd, agentFilter, packageFilter, amountTier, matchesDateRange]);
+  }, [submissions, search, agentFilter, packageFilter, amountTier, matchesDateRange]);
 
   const exportToCsv = useCallback(() => {
     const headers = ['Date', 'Agent', 'Customer', 'DIDs', 'Package', 'Amount', 'Status', 'Closer', 'Phone', 'State', 'Zip', 'Form ID', 'Submitted'];

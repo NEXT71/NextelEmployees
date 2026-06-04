@@ -116,7 +116,7 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
   };
 
   const handleEmployeeFormChange = (e) => {
-    const { name, value, checked } = e.target;
+    const { name, value } = e.target;
     
     // Handle nested contact fields
     if (name.startsWith('contact.')) {

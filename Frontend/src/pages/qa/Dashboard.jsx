@@ -454,7 +454,7 @@ const QADashboard = () => {
         (s.googleFormResponseId || '').toLowerCase().includes(q)
       );
     });
-  }, [submissions, search, dateRange, customStart, customEnd, agentFilter, packageFilter, amountTier]);
+  }, [submissions, search, dateRange, customStart, customEnd, agentFilter, packageFilter, amountTier, matchesDateRange]);
 
   const exportToCsv = useCallback(() => {
     const headers = ['Date', 'Agent', 'Customer', 'DIDs', 'Package', 'Amount', 'Status', 'Closer', 'Phone', 'State', 'Zip', 'Form ID', 'Submitted'];

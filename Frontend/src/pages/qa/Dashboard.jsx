@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
 import {
   CheckCircle, XCircle, Clock, RefreshCw, LogOut, AlertCircle,
-  ChevronDown, ChevronUp, ClipboardList, Search
+  ChevronDown, ChevronUp, ClipboardList, Search, Download
 } from 'lucide-react';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -93,9 +93,16 @@ const RejectModal = memo(({ onConfirm, onCancel, isBulk, count }) => {
 });
 
 // ─── Submission Row ───────────────────────────────────────────────────────────
-const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expandedId, onToggleExpand }) => {
+const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expandedId, onToggleExpand, reviewNote, onReviewNoteChange, shouldFocusReview }) => {
   const isExpanded = expandedId === sub._id;
   const canAct = sub.status === 'pending';
+  const reviewRef = useRef(null);
+
+  useEffect(() => {
+    if (shouldFocusReview && isExpanded && reviewRef.current) {
+      reviewRef.current.focus();
+    }
+  }, [shouldFocusReview, isExpanded]);
 
   const agentName = sub.agentName?.trim() || 'Unknown';
   const customerName = sub.customer
@@ -185,6 +192,16 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expa
                 </div>
               )}
             </div>
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <p className="text-white/40 text-xs uppercase tracking-wide mb-2">Internal Review Notes</p>
+              <textarea
+                ref={reviewRef}
+                value={reviewNote || ''}
+                onChange={(e) => onReviewNoteChange(sub._id, e.target.value)}
+                placeholder="Write review notes for this submission..."
+                className="w-full min-h-[110px] bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none transition-all"
+              />
+            </div>
           </td>
         </tr>
       )}
@@ -202,12 +219,70 @@ const QADashboard = () => {
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
   const [search, setSearch] = useState('');
+  const [dateRange, setDateRange] = useState('all');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  const [agentFilter, setAgentFilter] = useState([]);
+  const [packageFilter, setPackageFilter] = useState('');
+  const [amountTier, setAmountTier] = useState('any');
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [expandedId, setExpandedId] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [lastSynced, setLastSynced] = useState(null);
+  const [reviewNotes, setReviewNotes] = useState({});
+  const [focusReviewId, setFocusReviewId] = useState(null);
 
   // Rejection modal state
   const [rejectTarget, setRejectTarget] = useState(null); // { id: string } | { bulk: true }
+
+  const formatSyncLabel = (date) => {
+    if (!date) return 'Not synced yet';
+    const diff = Date.now() - date.getTime();
+    if (diff < 60000) return 'Synced just now';
+    if (diff < 3600000) return `Synced ${Math.floor(diff / 60000)} min ago`;
+    return `Synced ${Math.floor(diff / 3600000)} hr ago`;
+  };
+
+  const getPackageValue = (sub) => {
+    const candidate = (sub.package || sub.packageType || sub.product || '').toString().trim();
+    if (candidate) return candidate;
+    if (sub.dids) {
+      const found = ['D4', 'D36', 'D38'].find((code) => sub.dids.includes(code));
+      return found || sub.dids;
+    }
+    return '';
+  };
+
+  const matchesDateRange = (sub) => {
+    if (dateRange === 'all') return true;
+    const value = sub.createdAt || sub.saleDate || sub.saleDate;
+    if (!value) return false;
+    const submitted = new Date(value);
+    const today = new Date();
+    const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const submittedDay = startOfDay(submitted);
+    if (dateRange === 'today') {
+      return submittedDay.getTime() === startOfDay(today).getTime();
+    }
+    if (dateRange === 'yesterday') {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return submittedDay.getTime() === startOfDay(yesterday).getTime();
+    }
+    if (dateRange === 'last7') {
+      const pastWeek = new Date(today);
+      pastWeek.setDate(pastWeek.getDate() - 6);
+      return submittedDay.getTime() >= startOfDay(pastWeek).getTime() && submittedDay.getTime() <= startOfDay(today).getTime();
+    }
+    if (dateRange === 'custom') {
+      if (!customStart || !customEnd) return true;
+      const start = new Date(customStart);
+      const end = new Date(customEnd);
+      end.setHours(23, 59, 59, 999);
+      return submitted >= start && submitted <= end;
+    }
+    return true;
+  };
 
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
@@ -216,6 +291,7 @@ const QADashboard = () => {
       const qs = statusFilter !== 'all' ? `?status=${statusFilter}&limit=200` : '?limit=200';
       const data = await apiFetch(`/sales-submissions${qs}`);
       setSubmissions(data.data || []);
+      setLastSynced(new Date());
     } catch (e) {
       setError(e.message);
     } finally {
@@ -256,6 +332,8 @@ const QADashboard = () => {
 
   // ── open reject modal for single ─────────────────────────────────────────
   const openRejectSingle = useCallback((id) => {
+    setExpandedId(id);
+    setFocusReviewId(id);
     setRejectTarget({ id });
   }, []);
 
@@ -314,6 +392,12 @@ const QADashboard = () => {
     }
   }, [selectedIds]);
 
+  useEffect(() => {
+    if (focusReviewId && expandedId === focusReviewId) {
+      setFocusReviewId(null);
+    }
+  }, [focusReviewId, expandedId]);
+
   // ── selection helpers ─────────────────────────────────────────────────────
   const toggleSelect = useCallback((id) => {
     setSelectedIds((prev) => {
@@ -323,18 +407,89 @@ const QADashboard = () => {
     });
   }, []);
 
-  const filtered = submissions.filter((s) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    const customerName = s.customer ? `${s.customer.firstName || ''} ${s.customer.lastName || ''}` : '';
-    return (
-      (s.agentName || '').toLowerCase().includes(q) ||
-      customerName.toLowerCase().includes(q) ||
-      (s.dids || '').toLowerCase().includes(q) ||
-      (s.closer || '').toLowerCase().includes(q) ||
-      (s.googleFormResponseId || '').toLowerCase().includes(q)
-    );
-  });
+  const agentOptions = useMemo(() => {
+    return Array.from(new Set(submissions.map((s) => (s.agentName || '').trim())))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+  }, [submissions]);
+
+  const packageOptions = useMemo(() => {
+    const set = new Set();
+    submissions.forEach((s) => {
+      const pkg = getPackageValue(s);
+      if (pkg) set.add(pkg);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [submissions]);
+
+  const getRowAmount = (s) => s.pricePerSale ?? s.baseSalary ?? s.totalEarning ?? 0;
+
+  const filtered = useMemo(() => {
+    return submissions.filter((s) => {
+      if (!matchesDateRange(s)) return false;
+
+      if (agentFilter.length > 0 && !agentFilter.includes((s.agentName || '').trim())) {
+        return false;
+      }
+
+      if (packageFilter) {
+        const pkg = getPackageValue(s);
+        if (!pkg.toLowerCase().includes(packageFilter.toLowerCase())) return false;
+      }
+
+      const amount = getRowAmount(s);
+      if (amountTier === 'gt1000' && amount <= 1000) return false;
+      if (amountTier === 'gt5000' && amount <= 5000) return false;
+
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      const customerName = s.customer ? `${s.customer.firstName || ''} ${s.customer.lastName || ''}` : '';
+      const pkg = getPackageValue(s);
+      return (
+        (s.agentName || '').toLowerCase().includes(q) ||
+        customerName.toLowerCase().includes(q) ||
+        (s.dids || '').toLowerCase().includes(q) ||
+        (s.closer || '').toLowerCase().includes(q) ||
+        (pkg || '').toLowerCase().includes(q) ||
+        (s.googleFormResponseId || '').toLowerCase().includes(q)
+      );
+    });
+  }, [submissions, search, dateRange, customStart, customEnd, agentFilter, packageFilter, amountTier]);
+
+  const exportToCsv = useCallback(() => {
+    const headers = ['Date', 'Agent', 'Customer', 'DIDs', 'Package', 'Amount', 'Status', 'Closer', 'Phone', 'State', 'Zip', 'Form ID', 'Submitted'];
+    const rows = filtered.map((s) => {
+      const customer = s.customer ? `${s.customer.firstName || ''} ${s.customer.lastName || ''}`.trim() : '';
+      const pkg = getPackageValue(s);
+      return [
+        fmtDate(s.saleDate),
+        s.agentName || '',
+        customer,
+        s.dids || '',
+        pkg,
+        getRowAmount(s),
+        s.status === 'disapproved' ? 'Rejected' : s.status,
+        s.closer || '',
+        s.customer?.phone || '',
+        s.customer?.state || '',
+        s.customer?.zipCode || '',
+        s.googleFormResponseId || s._id,
+        fmtDate(s.createdAt),
+      ];
+    });
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `qa-submissions-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [filtered]);
 
   const pendingInView = filtered.filter((s) => s.status === 'pending');
   const allPendingSelected = pendingInView.length > 0 && pendingInView.every((s) => selectedIds.has(s._id));
@@ -362,7 +517,12 @@ const QADashboard = () => {
               <ClipboardList size={20} className="text-purple-300" />
             </div>
             <div>
-              <h1 className="text-white font-bold text-lg leading-tight">QA Dashboard</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-white font-bold text-lg leading-tight">QA Dashboard</h1>
+                <span className="text-white/50 text-xs bg-white/5 px-2 py-1 rounded-full border border-white/10">
+                  {formatSyncLabel(lastSynced)}
+                </span>
+              </div>
               <p className="text-white/40 text-xs">
                 {user?.firstName} {user?.lastName} · Quality Assurance
               </p>
@@ -399,10 +559,10 @@ const QADashboard = () => {
         {/* ── Stats row ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total Loaded', value: submissions.length, color: 'bg-blue-500/30', icon: ClipboardList },
-            { label: 'Pending', value: submissions.filter(s => s.status === 'pending').length, color: 'bg-yellow-500/30', icon: Clock },
-            { label: 'Approved', value: submissions.filter(s => s.status === 'approved').length, color: 'bg-green-500/30', icon: CheckCircle },
-            { label: 'Rejected', value: submissions.filter(s => s.status === 'disapproved').length, color: 'bg-red-500/30', icon: XCircle },
+            { label: 'Total Loaded', value: filtered.length, color: 'bg-blue-500/30', icon: ClipboardList },
+            { label: 'Pending', value: filtered.filter((s) => s.status === 'pending').length, color: 'bg-yellow-500/30', icon: Clock },
+            { label: 'Approved', value: filtered.filter((s) => s.status === 'approved').length, color: 'bg-green-500/30', icon: CheckCircle },
+            { label: 'Rejected', value: filtered.filter((s) => s.status === 'disapproved').length, color: 'bg-red-500/30', icon: XCircle },
           ].map(({ label, value, color, icon: Icon }) => (
             <div key={label} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 flex items-center gap-3">
               <div className={`p-2.5 rounded-lg ${color}`}>
@@ -417,10 +577,9 @@ const QADashboard = () => {
         </div>
 
         {/* ── Filter / Search / Actions bar ── */}
-        <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            {/* Status filter */}
-            <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1">
+        <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-4 space-y-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1 flex-wrap">
               {['pending', 'approved', 'rejected', 'all'].map((s) => (
                 <button
                   key={s}
@@ -435,39 +594,125 @@ const QADashboard = () => {
                 </button>
               ))}
             </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={exportToCsv}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-sm font-medium hover:bg-slate-700 transition-all"
+              >
+                <Download size={16} /> Export CSV
+              </button>
+              <span className="text-white/50 text-sm">{formatSyncLabel(lastSynced)}</span>
+            </div>
+          </div>
 
-            {/* Search */}
-            <div className="flex-1 relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search agent, customer, package..."
-                className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-4 py-2 text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              />
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div>
+              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Date Range</label>
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              >
+                <option value="all">Any</option>
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="last7">Last 7 Days</option>
+                <option value="custom">Custom Range</option>
+              </select>
+              {dateRange === 'custom' && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                  />
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Bulk actions */}
-            {selectedIds.size > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-white/50 text-sm">{selectedIds.size} selected</span>
-                <button
-                  onClick={handleBulkApprove}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/20 hover:bg-green-500/40 text-green-400 hover:text-green-300 transition-all text-sm font-medium"
-                >
-                  <CheckCircle size={14} /> Approve All
-                </button>
-                <button
-                  onClick={openRejectBulk}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 transition-all text-sm font-medium"
-                >
-                  <XCircle size={14} /> Reject All
-                </button>
-              </div>
-            )}
+            <div>
+              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Agent</label>
+              <select
+                multiple
+                value={agentFilter}
+                onChange={(e) => setAgentFilter(Array.from(e.target.selectedOptions).map((opt) => opt.value))}
+                className="w-full min-h-[110px] bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              >
+                {agentOptions.map((agent) => (
+                  <option key={agent} value={agent} className="bg-slate-900 text-white">
+                    {agent}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Package Type</label>
+              <select
+                value={packageFilter}
+                onChange={(e) => setPackageFilter(e.target.value)}
+                className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              >
+                <option value="">Any</option>
+                {packageOptions.map((pkg) => (
+                  <option key={pkg} value={pkg}>{pkg}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Amount Tier</label>
+              <select
+                value={amountTier}
+                onChange={(e) => setAmountTier(e.target.value)}
+                className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              >
+                <option value="any">Any</option>
+                <option value="gt1000">{'>'} RS 1,000</option>
+                <option value="gt5000">{'>'} RS 5,000</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search agent, customer, package..."
+              className="w-full bg-slate-950/80 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+            />
           </div>
         </div>
+
+        {/* ── Bulk action bar ── */}
+        {selectedIds.size > 0 && (
+          <div className="bg-slate-900/90 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between transition-all">
+            <span className="text-white/70 text-sm">{selectedIds.size} submission{selectedIds.size === 1 ? '' : 's'} selected</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleBulkApprove}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/20 hover:bg-green-500/40 text-green-300 transition-all text-sm font-medium"
+              >
+                <CheckCircle size={16} /> Bulk Approve
+              </button>
+              <button
+                onClick={openRejectBulk}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-all text-sm font-medium"
+              >
+                <XCircle size={16} /> Bulk Reject
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Table ── */}
         <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
@@ -485,8 +730,14 @@ const QADashboard = () => {
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <ClipboardList size={40} className="text-white/20" />
-              <p className="text-white/40 text-sm">
-                {search ? 'No results match your search.' : `No ${statusFilter === 'all' ? '' : statusFilter} submissions found.`}
+              <p className="text-white/40 text-sm text-center max-w-md">
+                {search
+                  ? 'No results match your search.'
+                  : statusFilter === 'approved'
+                    ? 'No approved submissions found for this period.'
+                    : statusFilter === 'rejected'
+                      ? 'No rejected submissions found for this period.'
+                      : 'No submissions found for this period.'}
               </p>
             </div>
           ) : (
@@ -524,6 +775,9 @@ const QADashboard = () => {
                       onReject={openRejectSingle}
                       expandedId={expandedId}
                       onToggleExpand={(id) => setExpandedId((prev) => (prev === id ? null : id))}
+                      reviewNote={reviewNotes[sub._id]}
+                      onReviewNoteChange={(id, value) => setReviewNotes((prev) => ({ ...prev, [id]: value }))}
+                      shouldFocusReview={focusReviewId === sub._id}
                     />
                   ))}
                 </tbody>

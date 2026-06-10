@@ -2,6 +2,54 @@ import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
 import mongoose from 'mongoose';
 
+const normalizeName = (value = '') => String(value || '').trim().replace(/\s+/g, ' ');
+
+const levenshteinDistance = (a = '', b = '') => {
+  const matrix = Array.from({ length: a.length + 1 }, () => []);
+  for (let i = 0; i <= a.length; i += 1) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) matrix[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[a.length][b.length];
+};
+
+const getBestEmployeeNameMatch = async (rawName) => {
+  const normalizedInput = normalizeName(rawName);
+  if (!normalizedInput) return null;
+
+  const employees = await Employee.find({}, 'firstName lastName');
+  let bestMatch = null;
+  let bestScore = Infinity;
+
+  const inputLower = normalizedInput.toLowerCase();
+
+  employees.forEach((employee) => {
+    const candidateName = normalizeName(`${employee.firstName || ''} ${employee.lastName || ''}`);
+    if (!candidateName) return;
+
+    const candidateLower = candidateName.toLowerCase();
+    const score = levenshteinDistance(inputLower, candidateLower);
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestMatch = { employee, correctedName: candidateName, score };
+    }
+  });
+
+  if (!bestMatch) return null;
+
+  const maxDistance = Math.max(1, Math.floor(bestMatch.correctedName.length * 0.25));
+  return bestMatch.score <= maxDistance ? bestMatch : null;
+};
+
 // Helper: resolve employee._id from a user _id (for consistent agent storage)
 const resolveEmployeeId = async (userId) => {
   if (!userId) return null;
@@ -38,16 +86,33 @@ const createSubmission = async (req, res, next) => {
 
     // If agent is a user _id, resolve to employee _id for consistency
     let resolvedAgent = null;
+    let agentRecord = null;
     if (agent) {
       // Try to resolve as employee directly first, then as user
       if (mongoose.Types.ObjectId.isValid(agent)) {
-        const empDirect = await Employee.findById(agent).select('_id');
+        const empDirect = await Employee.findById(agent).select('_id firstName lastName');
         if (empDirect) {
           resolvedAgent = empDirect._id;
+          agentRecord = empDirect;
         } else {
           // Try as user reference
           resolvedAgent = await resolveEmployeeId(agent);
         }
+      }
+    }
+
+    // Auto-correct agent name when needed
+    agentName = normalizeName(agentName);
+    if (agentRecord) {
+      const actualName = normalizeName(`${agentRecord.firstName || ''} ${agentRecord.lastName || ''}`);
+      if (actualName && actualName.toLowerCase() !== agentName.toLowerCase()) {
+        agentName = actualName;
+      }
+    } else if (agentName) {
+      const bestMatch = await getBestEmployeeNameMatch(agentName);
+      if (bestMatch) {
+        resolvedAgent = bestMatch.employee._id;
+        agentName = bestMatch.correctedName;
       }
     }
 
@@ -111,7 +176,7 @@ const handleGoogleFormWebhook = async (req, res, next) => {
     }
 
     // Map Google Form fields — the script sends pre-mapped data
-    const {
+    let {
       agentName,
       customerFirstName,
       customerLastName,
@@ -130,20 +195,16 @@ const handleGoogleFormWebhook = async (req, res, next) => {
       });
     }
 
-    // Try to match agent by name to an employee record
-    const nameParts = agentName.trim().split(/\s+/);
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
-    let matchedEmployee = null;
-    if (firstName) {
-      matchedEmployee = await Employee.findOne({
-        firstName: { $regex: new RegExp(`^${firstName}$`, 'i') },
-        ...(lastName && { lastName: { $regex: new RegExp(`^${lastName}$`, 'i') } })
-      }).select('_id');
+    agentName = normalizeName(agentName);
+    const bestAgentMatch = await getBestEmployeeNameMatch(agentName);
+    const matchedEmployee = bestAgentMatch ? await Employee.findById(bestAgentMatch.employee._id).select('_id') : null;
+    if (bestAgentMatch) {
+      agentName = bestAgentMatch.correctedName;
     }
 
     // Try to match closer by name to an employee record
-    const closerParts = closer.trim().split(/\s+/);
+    const closerName = normalizeName(closer);
+    const closerParts = closerName.split(/\s+/);
     const closerFirst = closerParts[0] || '';
     const closerLast = closerParts.slice(1).join(' ') || '';
     let matchedCloser = null;

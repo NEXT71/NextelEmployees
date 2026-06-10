@@ -1,6 +1,8 @@
 import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
 
+const normalizeName = (value = '') => String(value || '').trim().replace(/\s+/g, ' ');
+
 /**
  * Record Daily Sales for CSR
  * @param {Object} req - Express request
@@ -439,10 +441,12 @@ export const submitGoogleFormData = async (req, res, next) => {
       });
     }
 
+    const correctedAgentName = normalizeName(`${employee.firstName} ${employee.lastName}`);
+
     // Create pending submission (will be approved/disapproved by admin)
     const submission = await SalesTarget.create({
       agent: selectedAgentId,
-      agentName: agentName.trim(),
+      agentName: correctedAgentName,
       customer: {
         firstName: firstName.trim(),
         lastName: lastName.trim(),

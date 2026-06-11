@@ -32,7 +32,6 @@ export const EMPLOYEE_STATUS = [
 
 export const ROLES = {
   ADMIN: 'admin',
-  HR: 'hr',
   EMPLOYEE: 'employee'
 };
 

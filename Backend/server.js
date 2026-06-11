@@ -1,12 +1,10 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import path from 'path';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { fileURLToPath } from 'url';
 import errorHandler from './middlewares/errorHandler.js';
 import { ipRestriction } from './middlewares/ipRestriction.js';
 import authRouter from './routes/auth.routes.js';
@@ -24,9 +22,6 @@ import { scheduleArchiveJobs } from './jobs/archiveJobs.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -126,7 +121,6 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check route - must respond quickly for Render deployment
 app.get('/health', (req, res) => {

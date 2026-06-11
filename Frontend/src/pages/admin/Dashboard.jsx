@@ -9,13 +9,12 @@ import BonusModal from '../../components/admin/BonusModal';
 import SalesRecordingModal from '../../components/admin/SalesRecordingModal';
 import SalesAnalytics from '../../components/admin/SalesAnalytics';
 import PendingSalesReview from '../../components/admin/PendingSalesReview';
-import EmployeeDocumentsModal from '../../components/admin/EmployeeDocumentsModal';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
 import { employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   Users, CheckCircle, AlertTriangle, 
-  X, Edit, Trash2, AlertCircle, Paperclip,
+  X, Edit, Trash2, AlertCircle,
   Filter, Search, DollarSign, Calendar,
   User as UserIcon, Home, Phone, Mail, MessageSquare,
   RefreshCw, Download, UserCheck, TrendingUp
@@ -48,8 +47,6 @@ const AdminDashboard = () => {
   const [error, setError] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [employeeToEdit, setEmployeeToEdit] = useState(null);
-  const [showDocumentsModal, setShowDocumentsModal] = useState(false);
-  const [employeeForDocuments, setEmployeeForDocuments] = useState(null);
   const [showMessageCenter, setShowMessageCenter] = useState(false);
   
   // Filters
@@ -332,11 +329,6 @@ const AdminDashboard = () => {
       }
     });
     setShowEditModal(true);
-  };
-
-  const openDocumentsModal = (employee) => {
-    setEmployeeForDocuments(employee);
-    setShowDocumentsModal(true);
   };
 
   const closeEditModal = () => {
@@ -1005,13 +997,6 @@ const AdminDashboard = () => {
                                 <AlertCircle className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => openDocumentsModal(employee)}
-                                className="p-2 text-cyan-300 hover:text-white hover:bg-cyan-500/20 rounded-lg transition-colors"
-                                title="Manage Documents"
-                              >
-                                <Paperclip className="w-4 h-4" />
-                              </button>
-                              <button
                                 onClick={() => handleDeleteEmployee(employee._id)}
                                 className="p-2 text-red-300 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors"
                                 title="Delete Employee"
@@ -1125,15 +1110,6 @@ const AdminDashboard = () => {
                                       ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
                                       : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
                                     }
-
-                                    <EmployeeDocumentsModal
-                                      isOpen={showDocumentsModal}
-                                      employee={employeeForDocuments}
-                                      onClose={() => {
-                                        setShowDocumentsModal(false);
-                                        setEmployeeForDocuments(null);
-                                      }}
-                                    />
                                   `}>
                                     {fine.approved ? 'Approved' : 'Pending'}
                                   </span>

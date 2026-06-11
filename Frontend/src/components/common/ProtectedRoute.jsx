@@ -18,7 +18,7 @@ const ProtectedRoute = ({ children, adminOnly, superAdminOnly, qaOnly }) => {
   }
 
   // Admin-only routes (admin + superadmin both allowed)
-  if (!isLoading && adminOnly && user?.role !== 'admin' && user?.role !== 'superadmin' && user?.role !== 'hr') {
+  if (!isLoading && adminOnly && user?.role !== 'admin' && user?.role !== 'superadmin') {
     navigate('/employeedashboard');
     return null;
   }

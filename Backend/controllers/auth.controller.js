@@ -24,12 +24,6 @@ const ROLE_PRESETS = {
     department: 'Quality Assurance',
     isCloser: false,
     defaultPassword: (firstName) => `${capitalizeName(firstName)}@786`
-  },
-  hr: {
-    userRole: 'hr',
-    department: 'HR',
-    isCloser: false,
-    defaultPassword: 'NextelHR2024!'
   }
 };
 
@@ -69,7 +63,6 @@ const normalizeRole = (value = '') => {
 
   if (!normalized) return 'csr';
   if (normalized.includes('qa') || normalized.includes('q/a') || normalized.includes('q a')) return 'qa';
-  if (normalized.includes('hr') || normalized.includes('human resource') || normalized.includes('human resources')) return 'hr';
   if (normalized.includes('verifier')) return 'closer';
   if (normalized.includes('closer') || normalized.includes('tl')) return 'closer';
   if (normalized === 'employee' || normalized === 'sales' || normalized === 'csr') return 'csr';

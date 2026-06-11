@@ -1125,15 +1125,6 @@ const AdminDashboard = () => {
                                       ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
                                       : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
                                     }
-
-                                    <EmployeeDocumentsModal
-                                      isOpen={showDocumentsModal}
-                                      employee={employeeForDocuments}
-                                      onClose={() => {
-                                        setShowDocumentsModal(false);
-                                        setEmployeeForDocuments(null);
-                                      }}
-                                    />
                                   `}>
                                     {fine.approved ? 'Approved' : 'Pending'}
                                   </span>
@@ -1798,6 +1789,16 @@ const AdminDashboard = () => {
         onClose={() => setShowBulkFineModal(false)}
         employees={employees}
         onApply={handleBulkFine}
+      />
+
+      {/* Employee Documents Modal */}
+      <EmployeeDocumentsModal
+        isOpen={showDocumentsModal}
+        employee={employeeForDocuments}
+        onClose={() => {
+          setShowDocumentsModal(false);
+          setEmployeeForDocuments(null);
+        }}
       />
 
       {/* Sales Recording Modal */}

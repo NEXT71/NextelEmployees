@@ -1,54 +1,7 @@
 import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
 import mongoose from 'mongoose';
-
-const normalizeName = (value = '') => String(value || '').trim().replace(/\s+/g, ' ');
-
-const levenshteinDistance = (a = '', b = '') => {
-  const matrix = Array.from({ length: a.length + 1 }, () => []);
-  for (let i = 0; i <= a.length; i += 1) matrix[i][0] = i;
-  for (let j = 0; j <= b.length; j += 1) matrix[0][j] = j;
-  for (let i = 1; i <= a.length; i += 1) {
-    for (let j = 1; j <= b.length; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost
-      );
-    }
-  }
-  return matrix[a.length][b.length];
-};
-
-const getBestEmployeeNameMatch = async (rawName) => {
-  const normalizedInput = normalizeName(rawName);
-  if (!normalizedInput) return null;
-
-  const employees = await Employee.find({}, 'firstName lastName');
-  let bestMatch = null;
-  let bestScore = Infinity;
-
-  const inputLower = normalizedInput.toLowerCase();
-
-  employees.forEach((employee) => {
-    const candidateName = normalizeName(`${employee.firstName || ''} ${employee.lastName || ''}`);
-    if (!candidateName) return;
-
-    const candidateLower = candidateName.toLowerCase();
-    const score = levenshteinDistance(inputLower, candidateLower);
-
-    if (score < bestScore) {
-      bestScore = score;
-      bestMatch = { employee, correctedName: candidateName, score };
-    }
-  });
-
-  if (!bestMatch) return null;
-
-  const maxDistance = Math.max(1, Math.floor(bestMatch.correctedName.length * 0.25));
-  return bestMatch.score <= maxDistance ? bestMatch : null;
-};
+import { getBestEmployeeNameMatch, normalizeName } from '../utils/employeeMatch.js';
 
 // Helper: resolve employee._id from a user _id (for consistent agent storage)
 const resolveEmployeeId = async (userId) => {
@@ -109,7 +62,7 @@ const createSubmission = async (req, res, next) => {
         agentName = actualName;
       }
     } else if (agentName) {
-      const bestMatch = await getBestEmployeeNameMatch(agentName);
+      const bestMatch = await getBestEmployeeNameMatch(Employee, agentName);
       if (bestMatch) {
         resolvedAgent = bestMatch.employee._id;
         agentName = bestMatch.correctedName;
@@ -196,8 +149,8 @@ const handleGoogleFormWebhook = async (req, res, next) => {
     }
 
     agentName = normalizeName(agentName);
-    const bestAgentMatch = await getBestEmployeeNameMatch(agentName);
-    const matchedEmployee = bestAgentMatch ? await Employee.findById(bestAgentMatch.employee._id).select('_id') : null;
+    const bestAgentMatch = await getBestEmployeeNameMatch(Employee, agentName);
+    const matchedEmployee = bestAgentMatch ? bestAgentMatch.employee : null;
     if (bestAgentMatch) {
       agentName = bestAgentMatch.correctedName;
     }

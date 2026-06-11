@@ -7,9 +7,11 @@ import {
   getAllEmployees,
   getEmployeeFullHistory,
   getAllSalesSubmissions,
+  updateSale,
   getSalesLeaderboard,
   getCloserLeaderboard,
   getAllSalaries,
+  updateSalary,
   getSuperAdminStats,
   deleteSale,
   deleteSalary,
@@ -38,9 +40,11 @@ router.patch('/users/:id/toggle-active', toggleUserActive);
 router.get('/employees',        getAllEmployees);
 router.get('/employees/:id/full-history', getEmployeeFullHistory);
 router.get('/sales',            getAllSalesSubmissions);
+router.patch('/sales/:id',      updateSale);
 router.get('/sales/leaderboard', getSalesLeaderboard);
 router.get('/sales/closer-leaderboard', getCloserLeaderboard);
 router.get('/salaries',         getAllSalaries);
+router.patch('/salaries/:id',    updateSalary);
 
 // Bulk delete routes (must be registered BEFORE /:id routes)
 router.delete('/sales/bulk',      bulkDeleteSales);

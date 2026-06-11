@@ -5,7 +5,7 @@ import { API_BASE_URL } from '../../utils/constants';
 import {
   Users, Shield, TrendingUp, DollarSign, Clock, CheckCircle,
   LogOut, RefreshCw,
-  User as UserIcon, BarChart2, FileText, Award, X,
+  User as UserIcon, BarChart2, FileText, Award, X, Edit,
   AlertTriangle, ToggleLeft, ToggleRight, Eye, Trash2
 } from 'lucide-react';
 
@@ -26,6 +26,13 @@ const fmtCurrency = (n) =>
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+
+const toDateInputValue = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+};
 
 // ─── StatsCard ───────────────────────────────────────────────────────────────
 const StatsCard = memo(({ icon: Icon, label, value, color }) => (
@@ -57,6 +64,294 @@ const Badge = memo(({ text, color }) => (
     {text}
   </span>
 ));
+
+const SaleEditModal = ({ sale, saving, error, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    agentName: '',
+    customer: { firstName: '', lastName: '', phone: '', state: '', zipCode: '' },
+    dids: '',
+    closer: '',
+    saleDate: '',
+    status: 'pending'
+  });
+
+  useEffect(() => {
+    if (!sale) return;
+    setForm({
+      agentName: sale.agentName || '',
+      customer: {
+        firstName: sale.customer?.firstName || '',
+        lastName: sale.customer?.lastName || '',
+        phone: sale.customer?.phone || '',
+        state: sale.customer?.state || '',
+        zipCode: sale.customer?.zipCode || ''
+      },
+      dids: sale.dids || '',
+      closer: sale.closer || '',
+      saleDate: toDateInputValue(sale.saleDate),
+      status: sale.status || 'pending'
+    });
+  }, [sale]);
+
+  const updateCustomer = (field, value) => {
+    setForm((prev) => ({
+      ...prev,
+      customer: { ...prev.customer, [field]: value }
+    }));
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    await onSave({
+      agentName: form.agentName.trim(),
+      customer: {
+        firstName: form.customer.firstName.trim(),
+        lastName: form.customer.lastName.trim(),
+        phone: form.customer.phone.trim(),
+        state: form.customer.state.trim(),
+        zipCode: form.customer.zipCode.trim()
+      },
+      dids: form.dids.trim(),
+      closer: form.closer.trim(),
+      saleDate: form.saleDate ? new Date(form.saleDate).toISOString() : undefined,
+      status: form.status
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-3xl rounded-2xl border border-white/20 bg-slate-900 shadow-2xl">
+        <form onSubmit={submit} className="max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-purple-300/70">Edit Sale</p>
+              <h2 className="text-xl font-semibold text-white">Update record details</h2>
+            </div>
+            <button type="button" onClick={onClose} className="rounded-lg p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white">
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-sm text-white/70">Agent Name</span>
+              <input
+                value={form.agentName}
+                onChange={(e) => setForm((prev) => ({ ...prev, agentName: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">Customer First Name</span>
+              <input
+                value={form.customer.firstName}
+                onChange={(e) => updateCustomer('firstName', e.target.value)}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">Customer Last Name</span>
+              <input
+                value={form.customer.lastName}
+                onChange={(e) => updateCustomer('lastName', e.target.value)}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">Phone</span>
+              <input
+                value={form.customer.phone}
+                onChange={(e) => updateCustomer('phone', e.target.value)}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">State</span>
+              <input
+                value={form.customer.state}
+                onChange={(e) => updateCustomer('state', e.target.value)}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">Zip Code</span>
+              <input
+                value={form.customer.zipCode}
+                onChange={(e) => updateCustomer('zipCode', e.target.value)}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">DIDs</span>
+              <input
+                value={form.dids}
+                onChange={(e) => setForm((prev) => ({ ...prev, dids: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">Closer</span>
+              <input
+                value={form.closer}
+                onChange={(e) => setForm((prev) => ({ ...prev, closer: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">Sale Date</span>
+              <input
+                type="date"
+                value={form.saleDate}
+                onChange={(e) => setForm((prev) => ({ ...prev, saleDate: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-sm text-white/70">Status</span>
+              <select
+                value={form.status}
+                onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="pending" className="bg-slate-800">Pending</option>
+                <option value="approved" className="bg-slate-800">Approved</option>
+                <option value="disapproved" className="bg-slate-800">Rejected</option>
+              </select>
+            </label>
+          </div>
+
+          {error && <div className="mx-6 rounded-xl border border-red-500/40 bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>}
+
+          <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
+            <button type="button" onClick={onClose} className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white/70 transition-colors hover:bg-white/15 hover:text-white">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-purple-500/30 px-4 py-2 text-sm font-medium text-purple-100 transition-colors hover:bg-purple-500/40 disabled:opacity-60"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const SalaryEditModal = ({ salary, saving, error, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    month: '',
+    baseSalary: '',
+    bonuses: '',
+    deductions: '',
+    notes: ''
+  });
+
+  useEffect(() => {
+    if (!salary) return;
+    setForm({
+      month: toDateInputValue(salary.month),
+      baseSalary: salary.baseSalary ?? '',
+      bonuses: salary.bonuses ?? '',
+      deductions: salary.deductions ?? '',
+      notes: salary.notes || ''
+    });
+  }, [salary]);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    await onSave({
+      month: form.month ? new Date(form.month).toISOString() : undefined,
+      baseSalary: Number(form.baseSalary),
+      bonuses: Number(form.bonuses),
+      deductions: Number(form.deductions),
+      notes: form.notes
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-slate-900 shadow-2xl">
+        <form onSubmit={submit} className="max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-purple-300/70">Edit Salary</p>
+              <h2 className="text-xl font-semibold text-white">Update salary record</h2>
+            </div>
+            <button type="button" onClick={onClose} className="rounded-lg p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white">
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-sm text-white/70">Month</span>
+              <input
+                type="date"
+                value={form.month}
+                onChange={(e) => setForm((prev) => ({ ...prev, month: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">Base Salary</span>
+              <input
+                type="number"
+                value={form.baseSalary}
+                onChange={(e) => setForm((prev) => ({ ...prev, baseSalary: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">Bonuses</span>
+              <input
+                type="number"
+                value={form.bonuses}
+                onChange={(e) => setForm((prev) => ({ ...prev, bonuses: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm text-white/70">Deductions</span>
+              <input
+                type="number"
+                value={form.deductions}
+                onChange={(e) => setForm((prev) => ({ ...prev, deductions: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-sm text-white/70">Notes</span>
+              <textarea
+                rows={4}
+                value={form.notes}
+                onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </label>
+          </div>
+
+          {error && <div className="mx-6 rounded-xl border border-red-500/40 bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>}
+
+          <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
+            <button type="button" onClick={onClose} className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white/70 transition-colors hover:bg-white/15 hover:text-white">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-purple-500/30 px-4 py-2 text-sm font-medium text-purple-100 transition-colors hover:bg-purple-500/40 disabled:opacity-60"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 // ─── CSR Detail Modal ─────────────────────────────────────────────────────────
 const CSRDetailModal = ({ employee, onClose }) => {
@@ -269,6 +564,10 @@ const SuperAdminDashboard = () => {
   const [selectedSalaryIds, setSelectedSalaryIds] = useState(new Set());
   const [selectedEmpIds, setSelectedEmpIds] = useState(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [saleToEdit, setSaleToEdit] = useState(null);
+  const [salaryToEdit, setSalaryToEdit] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
 
   // ── Fines / Attendance / Messages state ───────────────────────────────────
   const [fines, setFines] = useState([]);
@@ -460,6 +759,69 @@ const SuperAdminDashboard = () => {
       setDeletingId(null);
     }
   }, []);
+
+  const openSaleEdit = useCallback((sale) => {
+    setEditError('');
+    setSaleToEdit(sale);
+  }, []);
+
+  const openSalaryEdit = useCallback((salary) => {
+    setEditError('');
+    setSalaryToEdit(salary);
+  }, []);
+
+  const closeEditModal = useCallback(() => {
+    if (editSaving) return;
+    setSaleToEdit(null);
+    setSalaryToEdit(null);
+    setEditError('');
+  }, [editSaving]);
+
+  const handleSaveSale = useCallback(async (payload) => {
+    if (!saleToEdit?._id) return;
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/sales/${saleToEdit._id}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update sale record.');
+      }
+      setSales((prev) => prev.map((sale) => (sale._id === saleToEdit._id ? data.data : sale)));
+      setSaleToEdit(null);
+    } catch (error) {
+      setEditError(error.message || 'Failed to update sale record.');
+    } finally {
+      setEditSaving(false);
+    }
+  }, [saleToEdit]);
+
+  const handleSaveSalary = useCallback(async (payload) => {
+    if (!salaryToEdit?._id) return;
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/salaries/${salaryToEdit._id}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update salary record.');
+      }
+      setSalaries((prev) => prev.map((salary) => (salary._id === salaryToEdit._id ? data.data : salary)));
+      setSalaryToEdit(null);
+    } catch (error) {
+      setEditError(error.message || 'Failed to update salary record.');
+    } finally {
+      setEditSaving(false);
+    }
+  }, [salaryToEdit]);
 
   const handleDeleteSalary = useCallback(async (id) => {
     if (!window.confirm('Permanently delete this salary record? This cannot be undone.')) return;
@@ -992,6 +1354,13 @@ const SuperAdminDashboard = () => {
                           <td className="py-3 px-4 text-white/50">{fmtDate(s.submittedAt || s.createdAt)}</td>
                           <td className="py-3 px-4 text-center">
                             <button
+                              onClick={() => openSaleEdit(s)}
+                              className="mr-2 inline-flex items-center gap-1 rounded-lg bg-blue-500/20 px-2.5 py-1.5 text-xs font-medium text-blue-200 transition-colors hover:bg-blue-500/30"
+                            >
+                              <Edit size={11} />
+                              Edit
+                            </button>
+                            <button
                               disabled={deletingId === s._id || bulkDeleting}
                               onClick={() => handleDeleteSale(s._id)}
                               className="flex items-center gap-1 mx-auto px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors disabled:opacity-50"
@@ -1094,6 +1463,13 @@ const SuperAdminDashboard = () => {
                           {fmtCurrency(s.netPay ?? ((s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0)))}
                         </td>
                         <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={() => openSalaryEdit(s)}
+                            className="mr-2 inline-flex items-center gap-1 rounded-lg bg-blue-500/20 px-2.5 py-1.5 text-xs font-medium text-blue-200 transition-colors hover:bg-blue-500/30"
+                          >
+                            <Edit size={11} />
+                            Edit
+                          </button>
                           <button
                             disabled={deletingId === s._id || bulkDeleting}
                             onClick={() => handleDeleteSalary(s._id)}
@@ -1370,6 +1746,26 @@ const SuperAdminDashboard = () => {
           </div>
         )}
       </main>
+
+      {saleToEdit && (
+        <SaleEditModal
+          sale={saleToEdit}
+          saving={editSaving}
+          error={editError}
+          onClose={closeEditModal}
+          onSave={handleSaveSale}
+        />
+      )}
+
+      {salaryToEdit && (
+        <SalaryEditModal
+          salary={salaryToEdit}
+          saving={editSaving}
+          error={editError}
+          onClose={closeEditModal}
+          onSave={handleSaveSalary}
+        />
+      )}
 
       {/* CSR Detail Modal */}
       {selectedEmployee && (

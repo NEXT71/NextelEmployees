@@ -25,7 +25,6 @@ const Header = ({
                 alt="Nextel BPO Logo"
                 width={32} 
                 height={32}
-                effect="blur"
                 className="object-contain"
               />
             </div>

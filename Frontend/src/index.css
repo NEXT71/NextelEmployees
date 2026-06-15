@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -9,6 +13,15 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: #050505;
+  color: #f5f5f5;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: #050505;
 }
 
 code {
@@ -159,4 +172,81 @@ code {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* Monochrome theme overrides */
+[class*="bg-purple-"],
+[class*="bg-violet-"],
+[class*="bg-indigo-"],
+[class*="bg-blue-"],
+[class*="bg-cyan-"],
+[class*="bg-pink-"],
+[class*="bg-green-"] {
+  background-color: #111111 !important;
+}
+
+[class*="text-purple-"],
+[class*="text-violet-"],
+[class*="text-indigo-"],
+[class*="text-blue-"],
+[class*="text-cyan-"],
+[class*="text-pink-"],
+[class*="text-green-"] {
+  color: #f5f5f5 !important;
+}
+
+[class*="border-purple-"],
+[class*="border-violet-"],
+[class*="border-indigo-"],
+[class*="border-blue-"],
+[class*="border-cyan-"],
+[class*="border-pink-"],
+[class*="border-green-"] {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+[class*="from-purple-"],
+[class*="from-violet-"],
+[class*="from-indigo-"],
+[class*="from-blue-"],
+[class*="from-cyan-"],
+[class*="from-pink-"],
+[class*="from-green-"],
+[class*="to-purple-"],
+[class*="to-violet-"],
+[class*="to-indigo-"],
+[class*="to-blue-"],
+[class*="to-cyan-"],
+[class*="to-pink-"],
+[class*="to-green-"],
+[class*="via-purple-"],
+[class*="via-violet-"],
+[class*="via-indigo-"],
+[class*="via-blue-"],
+[class*="via-cyan-"],
+[class*="via-pink-"],
+[class*="via-green-"] {
+  --tw-gradient-from: #111111 !important;
+  --tw-gradient-to: #2f2f2f !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+[class*="shadow-purple-"],
+[class*="shadow-violet-"],
+[class*="shadow-indigo-"],
+[class*="shadow-blue-"],
+[class*="shadow-cyan-"],
+[class*="shadow-pink-"],
+[class*="shadow-green-"] {
+  --tw-shadow-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+[class*="accent-purple-"],
+[class*="accent-violet-"],
+[class*="accent-indigo-"],
+[class*="accent-blue-"],
+[class*="accent-cyan-"],
+[class*="accent-pink-"],
+[class*="accent-green-"] {
+  accent-color: #f5f5f5 !important;
 }

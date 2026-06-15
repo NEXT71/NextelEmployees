@@ -1,7 +1,6 @@
 import { memo, useState } from 'react';
 import { User, LogOut, Clock, LayoutDashboard, Users, Menu, X } from 'lucide-react';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
-import 'react-lazy-load-image-component/src/effects/blur.css';
 import { Link, useLocation } from 'react-router-dom';
 
 const AdminHeader = memo(({ userName, onLogout }) => {
@@ -44,7 +43,6 @@ const AdminHeader = memo(({ userName, onLogout }) => {
                 alt="Nextel BPO Logo"
                 width={48}
                 height={48}
-                effect="blur"
                 className="object-contain mix-blend-multiply"
               />
             </div>

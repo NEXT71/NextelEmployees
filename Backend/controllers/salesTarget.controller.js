@@ -1,7 +1,6 @@
 import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
-
-const normalizeName = (value = '') => String(value || '').trim().replace(/\s+/g, ' ');
+import { getBestEmployeeNameMatch, normalizeName } from '../utils/employeeMatch.js';
 
 /**
  * Record Daily Sales for CSR
@@ -406,7 +405,7 @@ export const deleteSalesRecord = async (req, res, next) => {
  */
 export const submitGoogleFormData = async (req, res, next) => {
   try {
-    const {
+    let {
       firstName,
       lastName,
       phone,
@@ -421,23 +420,34 @@ export const submitGoogleFormData = async (req, res, next) => {
     } = req.body;
 
     // Validation
-    if (!firstName || !lastName || !phone || !state || !zipCode || !dids || !closer || !agentName || !selectedAgentId) {
+    if (!firstName || !lastName || !phone || !state || !zipCode || !dids || !closer || !agentName) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields',
         requiredFields: [
           'firstName', 'lastName', 'phone', 'state', 'zipCode', 
-          'dids', 'closer', 'agentName', 'selectedAgentId'
+          'dids', 'closer', 'agentName'
         ]
       });
     }
 
-    // Verify employee exists
-    const employee = await Employee.findById(selectedAgentId);
+    let employee = null;
+    if (selectedAgentId) {
+      employee = await Employee.findById(selectedAgentId);
+    }
+
+    if (!employee) {
+      const bestMatch = await getBestEmployeeNameMatch(Employee, agentName);
+      employee = bestMatch ? bestMatch.employee : null;
+      if (bestMatch) {
+        agentName = bestMatch.correctedName;
+      }
+    }
+
     if (!employee) {
       return res.status(404).json({
         success: false,
-        message: 'Employee not found with provided ID'
+        message: 'Employee not found from provided agent name or ID'
       });
     }
 

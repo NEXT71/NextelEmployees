@@ -6,6 +6,58 @@ import Fine from '../models/Fine.js';
 import Attendance from '../models/Attendance.js';
 import Message from '../models/Message.js';
 
+const recalculateSaleBonuses = async (agentId, saleDate) => {
+  if (!agentId || !saleDate) return;
+
+  const startOfDay = new Date(saleDate);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(saleDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const dailySalesCount = await SalesTarget.countDocuments({
+    agent: agentId,
+    status: 'approved',
+    saleDate: {
+      $gte: startOfDay,
+      $lte: endOfDay
+    }
+  });
+
+  let achievedTier = 0;
+  let tierBonus = 0;
+
+  if (dailySalesCount >= 12) {
+    achievedTier = 4;
+    tierBonus = 5000;
+  } else if (dailySalesCount >= 8) {
+    achievedTier = 3;
+    tierBonus = 3000;
+  } else if (dailySalesCount >= 5) {
+    achievedTier = 2;
+    tierBonus = 1000;
+  } else if (dailySalesCount >= 3) {
+    achievedTier = 1;
+    tierBonus = 500;
+  }
+
+  await SalesTarget.updateMany(
+    {
+      agent: agentId,
+      status: 'approved',
+      saleDate: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      }
+    },
+    {
+      achievedTier,
+      tierBonus,
+      totalEarning: Math.round((dailySalesCount * 1000) + tierBonus)
+    }
+  );
+};
+
 // ── All users (admins + employees) ─────────────────────────────────────────
 export const getAllUsers = async (req, res, next) => {
   try {
@@ -167,6 +219,94 @@ export const getAllSalesSubmissions = async (req, res, next) => {
   }
 };
 
+// ── Update a single sale record ─────────────────────────────────────────────
+export const updateSale = async (req, res, next) => {
+  try {
+    const sale = await SalesTarget.findById(req.params.id);
+
+    if (!sale) {
+      return res.status(404).json({ success: false, message: 'Sale not found' });
+    }
+
+    const previousAgent = sale.agent;
+    const previousSaleDate = sale.saleDate;
+    const previousStatus = sale.status;
+
+    const {
+      agent,
+      agentName,
+      customer,
+      dids,
+      closer,
+      closerRef,
+      saleDate,
+      status,
+      pricePerSale,
+      baseSalary
+    } = req.body;
+
+    if (agent !== undefined) sale.agent = agent || null;
+    if (agentName !== undefined) sale.agentName = agentName;
+    if (customer !== undefined) sale.customer = customer;
+    if (dids !== undefined) sale.dids = dids;
+    if (closer !== undefined) sale.closer = closer;
+    if (closerRef !== undefined) sale.closerRef = closerRef || null;
+    if (saleDate !== undefined) sale.saleDate = saleDate;
+    if (pricePerSale !== undefined) sale.pricePerSale = pricePerSale;
+    if (baseSalary !== undefined) sale.baseSalary = baseSalary;
+
+    if (status && ['pending', 'approved', 'disapproved'].includes(status)) {
+      sale.status = status;
+      if (status === 'approved') {
+        sale.approvedBy = req.user._id;
+        sale.approvedAt = new Date();
+        sale.disapprovedBy = null;
+        sale.disapprovedAt = null;
+        sale.rejectionReason = '';
+      } else if (status === 'disapproved') {
+        sale.disapprovedBy = req.user._id;
+        sale.disapprovedAt = new Date();
+        sale.approvedBy = null;
+        sale.approvedAt = null;
+      } else {
+        sale.approvedBy = null;
+        sale.approvedAt = null;
+        sale.disapprovedBy = null;
+        sale.disapprovedAt = null;
+        sale.rejectionReason = '';
+      }
+    }
+
+    await sale.save();
+
+    const nextAgent = sale.agent;
+    const nextSaleDate = sale.saleDate;
+    const shouldRecalculate = previousStatus === 'approved' || sale.status === 'approved';
+
+    if (shouldRecalculate) {
+      if (previousAgent && previousSaleDate) {
+        await recalculateSaleBonuses(previousAgent, previousSaleDate);
+      }
+      if (
+        String(previousAgent || '') !== String(nextAgent || '') ||
+        new Date(previousSaleDate).getTime() !== new Date(nextSaleDate).getTime() ||
+        previousStatus !== sale.status
+      ) {
+        await recalculateSaleBonuses(nextAgent, nextSaleDate);
+      }
+    }
+
+    const updatedSale = await SalesTarget.findById(sale._id)
+      .populate('agent', 'firstName lastName employeeId department')
+      .populate('approvedBy', 'username')
+      .populate('disapprovedBy', 'username');
+
+    res.json({ success: true, data: updatedSale });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── All salary records ──────────────────────────────────────────────────────
 export const getAllSalaries = async (req, res, next) => {
   try {
@@ -193,6 +333,40 @@ export const getAllSalaries = async (req, res, next) => {
       success: true,
       data: enriched,
       pagination: { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Update a single salary record ───────────────────────────────────────────
+export const updateSalary = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { month, baseSalary, bonuses, deductions, notes } = req.body;
+
+    const salary = await Salary.findByIdAndUpdate(
+      id,
+      {
+        ...(month !== undefined && { month }),
+        ...(baseSalary !== undefined && { baseSalary }),
+        ...(bonuses !== undefined && { bonuses }),
+        ...(deductions !== undefined && { deductions }),
+        ...(notes !== undefined && { notes })
+      },
+      { new: true, runValidators: true }
+    ).populate('employee', 'firstName lastName employeeId department');
+
+    if (!salary) {
+      return res.status(404).json({ success: false, message: 'Salary record not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...salary.toObject(),
+        netPay: (salary.baseSalary || 0) + (salary.bonuses || 0) - (salary.deductions || 0)
+      }
     });
   } catch (err) {
     next(err);

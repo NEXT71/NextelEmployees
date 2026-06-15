@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { API_BASE_URL } from './constants';
 import { apiCache, requestDeduplicator, performanceMonitor } from './apiCache';
 
@@ -547,6 +548,38 @@ export const salesTargetAPI = {
     apiRequest('/sales-submissions/my/closes/stats'),
 };
 
+// Document API calls
+export const documentAPI = {
+  getEmployeeDocuments: (employeeId) =>
+    apiRequest(`/employees/${employeeId}/documents`),
+
+  uploadEmployeeDocuments: async (employeeId, files, { onProgress } = {}) => {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    const response = await axios.post(`${API_BASE_URL}/employees/${employeeId}/documents`, formData, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${getToken()}`
+      },
+      onUploadProgress: (event) => {
+        if (typeof onProgress === 'function' && event.total) {
+          onProgress(Math.round((event.loaded * 100) / event.total));
+        }
+      }
+    });
+
+    return response.data;
+  },
+
+  deleteEmployeeDocument: (employeeId, documentId) =>
+    apiRequest(`/employees/${employeeId}/documents/${documentId}`, {
+      method: 'DELETE',
+    }),
+};
+
 // Utility functions for authentication
 export const isAuthenticated = () => {
   return !!getToken();
@@ -566,6 +599,7 @@ export const api = {
   salaries: salaryAPI,
   messages: messageAPI,
   salesTargets: salesTargetAPI,
+  documents: documentAPI,
 };
 
 export default api;

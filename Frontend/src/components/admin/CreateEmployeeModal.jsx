@@ -189,6 +189,7 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
               <option value="CSR" className="bg-slate-800">CSR</option>
               <option value="Closer/TL" className="bg-slate-800">Closer/TL</option>
               <option value="QA Manager" className="bg-slate-800">QA Manager</option>
+              <option value="HR" className="bg-slate-800">HR</option>
             </select>
             <p className="text-xs text-slate-400 mt-2">This determines the account type, department, and default password if you leave it blank.</p>
           </div>

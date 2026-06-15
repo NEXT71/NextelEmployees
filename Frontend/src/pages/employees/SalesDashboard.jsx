@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle, Send, ClipboardList, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
+import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle, ClipboardList, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
 import { salesTargetAPI, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
-import CSRSalesSubmission from '../../components/employees/CSRSalesSubmission';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import MessageCenter from '../../components/common/MessageCenter';
@@ -13,7 +12,7 @@ const CSRSalesDashboard = () => {
   const { user } = useAuth();
   const [activeMonth, setActiveMonth] = useState(new Date().getMonth() + 1);
   const [activeYear, setActiveYear] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'submit' | 'submissions'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'submissions'
   const [monthlyData, setMonthlyData] = useState(null);
   const [dailyRecords, setDailyRecords] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -143,17 +142,6 @@ const CSRSalesDashboard = () => {
             Dashboard
           </button>
           <button
-            onClick={() => setActiveTab('submit')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
-              activeTab === 'submit'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white'
-            }`}
-          >
-            <Send size={20} />
-            Submit Sale
-          </button>
-          <button
             onClick={() => setActiveTab('submissions')}
             className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
               activeTab === 'submissions'
@@ -173,9 +161,7 @@ const CSRSalesDashboard = () => {
       </div>
 
       {/* Content */}
-      {activeTab === 'submit' ? (
-        <CSRSalesSubmission />
-      ) : activeTab === 'submissions' ? (
+      {activeTab === 'submissions' ? (
         /* My Submissions Tab */
         <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
           <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-xl overflow-hidden">

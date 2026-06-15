@@ -188,11 +188,16 @@ const handleGoogleFormWebhook = async (req, res, next) => {
       saleDate
     } = req.body;
 
-    if (!agentName || !customerFirstName || !customerLastName || !customerPhone || !customerState || !customerZipCode || !dids || !closer) {
+    if (!agentName || !customerFirstName || !customerLastName || !customerPhone || !customerState || !customerZipCode || !dids) {
       return res.status(400).json({
         success: false,
         message: 'Missing required Google Form fields'
       });
+    }
+
+    // If closer is blank, treat the CSR as a self-closer.
+    if (!closer) {
+      closer = agentName;
     }
 
     agentName = normalizeName(agentName);

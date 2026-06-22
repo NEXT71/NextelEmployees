@@ -240,6 +240,8 @@ const QADashboard = () => {
   const [customEnd, setCustomEnd] = useState('');
   const [agentFilter, setAgentFilter] = useState([]);
   const [packageFilter, setPackageFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, pages: 1, limit: 50, page: 1 });
   const [amountTier, setAmountTier] = useState('any');
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [expandedId, setExpandedId] = useState(null);
@@ -304,16 +306,24 @@ const QADashboard = () => {
     setLoading(true);
     setError('');
     try {
-      const qs = statusFilter !== 'all' ? `?status=${statusFilter}&limit=200` : '?limit=200';
-      const data = await apiFetch(`/sales-submissions${qs}`);
+      const params = new URLSearchParams({ limit: '50', page: String(page) });
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+
+      const data = await apiFetch(`/sales-submissions?${params.toString()}`);
       setSubmissions(data.data || []);
+      setPagination({
+        total: data.pagination?.total ?? 0,
+        pages: data.pagination?.pages ?? 1,
+        limit: data.pagination?.limit ?? 50,
+        page: data.pagination?.page ?? page,
+      });
       setLastSynced(new Date());
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, page]);
 
   const fetchPendingCount = useCallback(async () => {
     try {
@@ -607,7 +617,7 @@ const QADashboard = () => {
               {['pending', 'approved', 'rejected', 'all'].map((s) => (
                 <button
                   key={s}
-                  onClick={() => { setStatusFilter(s); setSelectedIds(new Set()); }}
+                  onClick={() => { setStatusFilter(s); setSelectedIds(new Set()); setPage(1); }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-all ${
                     statusFilter === s
                       ? 'bg-purple-600 text-white shadow'
@@ -817,8 +827,26 @@ const QADashboard = () => {
                 </tbody>
               </table>
 
-              <div className="px-4 py-3 border-t border-white/10 text-white/40 text-sm">
-                Showing {filtered.length} of {submissions.length} submissions
+              <div className="px-4 py-3 border-t border-white/10 text-white/40 text-sm space-y-3">
+                <div>
+                  Showing {filtered.length} of {pagination.total} submissions · Page {pagination.page} of {pagination.pages}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                    disabled={page <= 1}
+                    className="rounded-xl px-3 py-2 bg-slate-800/80 text-white text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage((prev) => Math.min(pagination.pages, prev + 1))}
+                    disabled={page >= pagination.pages}
+                    className="rounded-xl px-3 py-2 bg-slate-800/80 text-white text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
           )}

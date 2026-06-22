@@ -233,7 +233,7 @@ const getSubmissions = async (req, res, next) => {
 
     // Validate limit and page are numbers
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+    const limitNum = Math.min(1000, Math.max(1, parseInt(limit) || 50));
 
     const filter = {};
     if (status && status !== 'all') filter.status = status;

@@ -29,6 +29,20 @@ const apiFetch = async (path, options = {}) => {
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
+const fmtDateTimePK = (d) =>
+  d
+    ? new Date(d).toLocaleString('en-PK', {
+        timeZone: 'Asia/Karachi',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZoneName: 'short',
+      })
+    : '—';
+
 // ─── status badge ────────────────────────────────────────────────────────────
 const STATUS_COLORS = {
   pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
@@ -123,8 +137,7 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expa
             />
           )}
         </td>
-        <td className="px-4 py-3 text-white/80 text-sm">{fmtDate(sub.saleDate)}</td>
-        <td className="px-4 py-3 text-white text-sm font-medium">{agentName}</td>
+        <td className="px-4 py-3 text-white/80 text-sm">{fmtDate(sub.saleDate)}</td>        <td className="px-4 py-3 text-white/80 text-sm">{fmtDateTimePK(sub.createdAt)}</td>        <td className="px-4 py-3 text-white text-sm font-medium">{agentName}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{customerName}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{sub.dids || '—'}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{amount != null ? `RS ${amount.toLocaleString()}` : '—'}</td>
@@ -172,7 +185,7 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expa
                 ['Closer', typeof sub.closer === 'string' ? sub.closer : '—'],
                 ['DIDs', sub.dids || '—'],
                 ['Price/Sale', sub.pricePerSale != null ? `RS ${sub.pricePerSale.toLocaleString()}` : '—'],
-                ['Submitted', fmtDate(sub.createdAt)],
+                ['Submitted', fmtDateTimePK(sub.createdAt)],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p className="text-white/40 text-xs uppercase tracking-wide mb-0.5">{label}</p>
@@ -457,12 +470,13 @@ const QADashboard = () => {
   }, [submissions, search, agentFilter, packageFilter, amountTier, matchesDateRange]);
 
   const exportToCsv = useCallback(() => {
-    const headers = ['Date', 'Agent', 'Customer', 'DIDs', 'Package', 'Amount', 'Status', 'Closer', 'Phone', 'State', 'Zip', 'Form ID', 'Submitted'];
+    const headers = ['Date', 'Submitted', 'Agent', 'Customer', 'DIDs', 'Package', 'Amount', 'Status', 'Closer', 'Phone', 'State', 'Zip', 'Form ID'];
     const rows = filtered.map((s) => {
       const customer = s.customer ? `${s.customer.firstName || ''} ${s.customer.lastName || ''}`.trim() : '';
       const pkg = getPackageValue(s);
       return [
         fmtDate(s.saleDate),
+        fmtDateTimePK(s.createdAt),
         s.agentName || '',
         customer,
         s.dids || '',
@@ -474,7 +488,6 @@ const QADashboard = () => {
         s.customer?.state || '',
         s.customer?.zipCode || '',
         s.googleFormResponseId || s._id,
-        fmtDate(s.createdAt),
       ];
     });
 
@@ -766,6 +779,7 @@ const QADashboard = () => {
                       )}
                     </th>
                     <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Date</th>
+                    <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Submitted</th>
                     <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Agent</th>
                     <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Customer</th>
                     <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Package</th>

@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import MessageCenter from '../../components/common/MessageCenter';
+import { subscribeSocket } from '../../utils/socket';
 
 const CSRSalesDashboard = () => {
   const navigate = useNavigate();
@@ -66,6 +67,15 @@ const CSRSalesDashboard = () => {
       loadSubmissions();
     }
   }, [user, activeTab, loadSubmissions]);
+
+  useEffect(() => {
+    const cleanup = subscribeSocket('salesSubmission:update', () => {
+      if (activeTab === 'submissions') {
+        loadSubmissions();
+      }
+    });
+    return cleanup;
+  }, [activeTab, loadSubmissions]);
 
   const getTierColor = (tier) => {
     const colors = {

@@ -9,6 +9,7 @@ import {
   formatPKTTime 
 } from '../middlewares/attendanceTimeAccess.js';
 import { markAbsentEmployees } from '../jobs/attendanceJobs.js';
+import { emitAttendanceUpdate } from '../utils/socket.js';
 
 const getTodayRange = () => {
   const now = new Date();
@@ -134,6 +135,15 @@ export const clockIn = async (req, res) => {
       existingAttendance.notes = 'Clocked in during attendance window';
       await existingAttendance.save();
 
+      emitAttendanceUpdate({
+        type: 'clockIn',
+        employeeId: employee._id.toString(),
+        attendanceId: existingAttendance._id.toString(),
+        clockIn: existingAttendance.clockIn,
+        date: attendanceDate,
+        status: existingAttendance.status
+      });
+
       return res.status(200).json({
         success: true,
         message: 'Successfully clocked in',
@@ -157,6 +167,15 @@ export const clockIn = async (req, res) => {
       clockIn: new Date(),
       status: 'Present',
       autoMarked: false
+    });
+
+    emitAttendanceUpdate({
+      type: 'clockIn',
+      employeeId: employee._id.toString(),
+      attendanceId: newAttendance._id.toString(),
+      clockIn: newAttendance.clockIn,
+      date: attendanceDate,
+      status: newAttendance.status
     });
 
     console.log(`✅ Clock In Success - Created new record for ${employee.employeeId}`);
@@ -311,6 +330,15 @@ export const clockOut = async (req, res) => {
     existingAttendance.clockOut = new Date();
     existingAttendance.notes = existingAttendance.notes ? `${existingAttendance.notes}. Clocked out.` : 'Clocked out.';
     await existingAttendance.save();
+
+    emitAttendanceUpdate({
+      type: 'clockOut',
+      employeeId: employee._id.toString(),
+      attendanceId: existingAttendance._id.toString(),
+      clockOut: existingAttendance.clockOut,
+      date: attendanceDate,
+      status: existingAttendance.status
+    });
 
     console.log(`✅ Clock Out Success - ${employee.employeeId} clocked out`);
 

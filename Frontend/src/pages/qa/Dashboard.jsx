@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
+import { subscribeSocket } from '../../utils/socket';
 import {
   CheckCircle, XCircle, Clock, RefreshCw, LogOut, AlertCircle,
   ChevronDown, ChevronUp, ClipboardList, Search, Download
@@ -137,10 +138,12 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expa
             />
           )}
         </td>
-        <td className="px-4 py-3 text-white/80 text-sm">{fmtDate(sub.saleDate)}</td>        <td className="px-4 py-3 text-white/80 text-sm">{fmtDateTimePK(sub.createdAt)}</td>        <td className="px-4 py-3 text-white text-sm font-medium">{agentName}</td>
+        <td className="px-4 py-3 text-white/80 text-sm">{fmtDate(sub.saleDate)}</td>
+        <td className="px-4 py-3 text-white text-sm font-medium">{agentName}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{customerName}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{sub.dids || '—'}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{amount != null ? `RS ${amount.toLocaleString()}` : '—'}</td>
+        <td className="px-4 py-3 text-white/80 text-sm">{fmtDateTimePK(sub.createdAt)}</td>
         <td className="px-4 py-3"><StatusBadge status={sub.status} /></td>
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
@@ -326,6 +329,14 @@ const QADashboard = () => {
     fetchPendingCount();
   }, [fetchSubmissions, fetchPendingCount]);
 
+  useEffect(() => {
+    const cleanup = subscribeSocket('salesSubmission:update', () => {
+      fetchSubmissions();
+      fetchPendingCount();
+    });
+    return cleanup;
+  }, [fetchSubmissions, fetchPendingCount]);
+
   const handleRefresh = useCallback(() => {
     setSelectedIds(new Set());
     fetchSubmissions();
@@ -470,13 +481,12 @@ const QADashboard = () => {
   }, [submissions, search, agentFilter, packageFilter, amountTier, matchesDateRange]);
 
   const exportToCsv = useCallback(() => {
-    const headers = ['Date', 'Submitted', 'Agent', 'Customer', 'DIDs', 'Package', 'Amount', 'Status', 'Closer', 'Phone', 'State', 'Zip', 'Form ID'];
+    const headers = ['Date', 'Agent', 'Customer', 'DIDs', 'Package', 'Amount', 'Status', 'Closer', 'Phone', 'State', 'Zip', 'Form ID', 'Submitted'];
     const rows = filtered.map((s) => {
       const customer = s.customer ? `${s.customer.firstName || ''} ${s.customer.lastName || ''}`.trim() : '';
       const pkg = getPackageValue(s);
       return [
         fmtDate(s.saleDate),
-        fmtDateTimePK(s.createdAt),
         s.agentName || '',
         customer,
         s.dids || '',
@@ -488,6 +498,7 @@ const QADashboard = () => {
         s.customer?.state || '',
         s.customer?.zipCode || '',
         s.googleFormResponseId || s._id,
+        fmtDate(s.createdAt),
       ];
     });
 
@@ -779,7 +790,6 @@ const QADashboard = () => {
                       )}
                     </th>
                     <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Date</th>
-                    <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Submitted</th>
                     <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Agent</th>
                     <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Customer</th>
                     <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Package</th>

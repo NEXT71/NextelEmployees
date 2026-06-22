@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import mongoose from 'mongoose';
 import path from 'path';
 import cors from 'cors';
@@ -19,6 +20,7 @@ import salesTargetRouter from './routes/salesTarget.routes.js';
 import salesSubmissionRouter from './routes/salesSubmission.routes.js';
 import superadminRouter from './routes/superadmin.routes.js';
 import { initializeCache, closeCache } from './utils/cache.js';
+import { initializeSockets } from './utils/socket.js';
 import { ensureArchiveCollections } from './utils/archive.js';
 import { scheduleArchiveJobs } from './jobs/archiveJobs.js';
 import dotenv from 'dotenv';
@@ -207,7 +209,15 @@ ensureArchiveCollections()
   .catch(err => console.warn('Archive initialization warning:', err));
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = http.createServer(app);
+
+initializeSockets(server, {
+  origin: allowedOrigins,
+  credentials: true,
+});
+
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log('✅ Socket.IO server initialized');
   console.log('✅ Automated attendance system initialized');
 });

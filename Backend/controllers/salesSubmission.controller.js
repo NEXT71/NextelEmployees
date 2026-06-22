@@ -2,6 +2,7 @@ import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
 import mongoose from 'mongoose';
 import { getBestEmployeeNameMatch, normalizeName } from '../utils/employeeMatch.js';
+import { emitSalesSubmissionUpdate } from '../utils/socket.js';
 
 // Helper: resolve employee._id from a user _id (for consistent agent storage)
 const resolveEmployeeId = async (userId) => {
@@ -107,6 +108,13 @@ const createSubmission = async (req, res, next) => {
 
     await submission.save();
 
+    emitSalesSubmissionUpdate({
+      type: 'created',
+      submissionId: submission._id.toString(),
+      status: submission.status,
+      submission: submission.toObject ? submission.toObject() : submission
+    });
+
     res.status(201).json({
       success: true,
       message: 'Sales submission created successfully',
@@ -194,6 +202,14 @@ const handleGoogleFormWebhook = async (req, res, next) => {
     });
 
     await submission.save();
+
+    emitSalesSubmissionUpdate({
+      type: 'created',
+      submissionId: submission._id.toString(),
+      status: submission.status,
+      submission: submission.toObject ? submission.toObject() : submission,
+      source: 'google-form'
+    });
 
     return res.status(201).json({
       success: true,
@@ -310,6 +326,13 @@ const approveSubmission = async (req, res, next) => {
     submission.approvedAt = new Date();
     await submission.save();  // This triggers post-save hook to calculate bonus
 
+    emitSalesSubmissionUpdate({
+      type: 'approved',
+      submissionId: submission._id.toString(),
+      status: submission.status,
+      submission: submission.toObject ? submission.toObject() : submission
+    });
+
     res.status(200).json({
       success: true,
       message: 'Sales submission approved successfully',
@@ -348,6 +371,13 @@ const disapproveSubmission = async (req, res, next) => {
     submission.disapprovedAt = new Date();
     submission.rejectionReason = rejectionReason || '';
     await submission.save();
+
+    emitSalesSubmissionUpdate({
+      type: 'disapproved',
+      submissionId: submission._id.toString(),
+      status: submission.status,
+      submission: submission.toObject ? submission.toObject() : submission
+    });
 
     res.status(200).json({
       success: true,
@@ -408,6 +438,13 @@ const bulkApproveSubmissions = async (req, res, next) => {
 
     const successCount = approvalResults.filter(r => r.status === 'approved').length;
     const failedCount = approvalResults.filter(r => r.status === 'failed').length;
+
+    emitSalesSubmissionUpdate({
+      type: 'bulkApproved',
+      submissionIds: approvalResults.filter(r => r.status === 'approved').map(r => r.submissionId),
+      totalApproved: successCount,
+      totalFailed: failedCount
+    });
 
     res.status(200).json({
       success: successCount > 0,
@@ -475,6 +512,13 @@ const bulkDisapproveSubmissions = async (req, res, next) => {
 
     const successCount = disapprovalResults.filter(r => r.status === 'disapproved').length;
     const failedCount = disapprovalResults.filter(r => r.status === 'failed').length;
+
+    emitSalesSubmissionUpdate({
+      type: 'bulkDisapproved',
+      submissionIds: disapprovalResults.filter(r => r.status === 'disapproved').map(r => r.submissionId),
+      totalDisapproved: successCount,
+      totalFailed: failedCount
+    });
 
     res.status(200).json({
       success: successCount > 0,

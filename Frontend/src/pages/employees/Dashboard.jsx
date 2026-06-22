@@ -11,6 +11,7 @@ import MessageCenter from '../../components/common/MessageCenter';
 import { employeeAPI, attendanceAPI, fineAPI, clearAuth, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { isWithinAttendanceWindow } from '../../utils/attendanceTimeAccess';
+import { subscribeSocket } from '../../utils/socket';
 
 const EmployeeDashboard = () => {
   const navigate = useNavigate();
@@ -162,6 +163,21 @@ const checkClockInStatus = async (employeeId) => {
 
     return () => clearInterval(timer);
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (!employee?._id) return undefined;
+
+    const cleanup = subscribeSocket('attendance:update', (payload) => {
+      if (payload?.employeeId === employee._id) {
+        if (payload.type === 'clockIn' || payload.type === 'clockOut') {
+          fetchAttendanceData(employee._id, true);
+          checkClockInStatus(employee._id);
+        }
+      }
+    });
+
+    return cleanup;
+  }, [employee?._id]);
 
   const refreshAttendanceData = async () => {
     try {

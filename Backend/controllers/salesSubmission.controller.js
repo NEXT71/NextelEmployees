@@ -1,7 +1,7 @@
 import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
 import mongoose from 'mongoose';
-import { getBestEmployeeNameMatch, normalizeName } from '../utils/employeeMatch.js';
+import { normalizeName } from '../utils/employeeMatch.js';
 import { emitSalesSubmissionUpdate } from '../utils/socket.js';
 
 // Helper: resolve employee._id from a user _id (for consistent agent storage)
@@ -63,10 +63,31 @@ const createSubmission = async (req, res, next) => {
         agentName = actualName;
       }
     } else if (agentName) {
-      const bestMatch = await getBestEmployeeNameMatch(Employee, agentName);
-      if (bestMatch) {
-        resolvedAgent = bestMatch.employee._id;
-        agentName = bestMatch.correctedName;
+      // Use strict exact-name (case-insensitive) matching only. Avoid fuzzy matches like "ahmedia" -> "ahmed".
+      const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const norm = normalizeName(agentName).trim();
+      const parts = norm.split(/\s+/).filter(Boolean);
+      let exactEmp = null;
+      if (parts.length === 1) {
+        // Match either firstName OR lastName exactly (case-insensitive)
+        exactEmp = await Employee.findOne({
+          $or: [
+            { firstName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } },
+            { lastName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } }
+          ]
+        }).select('_id firstName lastName');
+      } else {
+        const first = escaped(parts[0]);
+        const last = escaped(parts.slice(1).join(' '));
+        exactEmp = await Employee.findOne({
+          firstName: { $regex: new RegExp(`^${first}$`, 'i') },
+          lastName: { $regex: new RegExp(`^${last}$`, 'i') }
+        }).select('_id firstName lastName');
+      }
+
+      if (exactEmp) {
+        resolvedAgent = exactEmp._id;
+        agentName = normalizeName(`${exactEmp.firstName || ''} ${exactEmp.lastName || ''}`);
       }
     }
 
@@ -162,10 +183,27 @@ const handleGoogleFormWebhook = async (req, res, next) => {
     }
 
     agentName = normalizeName(agentName);
-    const bestAgentMatch = await getBestEmployeeNameMatch(Employee, agentName);
-    const matchedEmployee = bestAgentMatch ? bestAgentMatch.employee : null;
-    if (bestAgentMatch) {
-      agentName = bestAgentMatch.correctedName;
+    // Strict exact matching: avoid fuzzy corrections that could attribute to similar names
+    const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const normAgent = agentName.trim();
+    const parts = normAgent.split(/\s+/).filter(Boolean);
+    let matchedEmployee = null;
+    if (parts.length === 1) {
+      matchedEmployee = await Employee.findOne({
+        $or: [
+          { firstName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } },
+          { lastName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } }
+        ]
+      }).select('_id firstName lastName');
+      if (matchedEmployee) agentName = normalizeName(`${matchedEmployee.firstName || ''} ${matchedEmployee.lastName || ''}`);
+    } else if (parts.length > 1) {
+      const first = escaped(parts[0]);
+      const last = escaped(parts.slice(1).join(' '));
+      matchedEmployee = await Employee.findOne({
+        firstName: { $regex: new RegExp(`^${first}$`, 'i') },
+        lastName: { $regex: new RegExp(`^${last}$`, 'i') }
+      }).select('_id firstName lastName');
+      if (matchedEmployee) agentName = normalizeName(`${matchedEmployee.firstName || ''} ${matchedEmployee.lastName || ''}`);
     }
 
     // Try to match closer by name to an employee record

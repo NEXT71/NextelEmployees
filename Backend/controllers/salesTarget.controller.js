@@ -1,6 +1,6 @@
 import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
-import { getBestEmployeeNameMatch, normalizeName } from '../utils/employeeMatch.js';
+import { normalizeName } from '../utils/employeeMatch.js';
 
 /**
  * Record Daily Sales for CSR
@@ -437,10 +437,24 @@ export const submitGoogleFormData = async (req, res, next) => {
     }
 
     if (!employee) {
-      const bestMatch = await getBestEmployeeNameMatch(Employee, agentName);
-      employee = bestMatch ? bestMatch.employee : null;
-      if (bestMatch) {
-        agentName = bestMatch.correctedName;
+      // Strict exact matching by full name or single part (first OR last)
+      const escaped = (s) => s.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+      const norm = normalizeName(agentName).trim();
+      const parts = norm.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) {
+        employee = await Employee.findOne({
+          $or: [
+            { firstName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } },
+            { lastName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } }
+          ]
+        });
+      } else if (parts.length > 1) {
+        const first = escaped(parts[0]);
+        const last = escaped(parts.slice(1).join(' '));
+        employee = await Employee.findOne({
+          firstName: { $regex: new RegExp(`^${first}$`, 'i') },
+          lastName: { $regex: new RegExp(`^${last}$`, 'i') }
+        });
       }
     }
 
@@ -455,7 +469,7 @@ export const submitGoogleFormData = async (req, res, next) => {
 
     // Create pending submission (will be approved/disapproved by admin)
     const submission = await SalesTarget.create({
-      agent: selectedAgentId,
+      agent: employee._id,
       agentName: correctedAgentName,
       customer: {
         firstName: firstName.trim(),

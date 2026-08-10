@@ -107,10 +107,20 @@ const createSubmission = async (req, res, next) => {
       });
     }
 
-    // Resolve closerRef: validate it's a valid ObjectId
+    // Resolve closerRef: validate it's a valid ObjectId, otherwise match by name
     let resolvedCloserRef = null;
     if (closerRef && mongoose.Types.ObjectId.isValid(closerRef)) {
       resolvedCloserRef = new mongoose.Types.ObjectId(closerRef);
+    } else if (closer) {
+      const closerName = normalizeName(closer);
+      const closerParts = closerName.split(/\s+/).filter(Boolean);
+      const closerFirst = closerParts[0] || '';
+      const closerLast = closerParts.slice(1).join(' ') || '';
+      const matchedCloser = await Employee.findOne({
+        firstName: { $regex: new RegExp(`^${closerFirst.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        ...(closerLast ? { lastName: { $regex: new RegExp(`^${closerLast.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } } : {})
+      }).select('_id');
+      resolvedCloserRef = matchedCloser ? matchedCloser._id : null;
     }
 
     // Create submission with PENDING status
@@ -208,14 +218,16 @@ const handleGoogleFormWebhook = async (req, res, next) => {
 
     // Try to match closer by name to an employee record
     const closerName = normalizeName(closer);
-    const closerParts = closerName.split(/\s+/);
+    const closerParts = closerName.split(/\s+/).filter(Boolean);
     const closerFirst = closerParts[0] || '';
     const closerLast = closerParts.slice(1).join(' ') || '';
     let matchedCloser = null;
     if (closerFirst) {
+      const escapedFirst = closerFirst.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedLast = closerLast ? closerLast.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
       matchedCloser = await Employee.findOne({
-        firstName: { $regex: new RegExp(`^${closerFirst}$`, 'i') },
-        ...(closerLast && { lastName: { $regex: new RegExp(`^${closerLast}$`, 'i') } })
+        firstName: { $regex: new RegExp(`^${escapedFirst}$`, 'i') },
+        ...(escapedLast ? { lastName: { $regex: new RegExp(`^${escapedLast}$`, 'i') } } : {})
       }).select('_id');
     }
 
@@ -912,9 +924,20 @@ async function getMyCloses(req, res, next) {
     const emp = await Employee.findOne({ user: userId }).select('_id');
     if (!emp) return res.status(404).json({ success: false, message: 'Employee not found' });
 
-    const { status, limit = 100, page = 1 } = req.query;
+    const { status, limit = 100, page = 1, date } = req.query;
     const filter = { closerRef: emp._id };
     if (status && status !== 'all') filter.status = status;
+
+    if (date) {
+      const selectedDate = new Date(date);
+      if (!Number.isNaN(selectedDate.getTime())) {
+        const start = new Date(selectedDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(selectedDate);
+        end.setHours(23, 59, 59, 999);
+        filter.saleDate = { $gte: start, $lte: end };
+      }
+    }
 
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));

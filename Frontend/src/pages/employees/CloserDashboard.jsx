@@ -45,6 +45,9 @@ const CloserDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20 });
   const [showAll, setShowAll] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -53,16 +56,21 @@ const CloserDashboard = () => {
     try {
       const [statsRes, closesRes] = await Promise.all([
         salesTargetAPI.getMyClosesStats(),
-        salesTargetAPI.getMyCloses({ status: statusFilter, limit: 200 })
+        salesTargetAPI.getMyCloses({ status: statusFilter, date: selectedDate, page, limit: 20 })
       ]);
       if (statsRes?.data) setStats(statsRes.data);
-      if (closesRes?.data) setCloses(closesRes.data);
+      if (closesRes?.data) {
+        setCloses(closesRes.data || []);
+        if (closesRes.pagination) {
+          setPagination(closesRes.pagination);
+        }
+      }
     } catch (e) {
       setError('Failed to load data: ' + (e.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, selectedDate, page]);
 
   useEffect(() => {
     loadData();
@@ -72,6 +80,10 @@ const CloserDashboard = () => {
     await logout();
     navigate('/login');
   };
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, selectedDate]);
 
   const displayedCloses = showAll ? closes : closes.slice(0, 10);
 
@@ -194,6 +206,12 @@ const CloserDashboard = () => {
                   My Closes
                 </h2>
                 <div className="flex items-center gap-3">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
@@ -257,18 +275,27 @@ const CloserDashboard = () => {
                 </table>
               </div>
 
-              {closes.length > 10 && (
-                <div className="px-5 py-3 border-t border-white/10 flex justify-center">
-                  <button
-                    onClick={() => setShowAll(!showAll)}
-                    className="flex items-center gap-2 text-teal-400 hover:text-teal-300 text-sm font-medium transition-colors"
-                  >
-                    {showAll ? (
-                      <><ChevronUp size={16} /> Show less</>
-                    ) : (
-                      <><ChevronDown size={16} /> Show all {closes.length} closes</>
-                    )}
-                  </button>
+              {pagination.total > 20 && (
+                <div className="px-5 py-3 border-t border-white/10 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm text-white/50">
+                    Page {pagination.page} of {Math.max(1, Math.ceil(pagination.total / pagination.limit))} • {pagination.total} total closes
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                      disabled={page <= 1}
+                      className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white/70 disabled:opacity-40"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      onClick={() => setPage((prev) => prev + 1)}
+                      disabled={page >= Math.ceil(pagination.total / pagination.limit)}
+                      className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white/70 disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

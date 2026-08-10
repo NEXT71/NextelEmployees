@@ -62,10 +62,6 @@ const CloserDashboard = () => {
       ]);
       if (statsRes?.data) {
         setStats(statsRes.data);
-        setStatsRange({
-          month: statsRes.data.selectedMonth || '',
-          day: statsRes.data.selectedDay || ''
-        });
       }
       if (closesRes?.data) {
         setCloses(closesRes.data || []);

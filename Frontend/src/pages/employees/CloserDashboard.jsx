@@ -47,7 +47,6 @@ const CloserDashboard = () => {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20 });
   const [showAll] = useState(false);
-  const [statsRange, setStatsRange] = useState({ month: '', day: '' });
 
   const loadData = useCallback(async () => {
     setLoading(true);

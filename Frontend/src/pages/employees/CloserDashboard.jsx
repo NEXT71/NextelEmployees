@@ -6,6 +6,7 @@ import {
   CheckCircle,
   DollarSign,
   Trophy,
+  RefreshCw,
   LogOut,
   TrendingUp,
   User,

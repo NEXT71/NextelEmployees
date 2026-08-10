@@ -6,13 +6,10 @@ import {
   CheckCircle,
   DollarSign,
   Trophy,
-  RefreshCw,
   LogOut,
   TrendingUp,
   User,
-  Calendar,
-  ChevronDown,
-  ChevronUp
+  Calendar
 } from 'lucide-react';
 
 const fmtDate = (d) => {
@@ -48,17 +45,28 @@ const CloserDashboard = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20 });
-  const [showAll, setShowAll] = useState(false);
+  const [showAll] = useState(false);
+  const [statsRange, setStatsRange] = useState({ month: '', day: '' });
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const [statsRes, closesRes] = await Promise.all([
-        salesTargetAPI.getMyClosesStats(),
+        salesTargetAPI.getMyClosesStats({
+          month: selectedDate ? new Date(selectedDate).getMonth() + 1 : undefined,
+          year: selectedDate ? new Date(selectedDate).getFullYear() : undefined,
+          day: selectedDate ? new Date(selectedDate).getDate() : undefined
+        }),
         salesTargetAPI.getMyCloses({ status: statusFilter, date: selectedDate, page, limit: 20 })
       ]);
-      if (statsRes?.data) setStats(statsRes.data);
+      if (statsRes?.data) {
+        setStats(statsRes.data);
+        setStatsRange({
+          month: statsRes.data.selectedMonth || '',
+          day: statsRes.data.selectedDay || ''
+        });
+      }
       if (closesRes?.data) {
         setCloses(closesRes.data || []);
         if (closesRes.pagination) {
@@ -139,7 +147,7 @@ const CloserDashboard = () => {
                   <span className="text-white/60 text-xs uppercase tracking-wider">This Month</span>
                 </div>
                 <p className="text-3xl font-bold text-white">{stats?.approvedThisMonth ?? '—'}</p>
-                <p className="text-white/40 text-xs mt-1">Approved Closes</p>
+                <p className="text-white/40 text-xs mt-1">Approved This Month</p>
               </div>
 
               {/* This month earnings */}
@@ -170,16 +178,16 @@ const CloserDashboard = () => {
                 </p>
               </div>
 
-              {/* All time closes */}
+              {/* Selected day closes */}
               <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-9 h-9 bg-purple-500/20 rounded-lg flex items-center justify-center">
                     <TrendingUp size={18} className="text-purple-400" />
                   </div>
-                  <span className="text-white/60 text-xs uppercase tracking-wider">All Time</span>
+                  <span className="text-white/60 text-xs uppercase tracking-wider">Selected Day</span>
                 </div>
-                <p className="text-3xl font-bold text-white">{stats?.approvedAllTime ?? '—'}</p>
-                <p className="text-white/40 text-xs mt-1">{fmtCurrency(stats?.earningsAllTime)} earned</p>
+                <p className="text-3xl font-bold text-white">{stats?.approvedThisDay ?? '—'}</p>
+                <p className="text-white/40 text-xs mt-1">{fmtCurrency(stats?.earningsThisDay)} earned</p>
               </div>
             </div>
 

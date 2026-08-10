@@ -544,8 +544,10 @@ export const salesTargetAPI = {
     return apiRequest(`/sales-submissions/my/closes${queryString ? `?${queryString}` : ''}`);
   },
 
-  getMyClosesStats: () =>
-    apiRequest('/sales-submissions/my/closes/stats'),
+  getMyClosesStats: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/sales-submissions/my/closes/stats${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 // Document API calls

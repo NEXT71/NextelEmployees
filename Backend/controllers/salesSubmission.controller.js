@@ -966,13 +966,28 @@ async function getMyClosesStats(req, res, next) {
     if (!emp) return res.status(404).json({ success: false, message: 'Employee not found' });
 
     const empId = emp._id;
+    const { month, year, day } = req.query;
     const now = new Date();
-    const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
-    const monthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
+    const selectedYear = parseInt(year || now.getFullYear(), 10);
+    const selectedMonth = parseInt(month || (now.getMonth() + 1), 10);
+    const selectedDay = day ? parseInt(day, 10) : null;
 
-    const [approvedAllTime, approvedThisMonth] = await Promise.all([
+    const monthStart = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1));
+    const monthEnd = new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59, 999));
+
+    let dayStart = null;
+    let dayEnd = null;
+    if (selectedDay) {
+      dayStart = new Date(Date.UTC(selectedYear, selectedMonth - 1, selectedDay, 0, 0, 0, 0));
+      dayEnd = new Date(Date.UTC(selectedYear, selectedMonth - 1, selectedDay, 23, 59, 59, 999));
+    }
+
+    const [approvedAllTime, approvedThisMonth, approvedThisDay] = await Promise.all([
       SalesTarget.countDocuments({ closerRef: empId, status: 'approved' }),
-      SalesTarget.countDocuments({ closerRef: empId, status: 'approved', saleDate: { $gte: monthStart, $lte: monthEnd } })
+      SalesTarget.countDocuments({ closerRef: empId, status: 'approved', saleDate: { $gte: monthStart, $lte: monthEnd } }),
+      dayStart && dayEnd
+        ? SalesTarget.countDocuments({ closerRef: empId, status: 'approved', saleDate: { $gte: dayStart, $lte: dayEnd } })
+        : Promise.resolve(0)
     ]);
 
     // Compute rank: count how many closers have more approved closes than me this month
@@ -988,10 +1003,14 @@ async function getMyClosesStats(req, res, next) {
       data: {
         approvedAllTime,
         approvedThisMonth,
+        approvedThisDay,
         earningsThisMonth: approvedThisMonth * 100,
+        earningsThisDay: approvedThisDay * 100,
         earningsAllTime: approvedAllTime * 100,
         rank: rank || null,
-        totalVerifiers: rankAgg.length
+        totalVerifiers: rankAgg.length,
+        selectedMonth: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,
+        selectedDay: selectedDay ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}` : null
       }
     });
   } catch (err) {

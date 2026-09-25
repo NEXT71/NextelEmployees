@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
 import { subscribeSocket } from '../../utils/socket';
+import { formatSalesShiftDate, getCurrentSalesShiftDate, getSalesShiftDate } from '../../utils/salesShift';
 import {
   CheckCircle, XCircle, Clock, RefreshCw, LogOut, AlertCircle,
   ChevronDown, ChevronUp, ClipboardList, Search, Download
@@ -138,7 +139,7 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expa
             />
           )}
         </td>
-        <td className="px-4 py-3 text-white/80 text-sm">{fmtDate(sub.saleDate)}</td>
+        <td className="px-4 py-3 text-white/80 text-sm">{formatSalesShiftDate(sub.createdAt || sub.saleDate)}</td>
         <td className="px-4 py-3 text-white text-sm font-medium">{agentName}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{customerName}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{sub.dids || '—'}</td>
@@ -273,31 +274,25 @@ const QADashboard = () => {
 
   const matchesDateRange = useCallback((sub) => {
     if (dateRange === 'all') return true;
-    const value = sub.createdAt || sub.saleDate || sub.saleDate;
-    if (!value) return false;
-    const submitted = new Date(value);
-    const today = new Date();
-    const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const submittedDay = startOfDay(submitted);
+    const submittedDay = getSalesShiftDate(sub.createdAt || sub.saleDate);
+    if (!submittedDay) return false;
+    const today = getCurrentSalesShiftDate();
     if (dateRange === 'today') {
-      return submittedDay.getTime() === startOfDay(today).getTime();
+      return submittedDay === today;
     }
     if (dateRange === 'yesterday') {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return submittedDay.getTime() === startOfDay(yesterday).getTime();
+      const yesterday = new Date(`${today}T00:00:00Z`);
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      return submittedDay === yesterday.toISOString().slice(0, 10);
     }
     if (dateRange === 'last7') {
-      const pastWeek = new Date(today);
-      pastWeek.setDate(pastWeek.getDate() - 6);
-      return submittedDay.getTime() >= startOfDay(pastWeek).getTime() && submittedDay.getTime() <= startOfDay(today).getTime();
+      const pastWeek = new Date(`${today}T00:00:00Z`);
+      pastWeek.setUTCDate(pastWeek.getUTCDate() - 6);
+      return submittedDay >= pastWeek.toISOString().slice(0, 10) && submittedDay <= today;
     }
     if (dateRange === 'custom') {
       if (!customStart || !customEnd) return true;
-      const start = new Date(customStart);
-      const end = new Date(customEnd);
-      end.setHours(23, 59, 59, 999);
-      return submitted >= start && submitted <= end;
+      return submittedDay >= customStart && submittedDay <= customEnd;
     }
     return true;
   }, [dateRange, customStart, customEnd]);
@@ -496,7 +491,7 @@ const QADashboard = () => {
       const customer = s.customer ? `${s.customer.firstName || ''} ${s.customer.lastName || ''}`.trim() : '';
       const pkg = getPackageValue(s);
       return [
-        fmtDate(s.saleDate),
+        formatSalesShiftDate(s.createdAt || s.saleDate),
         s.agentName || '',
         customer,
         s.dids || '',

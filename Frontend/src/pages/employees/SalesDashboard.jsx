@@ -7,6 +7,7 @@ import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import MessageCenter from '../../components/common/MessageCenter';
 import { subscribeSocket } from '../../utils/socket';
+import { formatSalesShiftDate } from '../../utils/salesShift';
 
 const CSRSalesDashboard = () => {
   const navigate = useNavigate();
@@ -253,7 +254,7 @@ const CSRSalesDashboard = () => {
                     {submissions.map((sub) => (
                       <tr key={sub._id} className="hover:bg-blue-800/20 transition-colors">
                         <td className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">
-                          {new Date(sub.saleDate).toLocaleDateString('en-GB')}
+                          {formatSalesShiftDate(sub.createdAt || sub.saleDate)}
                         </td>
                         <td className="px-4 py-3 text-sm text-white">
                           {sub.customer?.firstName} {sub.customer?.lastName}
@@ -472,7 +473,7 @@ const CSRSalesDashboard = () => {
                     {dailyRecords.map((record, idx) => (
                       <tr key={idx} className="hover:bg-blue-800/20 transition-colors">
                         <td className="px-6 py-4 text-sm text-gray-300">
-                          {new Date(record.date).toLocaleDateString('en-GB')}
+                          {new Date(`${String(record.date).slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC' })}
                         </td>
                         <td className="px-6 py-4 text-sm text-center font-semibold text-amber-400">
                           {record.sales}

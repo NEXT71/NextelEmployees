@@ -3,6 +3,7 @@ import { TrendingUp, Users, Award, DollarSign, AlertCircle, BarChart3 } from 'lu
 import { API_BASE_URL } from '../../utils/constants';
 import StatsCard from '../common/StatsCard';
 import LoadingSkeleton from '../common/LoadingSkeleton';
+import { formatSalesShiftDate } from '../../utils/salesShift';
 
 // Helper to get auth token
 const getAuthToken = () => {
@@ -37,8 +38,8 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
-  const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, '0')}`;
 
   const loadSalesData = useCallback(async () => {
     try {
@@ -230,7 +231,7 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-center text-gray-300">
-                      {record.saleDate ? new Date(record.saleDate).toLocaleDateString('en-GB') : '—'}
+                      {formatSalesShiftDate(record.createdAt || record.saleDate)}
                     </td>
                     <td className="px-6 py-4 text-sm text-center font-semibold text-amber-400">
                       {record.salesCount || 1}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Check, X, AlertCircle, Loader, ChevronDown, ChevronUp } from 'lucide-react';
 import { API_BASE_URL } from '../../utils/constants';
+import { formatSalesShiftDate, getCurrentSalesShiftDate, getSalesShiftRange } from '../../utils/salesShift';
 
 // Helper to get auth token from localStorage
 const getAuthToken = () => {
@@ -47,7 +48,7 @@ const PendingSalesReview = ({ onRefresh }) => {
   const [filter, setFilter] = useState('pending');
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getCurrentSalesShiftDate);
   const [currentPage, setCurrentPage] = useState(1);
   const [dbStatus, setDbStatus] = useState(null);
   const ITEMS_PER_PAGE = 15;
@@ -124,8 +125,9 @@ const PendingSalesReview = ({ onRefresh }) => {
 
   // Filter submissions by selected date
   const filteredByDate = submissions.filter(submission => {
-    const submissionDate = new Date(submission.saleDate).toISOString().split('T')[0];
-    return submissionDate === selectedDate;
+    const range = getSalesShiftRange(selectedDate);
+    const timestamp = new Date(submission.createdAt || submission.saleDate);
+    return range && timestamp >= range.start && timestamp < range.end;
   });
 
   // Pagination calculations
@@ -341,7 +343,7 @@ const PendingSalesReview = ({ onRefresh }) => {
           />
         </div>
         <div className="text-sm text-blue-300 pt-6">
-          Showing {filteredByDate.length} submissions for {new Date(selectedDate).toLocaleDateString()}
+          Showing {filteredByDate.length} submissions for {formatSalesShiftDate(`${selectedDate}T18:30:00+05:00`)}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { getSalesShiftDate, getSalesShiftRange } from '../utils/salesShift.js';
 
 const salesTargetSchema = new mongoose.Schema({
   // Agent who made the sale
@@ -143,20 +144,17 @@ salesTargetSchema.post('save', async function(doc) {
       return;
     }
 
-    // Get the start and end of the sale date (same day)
-    const startOfDay = new Date(doc.saleDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(doc.saleDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const shiftDate = getSalesShiftDate(doc.createdAt || doc.saleDate);
+    const shiftRange = getSalesShiftRange(shiftDate);
+    if (!shiftRange) return;
     
     // Count ONLY APPROVED sales for this agent on this day
     const dailySalesCount = await this.constructor.countDocuments({
       agent: doc.agent,
       status: 'approved',  // Only count approved sales
-      saleDate: {
-        $gte: startOfDay,
-        $lte: endOfDay
+      createdAt: {
+        $gte: shiftRange.start,
+        $lt: shiftRange.end
       }
     });
     
@@ -194,9 +192,9 @@ salesTargetSchema.post('save', async function(doc) {
       {
         agent: doc.agent,
         status: 'approved',  // Only update approved sales
-        saleDate: {
-          $gte: startOfDay,
-          $lte: endOfDay
+        createdAt: {
+          $gte: shiftRange.start,
+          $lt: shiftRange.end
         }
       },
       {

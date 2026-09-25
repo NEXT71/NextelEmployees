@@ -5,22 +5,21 @@ import Salary from '../models/Salary.js';
 import Fine from '../models/Fine.js';
 import Attendance from '../models/Attendance.js';
 import Message from '../models/Message.js';
+import { getSalesShiftCalendarDate, getSalesShiftDate, getSalesShiftRange } from '../utils/salesShift.js';
 
 const recalculateSaleBonuses = async (agentId, saleDate) => {
   if (!agentId || !saleDate) return;
 
-  const startOfDay = new Date(saleDate);
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const endOfDay = new Date(saleDate);
-  endOfDay.setHours(23, 59, 59, 999);
+  const shiftDate = getSalesShiftCalendarDate(saleDate);
+  const shiftRange = getSalesShiftRange(shiftDate);
+  if (!shiftRange) return;
 
   const dailySalesCount = await SalesTarget.countDocuments({
     agent: agentId,
     status: 'approved',
-    saleDate: {
-      $gte: startOfDay,
-      $lte: endOfDay
+    createdAt: {
+      $gte: shiftRange.start,
+      $lt: shiftRange.end
     }
   });
 
@@ -45,9 +44,9 @@ const recalculateSaleBonuses = async (agentId, saleDate) => {
     {
       agent: agentId,
       status: 'approved',
-      saleDate: {
-        $gte: startOfDay,
-        $lte: endOfDay
+      createdAt: {
+        $gte: shiftRange.start,
+        $lt: shiftRange.end
       }
     },
     {
@@ -138,8 +137,9 @@ export const getEmployeeFullHistory = async (req, res, next) => {
     // Group sales by month
     const salesByMonth = {};
     salesRecords.forEach(sale => {
-      const d = new Date(sale.saleDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const shiftDate = getSalesShiftDate(sale.createdAt || sale.saleDate);
+      const key = shiftDate ? shiftDate.slice(0, 7) : null;
+      if (!key) return;
       if (!salesByMonth[key]) {
         salesByMonth[key] = { month: key, approved: 0, pending: 0, disapproved: 0, earnings: 0, sales: [] };
       }
@@ -159,7 +159,8 @@ export const getEmployeeFullHistory = async (req, res, next) => {
       const approvedSales = monthData.sales.filter(s => s.status === 'approved');
       const byDay = {};
       approvedSales.forEach(sale => {
-        const day = new Date(sale.saleDate).toDateString();
+        const day = getSalesShiftDate(sale.createdAt || sale.saleDate);
+        if (!day) return;
         byDay[day] = (byDay[day] || 0) + 1;
       });
       let tierBonus = 0;

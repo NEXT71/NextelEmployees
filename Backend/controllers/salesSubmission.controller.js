@@ -3,6 +3,7 @@ import Employee from '../models/Employee.js';
 import mongoose from 'mongoose';
 import { normalizeName } from '../utils/employeeMatch.js';
 import { emitSalesSubmissionUpdate } from '../utils/socket.js';
+import { getSalesShiftDate, getSalesShiftMonthRange, getSalesShiftRange } from '../utils/salesShift.js';
 
 // Helper: resolve employee._id from a user _id (for consistent agent storage)
 const resolveEmployeeId = async (userId) => {
@@ -607,24 +608,30 @@ const getAnalytics = async (req, res, next) => {
     const { startDate, endDate, month, year } = req.query;
 
     console.log('📊 Analytics request received with query:', { startDate, endDate, month, year });
+
+    const startRange = startDate ? getSalesShiftRange(startDate) : null;
+    const endRange = endDate ? getSalesShiftRange(endDate) : null;
+    if ((startDate && !startRange) || (endDate && !endRange)) {
+      return res.status(400).json({ success: false, message: 'Invalid startDate or endDate' });
+    }
+
+    const filter = { status: 'approved' };
+    if (startRange || endRange) {
+      filter.createdAt = {
+        ...(startRange ? { $gte: startRange.start } : {}),
+        ...(endRange ? { $lt: endRange.end } : {})
+      };
+    }
     
-    // Query ALL approved sales first (no date filter) to see what we have
-    const allApprovedSales = await SalesTarget.find({ status: 'approved' })
+    const matchingSales = await SalesTarget.find(filter)
       .populate('agent', 'firstName lastName employeeId phone')
       .populate('approvedBy', 'firstName lastName')
-      .sort({ saleDate: -1 });
+      .sort({ createdAt: -1 });
 
-    console.log('🔍 Total approved sales in DB:', allApprovedSales.length);
-    console.log('📋 Sales details:', allApprovedSales.map(s => ({
-      id: s._id,
-      agentName: s.agentName,
-      saleDate: s.saleDate,
-      approvedAt: s.approvedAt,
-      status: s.status
-    })));
-
-    // Use all approved sales (no date filtering for now, to test)
-    const approvedSales = allApprovedSales;
+    const approvedSales = matchingSales.filter((sale) => {
+      const shiftDate = getSalesShiftDate(sale.createdAt || sale.saleDate);
+      return shiftDate && (!startDate || shiftDate >= startDate) && (!endDate || shiftDate <= endDate);
+    });
 
     console.log('📊 Analytics Query:', {
       totalFound: approvedSales.length,
@@ -787,28 +794,39 @@ const getMyMonthlyEarnings = async (req, res, next) => {
     const monthNum = month ? parseInt(month) : new Date().getMonth() + 1;
     const yearNum = year ? parseInt(year) : new Date().getFullYear();
 
-    const startDate = new Date(yearNum, monthNum - 1, 1);
-    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
+    const monthRange = getSalesShiftMonthRange(yearNum, monthNum);
+    if (!monthRange) {
+      return res.status(400).json({ success: false, message: 'Invalid month or year' });
+    }
 
     // Resolve to employee._id for consistent querying
     const employeeId = await getMyEmployeeId(req.user._id);
     const agentFilter = employeeId ? { agent: employeeId } : { agent: req.user._id };
 
-    const [approvedSales, pendingSales, disapprovedSales] = await Promise.all([
-      SalesTarget.find({ ...agentFilter, status: 'approved', saleDate: { $gte: startDate, $lte: endDate } })
+    const [approvedSalesForMonth, pendingSalesForMonth, disapprovedSalesForMonth] = await Promise.all([
+      SalesTarget.find({ ...agentFilter, status: 'approved', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
         .populate('approvedBy', 'firstName lastName')
-        .sort({ saleDate: 1 }),
-      SalesTarget.find({ ...agentFilter, status: 'pending', saleDate: { $gte: startDate, $lte: endDate } })
-        .sort({ saleDate: -1 }),
-      SalesTarget.find({ ...agentFilter, status: 'disapproved', saleDate: { $gte: startDate, $lte: endDate } })
+        .sort({ createdAt: 1 }),
+      SalesTarget.find({ ...agentFilter, status: 'pending', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
+        .sort({ createdAt: -1 }),
+      SalesTarget.find({ ...agentFilter, status: 'disapproved', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
         .populate('disapprovedBy', 'firstName lastName')
-        .sort({ saleDate: -1 })
+        .sort({ createdAt: -1 })
     ]);
 
-    // Calculate daily tier bonuses from approved sales
+    const inSalesShiftMonth = (sale) => {
+      const shiftDate = getSalesShiftDate(sale.createdAt || sale.saleDate);
+      return shiftDate && shiftDate >= `${yearNum}-${String(monthNum).padStart(2, '0')}-01` &&
+        shiftDate <= `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(new Date(Date.UTC(yearNum, monthNum, 0)).getUTCDate()).padStart(2, '0')}`;
+    };
+    const approvedSales = approvedSalesForMonth.filter(inSalesShiftMonth);
+    const pendingSales = pendingSalesForMonth.filter(inSalesShiftMonth);
+    const disapprovedSales = disapprovedSalesForMonth.filter(inSalesShiftMonth);
+
     const salesByDay = {};
     approvedSales.forEach(sale => {
-      const dayKey = new Date(sale.saleDate).toDateString();
+      const dayKey = getSalesShiftDate(sale.createdAt || sale.saleDate);
+      if (!dayKey) return;
       salesByDay[dayKey] = (salesByDay[dayKey] || 0) + 1;
     });
 

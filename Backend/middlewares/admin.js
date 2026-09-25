@@ -6,8 +6,8 @@ const admin = (req, res, next) => {
     });
   }
 
-  // superadmin passes all admin-level checks too
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+  // HR and superadmin can perform admin-dashboard operations.
+  if (!['admin', 'superadmin', 'hr'].includes(req.user.role)) {
     console.warn(`Unauthorized admin access attempt by user: ${req.user.userId}, role: ${req.user.role}`);
     return res.status(403).json({
       success: false,

@@ -14,6 +14,8 @@ const FINE_TYPES = [
   { name: 'Sleeping', amount: 300 }
 ];
 
+const canApproveFine = (user) => ['admin', 'superadmin', 'hr'].includes(user?.role);
+
 const applyFine = async (req, res, next) => {
   try {
     const { employeeId, type, amount, description } = req.body;
@@ -32,8 +34,8 @@ const applyFine = async (req, res, next) => {
       amount: amount || FINE_TYPES.find(t => t.name === type)?.amount || 0,
       description,
       date: new Date(),
-      approved: req.user.role === 'admin',
-      approvedBy: req.user.role === 'admin' ? req.user._id : null
+      approved: canApproveFine(req.user),
+      approvedBy: canApproveFine(req.user) ? req.user._id : null
     });
 
     res.status(201).json({
@@ -87,8 +89,8 @@ const applyBulkFine = async (req, res, next) => {
         amount: fineAmount,
         description: description || `Bulk fine: ${type}`,
         date: fineDate,
-        approved: req.user.role === 'admin',
-        approvedBy: req.user.role === 'admin' ? req.user._id : null
+        approved: canApproveFine(req.user),
+        approvedBy: canApproveFine(req.user) ? req.user._id : null
       }))
     );
 

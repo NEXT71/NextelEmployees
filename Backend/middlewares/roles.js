@@ -4,7 +4,11 @@ const roles = (...allowedRoles) => {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    const effectiveRoles = allowedRoles.includes('admin')
+      ? [...new Set([...allowedRoles, 'superadmin', 'hr'])]
+      : allowedRoles;
+
+    if (!effectiveRoles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Forbidden - Insufficient permissions' });
     }
 

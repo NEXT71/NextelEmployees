@@ -104,11 +104,12 @@ const registerEmployee = async (req, res, next) => {
   console.log("👤 Authenticated user:", req.user);
 
   try {
-    // Verify admin role
-    if (req.user.role !== 'admin') {
+    // Verify employee-management role
+    if (!['admin', 'superadmin', 'hr'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admin can register employees'
+        message: 'HR or admin access required',
+        userRole: req.user.role
       });
     }
 

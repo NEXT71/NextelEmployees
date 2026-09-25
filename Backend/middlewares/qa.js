@@ -3,8 +3,8 @@ const qa = (req, res, next) => {
     return res.status(401).json({ success: false, message: 'User not authenticated' });
   }
 
-  // superadmin and admin also pass qa-level checks
-  if (!['qa', 'admin', 'superadmin'].includes(req.user.role)) {
+  // HR, superadmin, and admin can review sales from the admin dashboard.
+  if (!['qa', 'admin', 'superadmin', 'hr'].includes(req.user.role)) {
     return res.status(403).json({
       success: false,
       message: 'QA access required',

@@ -32,7 +32,7 @@ const LoginPage = () => {
         // Redirect based on role
         const redirectPath =
           response.user.role === 'superadmin' ? '/superadmindashboard'
-          : response.user.role === 'admin' ? '/admindashboard'
+          : ['admin', 'hr'].includes(response.user.role) ? '/admindashboard'
           : response.user.role === 'qa' ? '/qadashboard'
           : response.user.isCloser ? '/closerdashboard'
           : '/employeedashboard';

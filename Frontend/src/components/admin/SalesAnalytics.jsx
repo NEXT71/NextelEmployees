@@ -3,7 +3,7 @@ import { TrendingUp, Users, Award, DollarSign, AlertCircle, BarChart3 } from 'lu
 import { API_BASE_URL } from '../../utils/constants';
 import StatsCard from '../common/StatsCard';
 import LoadingSkeleton from '../common/LoadingSkeleton';
-import { formatSalesShiftDate } from '../../utils/salesShift';
+import { formatSalesShiftDate, getSalesShiftDate } from '../../utils/salesShift';
 
 // Helper to get auth token
 const getAuthToken = () => {
@@ -37,6 +37,7 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedSalesDay, setSelectedSalesDay] = useState(null);
 
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, '0')}`;
@@ -85,6 +86,10 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
   useEffect(() => {
     loadSalesData();
   }, [loadSalesData]);
+
+  const visibleSalesData = selectedSalesDay
+    ? salesData.filter((record) => getSalesShiftDate(record.createdAt || record.saleDate) === selectedSalesDay)
+    : salesData;
 
   const getTierBadge = (tier) => {
     const badges = {
@@ -194,6 +199,18 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
           <p className="text-xs text-gray-400">
             {new Date(year, month - 1).toLocaleDateString('default', { month: 'long', year: 'numeric' })}
           </p>
+          {selectedSalesDay && (
+            <p className="mt-2 text-sm text-blue-200">
+              Showing sales for {formatSalesShiftDate(`${selectedSalesDay}T18:30:00+05:00`)}
+              <button
+                type="button"
+                onClick={() => setSelectedSalesDay(null)}
+                className="ml-2 text-blue-300 underline underline-offset-2 hover:text-white"
+              >
+                Clear date filter
+              </button>
+            </p>
+          )}
         </div>
 
         {error && (
@@ -203,7 +220,7 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
           </div>
         )}
 
-        {salesData.length > 0 ? (
+        {visibleSalesData.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -218,7 +235,7 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-blue-600/20">
-                {salesData.map((record, idx) => (
+                {visibleSalesData.map((record, idx) => (
                   <tr key={idx} className="hover:bg-blue-800/20 transition-colors">
                     <td className="px-6 py-4 text-sm">
                       <div>
@@ -231,7 +248,17 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-center text-gray-300">
-                      {formatSalesShiftDate(record.createdAt || record.saleDate)}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const shiftDate = getSalesShiftDate(record.createdAt || record.saleDate);
+                          setSelectedSalesDay((current) => current === shiftDate ? null : shiftDate);
+                        }}
+                        title="Filter sales to this shift day"
+                        className={`underline underline-offset-2 hover:text-white ${selectedSalesDay === getSalesShiftDate(record.createdAt || record.saleDate) ? 'text-cyan-300' : 'decoration-white/30'}`}
+                      >
+                        {formatSalesShiftDate(record.createdAt || record.saleDate)}
+                      </button>
                     </td>
                     <td className="px-6 py-4 text-sm text-center font-semibold text-amber-400">
                       {record.salesCount || 1}

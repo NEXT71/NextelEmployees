@@ -109,7 +109,7 @@ const RejectModal = memo(({ onConfirm, onCancel, isBulk, count }) => {
 });
 
 // ─── Submission Row ───────────────────────────────────────────────────────────
-const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expandedId, onToggleExpand, reviewNote, onReviewNoteChange, shouldFocusReview }) => {
+const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, onSelectDate, selectedShiftDate, expandedId, onToggleExpand, reviewNote, onReviewNoteChange, shouldFocusReview }) => {
   const isExpanded = expandedId === sub._id;
   const canAct = sub.status === 'pending';
   const reviewRef = useRef(null);
@@ -139,7 +139,16 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, expa
             />
           )}
         </td>
-        <td className="px-4 py-3 text-white/80 text-sm">{formatSalesShiftDate(sub.createdAt || sub.saleDate)}</td>
+        <td className="px-4 py-3 text-sm">
+          <button
+            type="button"
+            onClick={() => onSelectDate(getSalesShiftDate(sub.createdAt || sub.saleDate))}
+            title="Show sales for this shift day"
+            className={`text-white/80 underline underline-offset-2 decoration-white/30 hover:text-white ${getSalesShiftDate(sub.createdAt || sub.saleDate) === selectedShiftDate ? 'text-cyan-300' : ''}`}
+          >
+            {formatSalesShiftDate(sub.createdAt || sub.saleDate)}
+          </button>
+        </td>
         <td className="px-4 py-3 text-white text-sm font-medium">{agentName}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{customerName}</td>
         <td className="px-4 py-3 text-white/80 text-sm">{sub.dids || '—'}</td>
@@ -237,6 +246,7 @@ const QADashboard = () => {
   const [statusFilter, setStatusFilter] = useState('pending');
   const [search, setSearch] = useState('');
   const [dateRange, setDateRange] = useState('all');
+  const [selectedShiftDate, setSelectedShiftDate] = useState(null);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [agentFilter, setAgentFilter] = useState([]);
@@ -303,6 +313,7 @@ const QADashboard = () => {
     try {
       const params = new URLSearchParams({ limit: '50', page: String(page) });
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (selectedShiftDate) params.set('shiftDate', selectedShiftDate);
 
       const data = await apiFetch(`/sales-submissions?${params.toString()}`);
       setSubmissions(data.data || []);
@@ -318,7 +329,7 @@ const QADashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, page]);
+  }, [statusFilter, page, selectedShiftDate]);
 
   const fetchPendingCount = useCallback(async () => {
     try {
@@ -347,6 +358,16 @@ const QADashboard = () => {
     fetchSubmissions();
     fetchPendingCount();
   }, [fetchSubmissions, fetchPendingCount]);
+
+  const handleSelectShiftDate = useCallback((shiftDate) => {
+    if (!shiftDate) return;
+    setDateRange('all');
+    setCustomStart('');
+    setCustomEnd('');
+    setSelectedShiftDate((current) => current === shiftDate ? null : shiftDate);
+    setPage(1);
+    setSelectedIds(new Set());
+  }, []);
 
   // ── approve single ───────────────────────────────────────────────────────
   const handleApprove = useCallback(async (id) => {
@@ -664,6 +685,18 @@ const QADashboard = () => {
                   />
                 </div>
               )}
+              {selectedShiftDate && (
+                <p className="mt-2 text-sm text-cyan-200">
+                  Showing shift day {formatSalesShiftDate(`${selectedShiftDate}T18:30:00+05:00`)}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectShiftDate(selectedShiftDate)}
+                    className="ml-2 text-white/70 underline underline-offset-2 hover:text-white"
+                  >
+                    Clear
+                  </button>
+                </p>
+              )}
             </div>
 
             <div>
@@ -812,6 +845,8 @@ const QADashboard = () => {
                       onToggle={toggleSelect}
                       onApprove={handleApprove}
                       onReject={openRejectSingle}
+                      onSelectDate={handleSelectShiftDate}
+                      selectedShiftDate={selectedShiftDate}
                       expandedId={expandedId}
                       onToggleExpand={(id) => setExpandedId((prev) => (prev === id ? null : id))}
                       reviewNote={reviewNotes[sub._id]}

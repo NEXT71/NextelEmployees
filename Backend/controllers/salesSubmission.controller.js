@@ -280,7 +280,7 @@ const getSubmissions = async (req, res, next) => {
     console.log('User:', req.user);
     console.log('Query:', req.query);
 
-    const { status, agentId, page = 1, limit = 50 } = req.query;
+    const { status, agentId, shiftDate, page = 1, limit = 50 } = req.query;
 
     // Validate limit and page are numbers
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -289,6 +289,13 @@ const getSubmissions = async (req, res, next) => {
     const filter = {};
     if (status && status !== 'all') filter.status = status;
     if (agentId) filter.agent = agentId;
+    if (shiftDate) {
+      const shiftRange = getSalesShiftRange(shiftDate);
+      if (!shiftRange) {
+        return res.status(400).json({ success: false, message: 'Invalid shiftDate' });
+      }
+      filter.createdAt = { $gte: shiftRange.start, $lt: shiftRange.end };
+    }
 
     const skip = (pageNum - 1) * limitNum;
 

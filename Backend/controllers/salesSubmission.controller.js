@@ -280,7 +280,7 @@ const getSubmissions = async (req, res, next) => {
     console.log('User:', req.user);
     console.log('Query:', req.query);
 
-    const { status, agentId, shiftDate, page = 1, limit = 50 } = req.query;
+    const { status, agentId, shiftDate, month, page = 1, limit = 50 } = req.query;
 
     // Validate limit and page are numbers
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -295,6 +295,17 @@ const getSubmissions = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'Invalid shiftDate' });
       }
       filter.createdAt = { $gte: shiftRange.start, $lt: shiftRange.end };
+    } else if (month) {
+      const match = /^(\d{4})-(\d{2})$/.exec(month);
+      const year = match ? Number(match[1]) : NaN;
+      const monthNumber = match ? Number(match[2]) : NaN;
+      const monthRange = monthNumber >= 1 && monthNumber <= 12
+        ? getSalesShiftMonthRange(year, monthNumber)
+        : null;
+      if (!monthRange) {
+        return res.status(400).json({ success: false, message: 'Invalid month' });
+      }
+      filter.createdAt = { $gte: monthRange.start, $lt: monthRange.end };
     }
 
     const countFilter = { ...filter };

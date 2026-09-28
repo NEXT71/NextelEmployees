@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
 import { subscribeSocket } from '../../utils/socket';
-import { formatSalesShiftDate, getCurrentSalesShiftDate, getSalesShiftDate } from '../../utils/salesShift';
+import { formatSalesShiftDate } from '../../utils/salesShift';
 import {
   CheckCircle, XCircle, Clock, RefreshCw, LogOut, AlertCircle,
   ChevronDown, ChevronUp, ClipboardList, Search, Download
@@ -245,10 +245,8 @@ const QADashboard = () => {
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
   const [search, setSearch] = useState('');
-  const [dateRange, setDateRange] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedShiftDate, setSelectedShiftDate] = useState(null);
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
   const [agentFilter, setAgentFilter] = useState([]);
   const [packageFilter, setPackageFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -283,31 +281,6 @@ const QADashboard = () => {
     return '';
   };
 
-  const matchesDateRange = useCallback((sub) => {
-    if (dateRange === 'all') return true;
-    const submittedDay = getSalesShiftDate(sub.createdAt || sub.saleDate);
-    if (!submittedDay) return false;
-    const today = getCurrentSalesShiftDate();
-    if (dateRange === 'today') {
-      return submittedDay === today;
-    }
-    if (dateRange === 'yesterday') {
-      const yesterday = new Date(`${today}T00:00:00Z`);
-      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-      return submittedDay === yesterday.toISOString().slice(0, 10);
-    }
-    if (dateRange === 'last7') {
-      const pastWeek = new Date(`${today}T00:00:00Z`);
-      pastWeek.setUTCDate(pastWeek.getUTCDate() - 6);
-      return submittedDay >= pastWeek.toISOString().slice(0, 10) && submittedDay <= today;
-    }
-    if (dateRange === 'custom') {
-      if (!customStart || !customEnd) return true;
-      return submittedDay >= customStart && submittedDay <= customEnd;
-    }
-    return true;
-  }, [dateRange, customStart, customEnd]);
-
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -315,6 +288,7 @@ const QADashboard = () => {
       const params = new URLSearchParams({ limit: '50', page: String(page) });
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (selectedShiftDate) params.set('shiftDate', selectedShiftDate);
+      else if (selectedMonth) params.set('month', selectedMonth);
 
       const data = await apiFetch(`/sales-submissions?${params.toString()}`);
       setSubmissions(data.data || []);
@@ -331,7 +305,7 @@ const QADashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, page, selectedShiftDate]);
+  }, [statusFilter, page, selectedShiftDate, selectedMonth]);
 
   const fetchPendingCount = useCallback(async () => {
     try {
@@ -363,9 +337,7 @@ const QADashboard = () => {
 
   const handleSelectShiftDate = useCallback((shiftDate) => {
     if (!shiftDate) return;
-    setDateRange('all');
-    setCustomStart('');
-    setCustomEnd('');
+    setSelectedMonth('');
     setSelectedShiftDate((current) => current === shiftDate ? null : shiftDate);
     setPage(1);
     setSelectedIds(new Set());
@@ -478,8 +450,6 @@ const QADashboard = () => {
 
   const filtered = useMemo(() => {
     return submissions.filter((s) => {
-      if (!matchesDateRange(s)) return false;
-
       if (agentFilter.length > 0 && !agentFilter.includes((s.agentName || '').trim())) {
         return false;
       }
@@ -506,7 +476,7 @@ const QADashboard = () => {
         (s.googleFormResponseId || '').toLowerCase().includes(q)
       );
     });
-  }, [submissions, search, agentFilter, packageFilter, amountTier, matchesDateRange]);
+  }, [submissions, search, agentFilter, packageFilter, amountTier]);
 
   const exportToCsv = useCallback(() => {
     const headers = ['Date', 'Agent', 'Customer', 'DIDs', 'Package', 'Amount', 'Status', 'Closer', 'Phone', 'State', 'Zip', 'Form ID', 'Submitted'];
@@ -659,47 +629,24 @@ const QADashboard = () => {
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             <div>
-              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Date Range</label>
-              <select
-                value={dateRange}
+              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Month</label>
+              <input
+                type="month"
+                value={selectedMonth}
                 onChange={(e) => {
-                  setDateRange(e.target.value);
+                  setSelectedMonth(e.target.value);
                   setSelectedShiftDate(null);
                   setPage(1);
                   setSelectedIds(new Set());
                 }}
                 className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              >
-                <option value="all">Any</option>
-                <option value="today">Today</option>
-                <option value="yesterday">Yesterday</option>
-                <option value="last7">Last 7 Days</option>
-                <option value="custom">Custom Range</option>
-              </select>
-              {dateRange === 'custom' && (
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <input
-                    type="date"
-                    value={customStart}
-                    onChange={(e) => setCustomStart(e.target.value)}
-                    className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                  />
-                  <input
-                    type="date"
-                    value={customEnd}
-                    onChange={(e) => setCustomEnd(e.target.value)}
-                    className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                  />
-                </div>
-              )}
+              />
               <label className="block text-white/60 text-xs uppercase tracking-wide mt-3 mb-1">Single Day</label>
               <input
                 type="date"
                 value={selectedShiftDate || ''}
                 onChange={(e) => {
-                  setDateRange('all');
-                  setCustomStart('');
-                  setCustomEnd('');
+                  setSelectedMonth('');
                   setSelectedShiftDate(e.target.value || null);
                   setPage(1);
                   setSelectedIds(new Set());

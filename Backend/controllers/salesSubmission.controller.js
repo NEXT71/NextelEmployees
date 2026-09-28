@@ -287,7 +287,7 @@ const getSubmissions = async (req, res, next) => {
     const limitNum = Math.min(1000, Math.max(1, parseInt(limit) || 50));
 
     const filter = {};
-    if (status && status !== 'all') filter.status = status;
+    if (status && status !== 'all') filter.status = status === 'rejected' ? 'disapproved' : status;
     if (agentId) filter.agent = agentId;
     if (shiftDate) {
       const shiftRange = getSalesShiftRange(shiftDate);
@@ -297,19 +297,26 @@ const getSubmissions = async (req, res, next) => {
       filter.createdAt = { $gte: shiftRange.start, $lt: shiftRange.end };
     }
 
+    const countFilter = { ...filter };
+    delete countFilter.status;
     const skip = (pageNum - 1) * limitNum;
 
     console.log('Filter:', filter, 'Skip:', skip, 'Limit:', limitNum);
 
-    const submissions = await SalesTarget.find(filter)
-      .populate('agent', 'firstName lastName employeeId')
-      .populate('approvedBy', 'firstName lastName')
-      .populate('disapprovedBy', 'firstName lastName')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
-
-    const total = await SalesTarget.countDocuments(filter);
+    const [submissions, total, allCount, pendingCount, approvedCount, rejectedCount] = await Promise.all([
+      SalesTarget.find(filter)
+        .populate('agent', 'firstName lastName employeeId')
+        .populate('approvedBy', 'firstName lastName')
+        .populate('disapprovedBy', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      SalesTarget.countDocuments(filter),
+      SalesTarget.countDocuments(countFilter),
+      SalesTarget.countDocuments({ ...countFilter, status: 'pending' }),
+      SalesTarget.countDocuments({ ...countFilter, status: 'approved' }),
+      SalesTarget.countDocuments({ ...countFilter, status: 'disapproved' })
+    ]);
 
     console.log('Found submissions:', submissions.length, 'Total:', total);
 
@@ -321,6 +328,12 @@ const getSubmissions = async (req, res, next) => {
         page: pageNum,
         limit: limitNum,
         pages: Math.ceil(total / limitNum)
+      },
+      counts: {
+        total: allCount,
+        pending: pendingCount,
+        approved: approvedCount,
+        disapproved: rejectedCount
       }
     });
   } catch (error) {

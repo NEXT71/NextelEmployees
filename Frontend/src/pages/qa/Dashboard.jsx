@@ -253,6 +253,7 @@ const QADashboard = () => {
   const [packageFilter, setPackageFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 1, limit: 50, page: 1 });
+  const [submissionCounts, setSubmissionCounts] = useState({ total: 0, pending: 0, approved: 0, disapproved: 0 });
   const [amountTier, setAmountTier] = useState('any');
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [expandedId, setExpandedId] = useState(null);
@@ -323,6 +324,7 @@ const QADashboard = () => {
         limit: data.pagination?.limit ?? 50,
         page: data.pagination?.page ?? page,
       });
+      setSubmissionCounts(data.counts || { total: 0, pending: 0, approved: 0, disapproved: 0 });
       setLastSynced(new Date());
     } catch (e) {
       setError(e.message);
@@ -609,10 +611,10 @@ const QADashboard = () => {
         {/* ── Stats row ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total Loaded', value: filtered.length, color: 'bg-blue-500/30', icon: ClipboardList },
-            { label: 'Pending', value: filtered.filter((s) => s.status === 'pending').length, color: 'bg-yellow-500/30', icon: Clock },
-            { label: 'Approved', value: filtered.filter((s) => s.status === 'approved').length, color: 'bg-green-500/30', icon: CheckCircle },
-            { label: 'Rejected', value: filtered.filter((s) => s.status === 'disapproved').length, color: 'bg-red-500/30', icon: XCircle },
+            { label: 'Total Sales', value: submissionCounts.total, color: 'bg-blue-500/30', icon: ClipboardList },
+            { label: 'Pending', value: submissionCounts.pending, color: 'bg-yellow-500/30', icon: Clock },
+            { label: 'Approved', value: submissionCounts.approved, color: 'bg-green-500/30', icon: CheckCircle },
+            { label: 'Rejected', value: submissionCounts.disapproved, color: 'bg-red-500/30', icon: XCircle },
           ].map(({ label, value, color, icon: Icon }) => (
             <div key={label} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 flex items-center gap-3">
               <div className={`p-2.5 rounded-lg ${color}`}>
@@ -660,7 +662,12 @@ const QADashboard = () => {
               <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Date Range</label>
               <select
                 value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
+                onChange={(e) => {
+                  setDateRange(e.target.value);
+                  setSelectedShiftDate(null);
+                  setPage(1);
+                  setSelectedIds(new Set());
+                }}
                 className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
               >
                 <option value="all">Any</option>
@@ -685,6 +692,20 @@ const QADashboard = () => {
                   />
                 </div>
               )}
+              <label className="block text-white/60 text-xs uppercase tracking-wide mt-3 mb-1">Single Day</label>
+              <input
+                type="date"
+                value={selectedShiftDate || ''}
+                onChange={(e) => {
+                  setDateRange('all');
+                  setCustomStart('');
+                  setCustomEnd('');
+                  setSelectedShiftDate(e.target.value || null);
+                  setPage(1);
+                  setSelectedIds(new Set());
+                }}
+                className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              />
               {selectedShiftDate && (
                 <p className="mt-2 text-sm text-cyan-200">
                   Showing shift day {formatSalesShiftDate(`${selectedShiftDate}T18:30:00+05:00`)}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Upload, X, FileText, Download, Trash2, RefreshCw, Paperclip } from 'lucide-react';
+import { Upload, X, FileText, Download, Trash2, RefreshCw, Paperclip, Camera } from 'lucide-react';
 import { API_BASE_URL } from '../../utils/constants';
 import { documentAPI } from '../../utils/api';
 
@@ -38,6 +38,7 @@ const resolveDocumentUrl = (fileUrl) => {
 
 const EmployeeDocumentsModal = ({ isOpen, employee, onClose }) => {
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const [documents, setDocuments] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -203,13 +204,35 @@ const EmployeeDocumentsModal = ({ isOpen, employee, onClose }) => {
                 onChange={(event) => handleFileSelection(event.target.files || [])}
                 className="hidden"
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-4 rounded-lg bg-blue-500/25 px-4 py-2 text-sm font-medium text-blue-100 transition-colors hover:bg-blue-500/35"
-              >
-                Choose Files
-              </button>
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(event) => {
+                  handleFileSelection(event.target.files || []);
+                  event.target.value = '';
+                }}
+                className="hidden"
+              />
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-500/25 px-4 py-2 text-sm font-medium text-blue-100 transition-colors hover:bg-blue-500/35"
+                >
+                  <Upload className="h-4 w-4" />
+                  Choose Files
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-500/30"
+                >
+                  <Camera className="h-4 w-4" />
+                  Take Photo
+                </button>
+              </div>
             </div>
 
             {selectedFiles.length > 0 && (

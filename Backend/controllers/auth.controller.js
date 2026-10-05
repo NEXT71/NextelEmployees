@@ -518,11 +518,20 @@ const login = async (req, res, next) => {
       sessionId = crypto.randomBytes(32).toString('hex');
       try {
         const reservedUser = await User.findOneAndUpdate(
-          {
-            _id: user._id,
-            $or: [
-              { activeSessionId: { $exists: false } },
-              { activeSessionExpiresAt: { $lte: now } }
+          { _id: user._id,
+            $and: [
+              {
+                $or: [
+                  { activeSessionId: { $exists: false } },
+                  { activeSessionExpiresAt: { $lte: now } }
+                ]
+              },
+              {
+                $or: [
+                  { boundDeviceId: { $exists: false } },
+                  { boundDeviceId: deviceId }
+                ]
+              }
             ]
           },
           {
@@ -531,6 +540,7 @@ const login = async (req, res, next) => {
               lastLogin: now,
               activeSessionId: sessionId,
               activeDeviceId: deviceId,
+              boundDeviceId: deviceId,
               activeSessionExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000)
             }
           },
@@ -538,6 +548,14 @@ const login = async (req, res, next) => {
         );
 
         if (!reservedUser) {
+          const deviceOwner = await User.findOne({ boundDeviceId: deviceId }).select('_id');
+          if (deviceOwner) {
+            return res.status(409).json({
+              success: false,
+              message: 'This browser is registered to another CSR account and cannot be used to clock in with a different account.'
+            });
+          }
+
           return res.status(409).json({
             success: false,
             message: 'This CSR account is already logged in on another browser or computer.'
@@ -547,7 +565,7 @@ const login = async (req, res, next) => {
         if (err.code === 11000) {
           return res.status(409).json({
             success: false,
-            message: 'A CSR account is already logged in on this browser or computer.'
+            message: 'This browser is registered to another CSR account and cannot be used to clock in with a different account.'
           });
         }
         throw err;

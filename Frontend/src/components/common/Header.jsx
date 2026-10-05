@@ -14,7 +14,7 @@ const Header = ({
   onNavigateToDashboard = null
 }) => {
   return (
-    <header className="bg-black/95 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
+    <header className="bg-white border-b border-[#dce5e1] sticky top-0 z-50 shadow-sm">
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -29,8 +29,8 @@ const Header = ({
               />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-xl font-semibold text-white">Nextel Employees</h1>
-              {pageTitle && <p className="text-sm text-white/60 mt-0.5">{pageTitle}</p>}
+              <h1 className="text-xl font-semibold text-[#1d2b27]">Nextel Employees</h1>
+              {pageTitle && <p className="text-sm text-[#66736e] mt-0.5">{pageTitle}</p>}
             </div>
           </div>
 
@@ -38,7 +38,7 @@ const Header = ({
             {onRegisterEmployee && (
               <button
                 onClick={onRegisterEmployee}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-white text-black hover:bg-white/85 rounded-md text-sm transition-colors"
+                className="flex items-center space-x-2 px-3 py-1.5 bg-teal-700 text-white hover:bg-teal-800 rounded-md text-sm font-medium transition-colors"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>Register Employee</span>
@@ -48,7 +48,7 @@ const Header = ({
             {onNavigateToDashboard && (
               <button
                 onClick={onNavigateToDashboard}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-white text-black hover:bg-white/85 rounded-md text-sm transition-colors"
+                className="flex items-center space-x-2 px-3 py-1.5 bg-teal-700 text-white hover:bg-teal-800 rounded-md text-sm font-medium transition-colors"
                 title="Go to Dashboard"
               >
                 <span>Dashboard</span>
@@ -58,7 +58,7 @@ const Header = ({
             {onNavigateToSalary && (
               <button
                 onClick={onNavigateToSalary}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-white text-black hover:bg-white/85 rounded-md text-sm transition-colors"
+                className="flex items-center space-x-2 px-3 py-1.5 bg-teal-700 text-white hover:bg-teal-800 rounded-md text-sm font-medium transition-colors"
                 title="View My Salary Slips"
               >
                 <DollarSign className="w-4 h-4" />
@@ -69,7 +69,7 @@ const Header = ({
             {onNavigateToSales && (
               <button
                 onClick={onNavigateToSales}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-white text-black hover:bg-white/85 rounded-md text-sm transition-colors"
+                className="flex items-center space-x-2 px-3 py-1.5 bg-teal-700 text-white hover:bg-teal-800 rounded-md text-sm font-medium transition-colors"
                 title="View My Sales"
               >
                 <TrendingUp className="w-4 h-4" />
@@ -78,13 +78,13 @@ const Header = ({
             )}
 
             <div className="flex items-center space-x-2">
-              <User className="w-4 h-4 text-white/70" />
-              <span className="text-sm text-white font-medium">{userName}</span>
+              <User className="w-4 h-4 text-[#66736e]" />
+              <span className="text-sm text-[#1d2b27] font-medium">{userName}</span>
             </div>
 
             <button
               onClick={onLogout}
-              className="flex items-center space-x-2 px-3 py-1.5 text-sm text-white/70 hover:text-white transition-colors"
+              className="flex items-center space-x-2 px-3 py-1.5 text-sm text-[#66736e] hover:text-[#1d2b27] transition-colors"
             >
               <LogOut className="w-4 h-4" />
               <span>Logout</span>

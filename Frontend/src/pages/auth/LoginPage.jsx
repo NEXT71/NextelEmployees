@@ -58,56 +58,39 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center p-4 sm:p-6 lg:p-8">
-      {/* Animated background elements */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-64 sm:h-64 bg-white/5 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-48 h-48 sm:w-96 sm:h-96 bg-white/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-40 h-40 sm:w-80 sm:h-80 bg-white/3 rounded-full blur-3xl animate-pulse delay-2000"></div>
-      </div>
-      
-      {/* Grid pattern overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:30px_30px] sm:bg-[size:50px_50px]"></div>
-      
-      {/* Main container */}
-      <div className="relative z-10 w-full max-w-sm sm:max-w-md lg:max-w-lg">
+    <div className="min-h-screen bg-[#f4f7f6] flex items-center justify-center p-4 sm:p-6 lg:p-8">
+      <div className="w-full max-w-sm sm:max-w-md">
         {/* ERP Header */}
         <div className="text-center mb-6 sm:mb-8">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent mb-2 sm:mb-4 tracking-wide">
+          <h1 className="text-4xl sm:text-5xl font-bold text-[#087f6e] mb-2">
             ERP
           </h1>
-          <p className="text-sm sm:text-lg md:text-xl lg:text-2xl text-white/85 font-light tracking-wider mb-1 sm:mb-2">
+          <p className="text-base sm:text-lg text-[#1d2b27] font-medium mb-1">
             Enterprise Resource Planning
           </p>
-          <p className="text-xs sm:text-sm text-white/55 font-medium">
+          <p className="text-sm text-[#66736e]">
             Integrated Business Management Solution
           </p>
         </div>
 
-        {/* Glassmorphism container */}
-        <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl shadow-2xl p-6 sm:p-8 relative">
-          {/* Subtle glow effect */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/5 to-white/10 blur-sm"></div>
-          
-          <div className="relative z-10">
+        <div className="bg-white border border-[#dce5e1] rounded-xl shadow-lg shadow-[#1d2b27]/5 p-6 sm:p-8">
             {/* Error message */}
             {error && (
-              <div className="mb-4 p-3 bg-red-500/10 border border-red-400/30 rounded-lg">
-                <p className="text-red-200 text-center text-sm">{error}</p>
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-700 text-center text-sm">{error}</p>
               </div>
             )}
 
-            {/* Logo/Brand section */}
             <div className="text-center mb-6 sm:mb-8">
-              <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-white to-gray-400 rounded-xl mb-3 sm:mb-4 shadow-lg">
+              <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-teal-700 rounded-xl mb-3 sm:mb-4 shadow-sm">
                 <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent mb-1 sm:mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#1d2b27] mb-1 sm:mb-2">
                 NEXTEL PRIVATE
               </h2>
-              <p className="text-white/70 text-xs sm:text-sm font-dark">ELEVATE TO THE NEXT</p>
+              <p className="text-[#66736e] text-xs sm:text-sm font-medium">ELEVATE TO THE NEXT</p>
             </div>
 
             {/* Login Form */}
@@ -132,65 +115,14 @@ const LoginPage = () => {
               ]}
             />
 
-            {/* Additional links with futuristic styling */}
-            <div className="mt-6 sm:mt-8 text-center space-y-3 sm:space-y-4">
-              <div className="flex items-center justify-center space-x-2 text-xs text-white/55">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            <div className="mt-6 text-center">
+              <div className="flex items-center justify-center space-x-2 text-xs text-[#66736e]">
+                <div className="w-2 h-2 bg-teal-700 rounded-full"></div>
                 <span>Secure Access Active</span>
               </div>
             </div>
-          </div>
         </div>
-
-        {/* Floating decorative elements - responsive positioning */}
-        <div className="absolute -top-4 sm:-top-8 -right-4 sm:-right-8 w-16 h-16 sm:w-24 sm:h-24 bg-white/10 rounded-full blur-2xl animate-float"></div>
-        <div className="absolute -bottom-4 sm:-bottom-8 -left-4 sm:-left-8 w-12 h-12 sm:w-20 sm:h-20 bg-white/10 rounded-full blur-2xl animate-float-delayed"></div>
-        
-        {/* Side accent lines - hidden on mobile */}
-        <div className="hidden sm:block absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 w-1 h-32 bg-gradient-to-b from-transparent via-white to-transparent opacity-30"></div>
-        <div className="hidden sm:block absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 w-1 h-32 bg-gradient-to-b from-transparent via-white to-transparent opacity-30"></div>
       </div>
-
-      <style jsx>{`
-        @keyframes grid-move {
-          0% { transform: translate(0, 0); }
-          100% { transform: translate(60px, 60px); }
-        }
-        
-        @keyframes scan {
-          0% { transform: translateY(-100px); opacity: 0; }
-          50% { opacity: 1; }
-          100% { transform: translateY(400px); opacity: 0; }
-          animation-duration: 3s;
-          animation-iteration-count: infinite;
-        }
-        
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-10px) rotate(5deg); }
-        }
-        
-        @keyframes float-delayed {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-8px) rotate(-3deg); }
-        }
-        
-        .animate-scan {
-          animation: scan 4s ease-in-out infinite;
-        }
-        
-        .animate-float {
-          animation: float 6s ease-in-out infinite;
-        }
-        
-        .animate-float-delayed {
-          animation: float-delayed 8s ease-in-out infinite 2s;
-        }
-        
-        .glow-cyan:hover {
-          text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
-        }
-      `}</style>
     </div>
   );
 };

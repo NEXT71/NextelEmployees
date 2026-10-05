@@ -19,10 +19,10 @@ const QADashboard = lazy(() => import('./pages/qa/Dashboard.jsx'));
 
 // Loading component
 const LoadingSpinner = () => (
-  <div className="min-h-screen bg-black flex items-center justify-center">
+  <div className="min-h-screen bg-[#f4f7f6] flex items-center justify-center">
     <div className="text-center">
-      <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-      <p className="text-white text-lg">Loading...</p>
+      <div className="w-12 h-12 border-4 border-teal-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-[#66736e] text-sm font-medium">Loading...</p>
     </div>
   </div>
 );

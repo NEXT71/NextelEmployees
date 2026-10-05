@@ -48,8 +48,7 @@ const CloserDashboard = () => {
     return today.toISOString().split('T')[0];
   });
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20 });
-  const [showAll] = useState(false);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10 });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -61,7 +60,7 @@ const CloserDashboard = () => {
           year: selectedDate ? new Date(selectedDate).getFullYear() : undefined,
           day: selectedDate ? new Date(selectedDate).getDate() : undefined
         }),
-        salesTargetAPI.getMyCloses({ status: statusFilter, date: selectedDate, page, limit: 20 })
+        salesTargetAPI.getMyCloses({ status: statusFilter, date: selectedDate, page, limit: 10 })
       ]);
       if (statsRes?.data) {
         setStats(statsRes.data);
@@ -91,8 +90,6 @@ const CloserDashboard = () => {
   useEffect(() => {
     setPage(1);
   }, [statusFilter, selectedDate]);
-
-  const displayedCloses = showAll ? closes : closes.slice(0, 10);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950">
@@ -251,7 +248,7 @@ const CloserDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {displayedCloses.map((row) => (
+                    {closes.map((row) => (
                       <tr key={row._id} className="border-b border-white/5 hover:bg-white/5">
                         <td className="py-3 px-4 text-white font-medium">
                           {row.customer?.firstName
@@ -282,7 +279,7 @@ const CloserDashboard = () => {
                 </table>
               </div>
 
-              {pagination.total > 20 && (
+              {pagination.total > pagination.limit && (
                 <div className="px-5 py-3 border-t border-white/10 flex items-center justify-between gap-3 flex-wrap">
                   <div className="text-sm text-white/50">
                     Page {pagination.page} of {Math.max(1, Math.ceil(pagination.total / pagination.limit))} • {pagination.total} total closes

@@ -47,6 +47,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  activeSessionId: {
+    type: String,
+    default: undefined
+  },
+  activeDeviceId: {
+    type: String,
+    default: undefined
+  },
+  activeSessionExpiresAt: {
+    type: Date,
+    default: undefined
+  },
   verificationCodeExpires: {
     type: Date,
     default: () => new Date(Date.now() + 60 * 60 * 1000) // 1 hour
@@ -58,6 +70,7 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ role: 1 }); // For role-based queries
 userSchema.index({ isActive: 1 }); // For active user queries
 userSchema.index({ lastLogin: -1 }); // For recent login tracking
+userSchema.index({ activeDeviceId: 1 }, { unique: true, sparse: true });
 userSchema.index({ employeeId: 1 }); // For employee user mapping
 userSchema.index({ createdAt: -1 }); // For recent accounts
 

@@ -10,7 +10,7 @@ import AttendanceTimeStatus from '../../components/common/AttendanceTimeStatus';
 import MessageCenter from '../../components/common/MessageCenter';
 import { employeeAPI, attendanceAPI, fineAPI, clearAuth, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { isWithinAttendanceWindow } from '../../utils/attendanceTimeAccess';
+import { isWithinAttendanceWindow, isWithinClockInWindow } from '../../utils/attendanceTimeAccess';
 import { subscribeSocket } from '../../utils/socket';
 
 const EmployeeDashboard = () => {
@@ -222,8 +222,8 @@ const handleClockIn = async () => {
     setError('');
     
     // Check if within attendance window before attempting
-    if (!isWithinAttendanceWindow()) {
-      setError('Clock in is only allowed between 6:00 PM - 5:30 AM Pakistan Standard Time');
+    if (!isWithinClockInWindow()) {
+      setError('Clock in is allowed from 6:55 PM to 6:00 AM Pakistan Standard Time');
       return;
     }
     
@@ -359,7 +359,7 @@ const calculateSummary = () => {
   );
 
   const ClockInOut = ({ clockedIn, clockInTime, clockOutTime, currentTime, onClockIn, onClockOut }) => {
-    const isTimeAllowed = isWithinAttendanceWindow();
+    const isTimeAllowed = clockedIn ? isWithinAttendanceWindow() : isWithinClockInWindow();
     
     return (
       <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl p-6">
@@ -376,7 +376,9 @@ const calculateSummary = () => {
                 <div className="flex items-center space-x-2">
                   <AlertTriangle className="w-4 h-4 text-orange-400" />
                   <span className="text-sm text-orange-300">
-                    Attendance marking only allowed 6:00 PM - 5:30 AM PKT
+                    {clockedIn
+                      ? 'Clock-out is only allowed between 6:00 PM and 6:00 AM PKT'
+                      : 'Clock-in is allowed from 6:55 PM to 6:00 AM PKT'}
                   </span>
                 </div>
               </div>
@@ -413,7 +415,11 @@ const calculateSummary = () => {
                     : 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
                   }
                 `}
-                title={!isTimeAllowed ? 'Attendance marking is only allowed between 6:00 PM - 5:30 AM PKT' : ''}
+                title={!isTimeAllowed
+                  ? clockedIn
+                    ? 'Clock-out is only allowed between 6:00 PM and 6:00 AM PKT'
+                    : 'Clock-in is allowed from 6:55 PM to 6:00 AM PKT'
+                  : ''}
               >
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="w-5 h-5" />

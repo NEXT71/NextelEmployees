@@ -3,6 +3,7 @@ import { Clock, AlertTriangle, CheckCircle, AlertCircle, RefreshCw } from 'lucid
 import { attendanceAPI } from '../../utils/api';
 import { 
   isWithinAttendanceWindow, 
+  isWithinClockInWindow,
   getAttendanceWindowInfo, 
   getAttendanceAccessCountdown 
 } from '../../utils/attendanceTimeAccess';
@@ -70,7 +71,9 @@ const AttendanceTimeStatus = ({ className = '', compact = false }) => {
   };
 
   const countdown = getCountdown();
-  const isWithinWindow = timeWindowData?.isWithinAttendanceWindow ?? isWithinAttendanceWindow();
+  const isClockOutAllowed = timeWindowData?.isWithinAttendanceWindow ?? isWithinAttendanceWindow();
+  const isClockInAllowed = timeWindowData?.isClockInAllowed ?? isWithinClockInWindow();
+  const isWithinWindow = isClockOutAllowed;
 
   if (loading) {
     return (
@@ -86,13 +89,13 @@ const AttendanceTimeStatus = ({ className = '', compact = false }) => {
   if (compact) {
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
-        {isWithinWindow ? (
+        {isClockInAllowed || isClockOutAllowed ? (
           <CheckCircle className="w-5 h-5 text-green-400" />
         ) : (
           <AlertTriangle className="w-5 h-5 text-red-400" />
         )}
-        <span className={`text-sm font-medium ${isWithinWindow ? 'text-green-300' : 'text-red-300'}`}>
-          {isWithinWindow ? 'Attendance Available' : 'Attendance Restricted'}
+        <span className={`text-sm font-medium ${isClockInAllowed || isClockOutAllowed ? 'text-green-300' : 'text-red-300'}`}>
+          Clock-in {isClockInAllowed ? 'available' : 'restricted'} · Clock-out {isClockOutAllowed ? 'available' : 'restricted'}
         </span>
       </div>
     );
@@ -133,20 +136,17 @@ const AttendanceTimeStatus = ({ className = '', compact = false }) => {
         <div className="space-y-4">
           {/* Current Status */}
           <div className={`p-4 rounded-lg border ${
-            isWithinWindow 
+            isClockInAllowed || isClockOutAllowed
               ? 'bg-green-500/10 border-green-500/30' 
               : 'bg-red-500/10 border-red-500/30'
           }`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className={`font-medium ${isWithinWindow ? 'text-green-300' : 'text-red-300'}`}>
-                  {isWithinWindow ? '✅ Clock In/Out Available' : '❌ Clock In/Out Restricted'}
+              <div className="space-y-1">
+                <p className={`font-medium ${isClockInAllowed ? 'text-green-300' : 'text-red-300'}`}>
+                  {isClockInAllowed ? '✅ Clock-in available' : '❌ Clock-in restricted'} · 6:55 PM–6:00 AM PKT; 7:00 PM onward is late
                 </p>
-                <p className="text-sm text-blue-200/80 mt-1">
-                  {timeWindowData?.message || (isWithinWindow ? 
-                    'You can clock in or clock out now' : 
-                    'Clock in/out is not allowed at this time'
-                  )}
+                <p className={`text-sm ${isClockOutAllowed ? 'text-green-300' : 'text-red-300'}`}>
+                  {isClockOutAllowed ? '✅ Clock-out available' : '❌ Clock-out restricted'} · 6:00 PM to 6:00 AM PKT
                 </p>
               </div>
             </div>
@@ -184,7 +184,7 @@ const AttendanceTimeStatus = ({ className = '', compact = false }) => {
                 <span className="text-sm font-medium text-blue-200">Allowed Window</span>
               </div>
               <p className="text-lg font-semibold text-white">
-                6:00 PM - 5:30 AM
+                Clock-in 6:55 PM–6:00 AM; late from 7:00 PM
               </p>
               <p className="text-xs text-blue-200/60 mt-1">
                 Pakistan Standard Time

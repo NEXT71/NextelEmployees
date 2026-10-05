@@ -4,6 +4,8 @@ import User from '../models/User.js';
 import mongoose from 'mongoose';
 import { 
   isWithinAttendanceWindow, 
+  isWithinClockInWindow,
+  isLateClockIn,
   getCurrentPKTTime, 
   getTimeUntilNextAttendanceWindow,
   formatPKTTime 
@@ -40,15 +42,13 @@ export const clockIn = async (req, res) => {
       });
     }
 
-    // Check if within attendance time window
-    if (!isWithinAttendanceWindow()) {
-      const timeInfo = getTimeUntilNextAttendanceWindow();
+    const clockInTimestamp = new Date();
+    if (!isWithinClockInWindow(clockInTimestamp)) {
       return res.status(403).json({
         success: false,
-        message: 'Clock in is only allowed between 6:00 PM - 6:00 AM Pakistan Standard Time',
+        message: 'Clock in is allowed from 6:55 PM to 6:00 AM Pakistan Standard Time',
         currentTime: formatPKTTime(getCurrentPKTTime()),
-        allowedWindow: '6:00 PM - 6:00 AM PKT',
-        nextAvailableTime: timeInfo.nextAccessTime ? formatPKTTime(timeInfo.nextAccessTime) : null,
+        allowedWindow: '6:55 PM - 6:00 AM PKT; clock-ins at or after 7:00 PM are marked late',
         error: 'ATTENDANCE_TIME_RESTRICTED'
       });
     }
@@ -75,6 +75,7 @@ export const clockIn = async (req, res) => {
     // Shift runs 6 PM - 6:00 AM, so the date depends on current time
     const pktTime = getCurrentPKTTime();
     const currentHour = pktTime.getHours();
+    const lateClockIn = isLateClockIn(clockInTimestamp);
     
     let attendanceDate;
     if (currentHour >= 0 && currentHour < 6) {
@@ -129,10 +130,10 @@ export const clockIn = async (req, res) => {
       }
 
       // Update the auto-marked absent record
-      existingAttendance.clockIn = new Date();
-      existingAttendance.status = 'Present';
+      existingAttendance.clockIn = clockInTimestamp;
+      existingAttendance.status = lateClockIn ? 'Late' : 'Present';
       existingAttendance.autoMarked = false;
-      existingAttendance.notes = 'Clocked in during attendance window';
+      existingAttendance.notes = lateClockIn ? 'Clocked in late' : 'Clocked in on time';
       await existingAttendance.save();
 
       emitAttendanceUpdate({
@@ -164,8 +165,8 @@ export const clockIn = async (req, res) => {
     const newAttendance = await Attendance.create({
       employee: employee._id,
       date: attendanceDate,
-      clockIn: new Date(),
-      status: 'Present',
+      clockIn: clockInTimestamp,
+      status: lateClockIn ? 'Late' : 'Present',
       autoMarked: false
     });
 
@@ -867,8 +868,9 @@ export const getAttendanceTimeWindow = async (req, res) => {
       success: true,
       data: {
         isWithinAttendanceWindow: isWithinAttendanceWindow(),
+        isClockInAllowed: isWithinClockInWindow(),
         currentTime: formatPKTTime(currentTime),
-        allowedWindow: '6:00 PM - 6:30 AM PKT',
+        allowedWindow: 'Clock in: 6:00 PM - before 7:00 PM; clock out: 6:00 PM - 6:00 AM PKT',
         ...timeInfo
       }
     });

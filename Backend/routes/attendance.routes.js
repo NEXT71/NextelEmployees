@@ -17,8 +17,8 @@ import { attendanceTimeAccessControl } from '../middlewares/attendanceTimeAccess
 
 const attendanceRouter = express.Router();
 
-// Clock in/out routes with specific attendance time restrictions (6PM - 5:30AM)
-attendanceRouter.post('/clock-in', auth, attendanceTimeAccessControl, clockIn);
+// Clock-in has a dedicated 6:00 PM - 7:00 PM PKT window; clock-out keeps the overnight window.
+attendanceRouter.post('/clock-in', auth, clockIn);
 attendanceRouter.post('/clock-out', auth, attendanceTimeAccessControl, clockOut);
 
 // Other attendance routes without the stricter time restriction

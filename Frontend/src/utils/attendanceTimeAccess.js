@@ -34,6 +34,20 @@ export const isWithinAttendanceWindow = () => {
   }
 };
 
+export const isWithinClockInWindow = () => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Karachi',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value);
+  const timeInMinutes = hour * 60 + minute;
+
+  return timeInMinutes >= 18 * 60 + 55 || timeInMinutes < 6 * 60;
+};
+
 // Get current Pakistan Standard Time
 export const getCurrentPKTTime = () => {
   const now = new Date();

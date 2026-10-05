@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
 // auth.js
 const auth = async (req, res, next) => {
@@ -29,13 +30,30 @@ const auth = async (req, res, next) => {
       });
     }
 
+    if (decoded.sessionId) {
+      const activeUser = await User.findOne({
+        _id: decoded.userId || decoded._id,
+        activeSessionId: decoded.sessionId,
+        activeSessionExpiresAt: { $gt: new Date() }
+      }).select('_id').lean();
+
+      if (!activeUser) {
+        return res.status(401).json({
+          success: false,
+          message: 'This login session is no longer active. Please log in again.',
+          error: 'SESSION_EXPIRED'
+        });
+      }
+    }
+
     req.user = {
       _id: decoded._id || decoded.userId,
       userId: decoded.userId || decoded._id,
       employeeId: decoded.employeeId,
       role: decoded.role,
       email: decoded.email,
-      username: decoded.username
+      username: decoded.username,
+      sessionId: decoded.sessionId
     };
     
     next();

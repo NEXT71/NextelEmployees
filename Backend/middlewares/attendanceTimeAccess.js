@@ -84,6 +84,32 @@ const attendanceTimeAccessControl = (req, res, next) => {
   }
 };
 
+const isWithinClockInWindow = (date = new Date()) => {
+  const timeParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Karachi',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  const hour = Number(timeParts.find((part) => part.type === 'hour')?.value);
+  const minute = Number(timeParts.find((part) => part.type === 'minute')?.value);
+  const currentTimeInMinutes = hour * 60 + minute;
+
+  return currentTimeInMinutes >= 18 * 60 + 55 || currentTimeInMinutes < 6 * 60;
+};
+
+const isLateClockIn = (date = new Date()) => {
+  const timeParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Karachi',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  const hour = Number(timeParts.find((part) => part.type === 'hour')?.value);
+
+  return hour >= 19 || hour < 6;
+};
+
 // Helper function to check if current time is within attendance access window
 const isWithinAttendanceWindow = () => {
   try {
@@ -185,6 +211,8 @@ const formatPKTTime = (date = new Date()) => {
 
 export { 
   attendanceTimeAccessControl,
+  isWithinClockInWindow,
+  isLateClockIn,
   isWithinAttendanceWindow,
   getCurrentPKTTime,
   getNextAttendanceAccessTime,

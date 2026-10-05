@@ -483,23 +483,88 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Update login status
-    user.isLoggedIn = true;
-    user.lastLogin = new Date();
-    await user.save();
-    console.log(`✅ User login successful: ${user.email}`);
-
-    // For employee role, check if they are a Closer/Verifier
+    // For employee role, identify the account type and closer status.
     let isCloser = false;
+    let isCsr = false;
     if (user.role === 'employee') {
-      const emp = await Employee.findOne({ user: user._id }).select('isCloser');
+      const emp = await Employee.findOne({ user: user._id }).select('isCloser department');
       isCloser = emp?.isCloser || false;
+      isCsr = emp?.department === 'Sales';
     }
+
+    let sessionId;
+    if (isCsr) {
+      const { deviceId } = req.body;
+      if (typeof deviceId !== 'string' || deviceId.length < 8 || deviceId.length > 128) {
+        return res.status(400).json({
+          success: false,
+          message: 'Unable to identify this browser. Please refresh and try again.'
+        });
+      }
+
+      const now = new Date();
+      await User.updateMany(
+        { activeDeviceId: deviceId, activeSessionExpiresAt: { $lte: now } },
+        {
+          $unset: {
+            activeSessionId: 1,
+            activeDeviceId: 1,
+            activeSessionExpiresAt: 1
+          },
+          $set: { isLoggedIn: false }
+        }
+      );
+
+      sessionId = crypto.randomBytes(32).toString('hex');
+      try {
+        const reservedUser = await User.findOneAndUpdate(
+          {
+            _id: user._id,
+            $or: [
+              { activeSessionId: { $exists: false } },
+              { activeSessionExpiresAt: { $lte: now } }
+            ]
+          },
+          {
+            $set: {
+              isLoggedIn: true,
+              lastLogin: now,
+              activeSessionId: sessionId,
+              activeDeviceId: deviceId,
+              activeSessionExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000)
+            }
+          },
+          { new: true }
+        );
+
+        if (!reservedUser) {
+          return res.status(409).json({
+            success: false,
+            message: 'This CSR account is already logged in on another browser or computer.'
+          });
+        }
+      } catch (err) {
+        if (err.code === 11000) {
+          return res.status(409).json({
+            success: false,
+            message: 'A CSR account is already logged in on this browser or computer.'
+          });
+        }
+        throw err;
+      }
+    } else {
+      user.isLoggedIn = true;
+      user.lastLogin = new Date();
+      await user.save();
+    }
+
+    console.log(`✅ User login successful: ${user.email}`);
 
     // Generate token
     const token = generateToken({ 
       userId: user._id, 
-      role: user.role 
+      role: user.role,
+      ...(sessionId ? { sessionId } : {})
     });
 
     console.log(`✅ Token generated for user: ${user._id}`);
@@ -565,11 +630,17 @@ const getMe = async (req, res, next) => {
 const logout = async (req, res, next) => {
   try {
     // Find and update user's login status
-    const user = await User.findByIdAndUpdate(
-      req.user.userId,
-      { isLoggedIn: false },
-      { new: true }
-    );
+    const filter = { _id: req.user.userId };
+    const update = { $set: { isLoggedIn: false } };
+    if (req.user.sessionId) {
+      filter.activeSessionId = req.user.sessionId;
+      update.$unset = {
+        activeSessionId: 1,
+        activeDeviceId: 1,
+        activeSessionExpiresAt: 1
+      };
+    }
+    const user = await User.findOneAndUpdate(filter, update, { new: true });
 
     if (!user) {
       return res.status(404).json({

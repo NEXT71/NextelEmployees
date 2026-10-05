@@ -308,12 +308,12 @@ const AdminAttendance = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
       <style dangerouslySetInnerHTML={{__html: `
         .admin-attendance-select option {
-          background-color: rgba(30, 58, 138, 0.95) !important;
-          color: rgb(219, 234, 254) !important;
+          background-color: #ffffff !important;
+          color: #1d2b27 !important;
           padding: 8px !important;
         }
         .admin-attendance-select option:hover {
-          background-color: rgba(59, 130, 246, 0.3) !important;
+          background-color: #e5f2ee !important;
         }
       `}} />
       <AdminHeader

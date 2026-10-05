@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
 import { subscribeSocket } from '../../utils/socket';
-import { formatSalesShiftDate } from '../../utils/salesShift';
+import { formatSalesShiftDate, getSalesShiftDate } from '../../utils/salesShift';
 import {
   CheckCircle, XCircle, Clock, RefreshCw, LogOut, AlertCircle,
   ChevronDown, ChevronUp, ClipboardList, Search, Download

@@ -197,29 +197,29 @@ code {
   background-image: none !important;
 }
 
-[class*="bg-slate-900"],
-[class*="bg-slate-800"],
-[class*="bg-slate-700"],
-[class*="bg-slate-950"],
-[class*="bg-gray-900"],
-[class*="bg-gray-800"],
+[class^="bg-slate-900"], [class*=" bg-slate-900"],
+[class^="bg-slate-800"], [class*=" bg-slate-800"],
+[class^="bg-slate-700"], [class*=" bg-slate-700"],
+[class^="bg-slate-950"], [class*=" bg-slate-950"],
+[class^="bg-gray-900"], [class*=" bg-gray-900"],
+[class^="bg-gray-800"], [class*=" bg-gray-800"],
 [class~="bg-black"] {
   background-color: var(--color-surface) !important;
   background-image: none !important;
 }
 
-[class*="bg-white/5"],
-[class*="bg-white/10"],
-[class*="bg-white/15"],
-[class*="bg-white/20"],
-[class*="bg-white/30"],
-[class*="bg-slate-700/"],
-[class*="bg-slate-800/"],
-[class*="bg-slate-950/"],
-[class*="bg-blue-800/"],
-[class*="bg-blue-900/"],
-[class*="bg-purple-900/"],
-[class*="bg-indigo-900/"] {
+[class^="bg-white/5"], [class*=" bg-white/5"],
+[class^="bg-white/10"], [class*=" bg-white/10"],
+[class^="bg-white/15"], [class*=" bg-white/15"],
+[class^="bg-white/20"], [class*=" bg-white/20"],
+[class^="bg-white/30"], [class*=" bg-white/30"],
+[class^="bg-slate-700/"], [class*=" bg-slate-700/"],
+[class^="bg-slate-800/"], [class*=" bg-slate-800/"],
+[class^="bg-slate-950/"], [class*=" bg-slate-950/"],
+[class^="bg-blue-800/"], [class*=" bg-blue-800/"],
+[class^="bg-blue-900/"], [class*=" bg-blue-900/"],
+[class^="bg-purple-900/"], [class*=" bg-purple-900/"],
+[class^="bg-indigo-900/"], [class*=" bg-indigo-900/"] {
   background-color: var(--color-surface-muted) !important;
   background-image: none !important;
 }
@@ -280,16 +280,74 @@ code {
   background-color: var(--color-brand-soft) !important;
 }
 
-[class*="bg-blue-"],
-[class*="bg-cyan-"],
-[class*="bg-indigo-"],
-[class*="bg-purple-"],
-[class*="bg-violet-"],
-[class*="bg-pink-"],
-[class*="bg-teal-"],
-[class*="bg-green-"] {
+[class^="bg-blue-"], [class*=" bg-blue-"],
+[class^="bg-cyan-"], [class*=" bg-cyan-"],
+[class^="bg-indigo-"], [class*=" bg-indigo-"],
+[class^="bg-purple-"], [class*=" bg-purple-"],
+[class^="bg-violet-"], [class*=" bg-violet-"],
+[class^="bg-pink-"], [class*=" bg-pink-"],
+[class^="bg-teal-"], [class*=" bg-teal-"],
+[class^="bg-green-"], [class*=" bg-green-"] {
   background-image: none !important;
   background-color: var(--color-brand) !important;
+}
+
+[class*="bg-emerald-400/"],
+[class*="bg-emerald-500/"],
+[class*="bg-green-400/"],
+[class*="bg-green-500/"],
+[class*="bg-teal-400/"],
+[class*="bg-teal-500/"],
+[class*="bg-teal-600/"] {
+  background-color: var(--color-success-soft) !important;
+}
+
+[class*="bg-yellow-400/"],
+[class*="bg-yellow-500/"],
+[class*="bg-amber-400/"],
+[class*="bg-amber-500/"],
+[class*="bg-orange-400/"],
+[class*="bg-orange-500/"] {
+  background-color: var(--color-warning-soft) !important;
+}
+
+[class*="bg-red-400/"],
+[class*="bg-red-500/"] {
+  background-color: var(--color-danger-soft) !important;
+}
+
+[class*="bg-blue-400/"],
+[class*="bg-blue-500/"],
+[class*="bg-cyan-400/"],
+[class*="bg-cyan-500/"],
+[class*="bg-indigo-400/"],
+[class*="bg-indigo-500/"],
+[class*="bg-purple-400/"],
+[class*="bg-purple-500/"],
+[class*="bg-violet-400/"],
+[class*="bg-violet-500/"],
+[class*="bg-pink-400/"],
+[class*="bg-pink-500/"] {
+  background-color: var(--color-brand-soft) !important;
+}
+
+[class*="bg-blue-600/"],
+[class*="bg-green-600/"] {
+  background-color: var(--color-brand) !important;
+}
+
+[class*="bg-red-600/"] {
+  background-color: #dc2626 !important;
+}
+
+[class*="bg-blue-800/"],
+[class*="bg-blue-900/"] {
+  background-color: var(--color-surface) !important;
+}
+
+[class*="bg-gray-500/"],
+[class*="bg-gray-600/"] {
+  background-color: var(--color-surface-muted) !important;
 }
 
 [class*="hover:bg-blue-"]:hover,
@@ -370,6 +428,11 @@ code {
 [class*="text-white"][class*="bg-red-"],
 [class*="text-white"][class*="bg-gradient-to-r"] {
   color: #ffffff !important;
+}
+
+[class*="text-white"][class*="bg-blue-800/"],
+[class*="text-white"][class*="bg-blue-900/"] {
+  color: var(--color-text-muted) !important;
 }
 
 [class*="border-white/"],

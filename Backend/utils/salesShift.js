@@ -13,7 +13,7 @@ export const getSalesShiftRange = (date) => {
   ) return null;
 
   return {
-    start: new Date(Date.UTC(year, month - 1, day, 13, 30)),
+    start: new Date(Date.UTC(year, month - 1, day, 13)),
     end: new Date(Date.UTC(year, month - 1, day + 1, 0, 0))
   };
 };
@@ -35,7 +35,7 @@ export const getSalesShiftDate = (value) => {
   const values = Object.fromEntries(parts.map(({ type, value: partValue }) => [type, partValue]));
   const minuteOfDay = Number(values.hour) * 60 + Number(values.minute);
 
-  if (minuteOfDay >= 5 * 60 && minuteOfDay < 18 * 60 + 30) return null;
+  if (minuteOfDay >= 5 * 60 && minuteOfDay < 18 * 60) return null;
 
   const shiftDate = new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
   if (minuteOfDay < 5 * 60) shiftDate.setUTCDate(shiftDate.getUTCDate() - 1);

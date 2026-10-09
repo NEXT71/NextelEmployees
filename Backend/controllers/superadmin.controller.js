@@ -5,12 +5,12 @@ import Salary from '../models/Salary.js';
 import Fine from '../models/Fine.js';
 import Attendance from '../models/Attendance.js';
 import Message from '../models/Message.js';
-import { getSalesShiftCalendarDate, getSalesShiftDate, getSalesShiftRange } from '../utils/salesShift.js';
+import { getSalesShiftDate, getSalesShiftRange } from '../utils/salesShift.js';
 
 const recalculateSaleBonuses = async (agentId, saleDate) => {
   if (!agentId || !saleDate) return;
 
-  const shiftDate = getSalesShiftCalendarDate(saleDate);
+  const shiftDate = getSalesShiftDate(saleDate);
   const shiftRange = getSalesShiftRange(shiftDate);
   if (!shiftRange) return;
 

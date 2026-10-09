@@ -1,6 +1,7 @@
 import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
 import { normalizeName } from '../utils/employeeMatch.js';
+import { getSalesShiftMonthRange, getSalesShiftRange } from '../utils/salesShift.js';
 
 /**
  * Record Daily Sales for CSR
@@ -124,10 +125,12 @@ export const getCsrDailySalesReport = async (req, res, next) => {
     let filter = { agent: employeeId };
 
     if (startDate && endDate) {
-      filter.saleDate = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
+      const startRange = getSalesShiftRange(startDate);
+      const endRange = getSalesShiftRange(endDate);
+      if (!startRange || !endRange) {
+        return res.status(400).json({ success: false, message: 'Invalid startDate or endDate' });
+      }
+      filter.createdAt = { $gte: startRange.start, $lt: endRange.end };
     }
 
     const salesRecords = await SalesTarget.find(filter)
@@ -233,13 +236,15 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
     }
 
     // Get month's sales
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    const monthRange = getSalesShiftMonthRange(Number(year), Number(month));
+    if (!monthRange) {
+      return res.status(400).json({ success: false, message: 'Invalid month or year' });
+    }
 
     const salesRecords = await SalesTarget.find({
       agent: employee._id,
-      saleDate: { $gte: startDate, $lte: endDate }
-    }).sort({ saleDate: 1 });
+      createdAt: { $gte: monthRange.start, $lt: monthRange.end }
+    }).sort({ createdAt: 1 });
 
     // Calculate monthly stats
     const monthlyStats = {
@@ -327,10 +332,12 @@ export const getAllCsrSales = async (req, res, next) => {
     let filter = {};
 
     if (startDate && endDate) {
-      filter.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
+      const startRange = getSalesShiftRange(startDate);
+      const endRange = getSalesShiftRange(endDate);
+      if (!startRange || !endRange) {
+        return res.status(400).json({ success: false, message: 'Invalid startDate or endDate' });
+      }
+      filter.createdAt = { $gte: startRange.start, $lt: endRange.end };
     }
 
     if (department) {
@@ -342,7 +349,7 @@ export const getAllCsrSales = async (req, res, next) => {
 
     const salesRecords = await SalesTarget.find(filter)
       .populate('employee', 'firstName lastName employeeId department')
-      .sort({ date: -1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 

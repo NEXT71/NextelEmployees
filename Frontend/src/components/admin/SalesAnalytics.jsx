@@ -172,14 +172,14 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
               <div className="bg-yellow-800/30 rounded p-2">
                 <p className="text-gray-400 text-xs">Days Worked</p>
                 <p className="text-yellow-300 font-bold">
-                  {new Set(stats.topPerformer.records?.map(r => new Date(r.saleDate).toDateString())).size || 1}
+                  {new Set(stats.topPerformer.records?.map(r => getSalesShiftDate(r.createdAt || r.saleDate))).size || 1}
                 </p>
               </div>
               <div className="bg-yellow-800/30 rounded p-2">
                 <p className="text-gray-400 text-xs">Avg/Day</p>
                 <p className="text-yellow-300 font-bold">
                   {(() => {
-                    const days = new Set(stats.topPerformer.records?.map(r => new Date(r.saleDate).toDateString())).size || 1;
+                    const days = new Set(stats.topPerformer.records?.map(r => getSalesShiftDate(r.createdAt || r.saleDate))).size || 1;
                     return (stats.topPerformer.totalSales / days).toFixed(1);
                   })()}
                 </p>
@@ -201,7 +201,7 @@ const SalesAnalytics = ({ month = 3, year = 2026, onRefresh }) => {
           </p>
           {selectedSalesDay && (
             <p className="mt-2 text-sm text-blue-200">
-              Showing sales for {formatSalesShiftDate(`${selectedSalesDay}T18:30:00+05:00`)}
+              Showing sales for {formatSalesShiftDate(`${selectedSalesDay}T18:00:00+05:00`)}
               <button
                 type="button"
                 onClick={() => setSelectedSalesDay(null)}

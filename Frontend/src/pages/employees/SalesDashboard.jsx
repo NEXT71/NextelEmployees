@@ -7,13 +7,14 @@ import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import MessageCenter from '../../components/common/MessageCenter';
 import { subscribeSocket } from '../../utils/socket';
-import { formatSalesShiftDate } from '../../utils/salesShift';
+import { formatSalesShiftDate, getCurrentSalesShiftDate } from '../../utils/salesShift';
 
 const CSRSalesDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [activeMonth, setActiveMonth] = useState(new Date().getMonth() + 1);
-  const [activeYear, setActiveYear] = useState(new Date().getFullYear());
+  const currentShiftDate = getCurrentSalesShiftDate();
+  const [activeMonth, setActiveMonth] = useState(Number(currentShiftDate.slice(5, 7)));
+  const [activeYear, setActiveYear] = useState(Number(currentShiftDate.slice(0, 4)));
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'submissions'
   const [monthlyData, setMonthlyData] = useState(null);
   const [dailyRecords, setDailyRecords] = useState([]);

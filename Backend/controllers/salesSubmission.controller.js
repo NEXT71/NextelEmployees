@@ -978,13 +978,9 @@ async function getMyCloses(req, res, next) {
     if (status && status !== 'all') filter.status = status;
 
     if (date) {
-      const selectedDate = new Date(date);
-      if (!Number.isNaN(selectedDate.getTime())) {
-        const start = new Date(selectedDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(selectedDate);
-        end.setHours(23, 59, 59, 999);
-        filter.saleDate = { $gte: start, $lte: end };
+      const shiftRange = getSalesShiftRange(date);
+      if (shiftRange) {
+        filter.createdAt = { $gte: shiftRange.start, $lt: shiftRange.end };
       }
     }
 
@@ -1021,27 +1017,30 @@ async function getMyClosesStats(req, res, next) {
     const selectedMonth = parseInt(month || (now.getMonth() + 1), 10);
     const selectedDay = day ? parseInt(day, 10) : null;
 
-    const monthStart = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1));
-    const monthEnd = new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59, 999));
+    const monthRange = getSalesShiftMonthRange(selectedYear, selectedMonth);
+    if (!monthRange) {
+      return res.status(400).json({ success: false, message: 'Invalid month or year' });
+    }
 
-    let dayStart = null;
-    let dayEnd = null;
+    let dayRange = null;
     if (selectedDay) {
-      dayStart = new Date(Date.UTC(selectedYear, selectedMonth - 1, selectedDay, 0, 0, 0, 0));
-      dayEnd = new Date(Date.UTC(selectedYear, selectedMonth - 1, selectedDay, 23, 59, 59, 999));
+      dayRange = getSalesShiftRange(`${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`);
+      if (!dayRange) {
+        return res.status(400).json({ success: false, message: 'Invalid day' });
+      }
     }
 
     const [allTimeCount, monthCount, dayCount] = await Promise.all([
       SalesTarget.countDocuments({ closerRef: empId, status: { $in: ['approved', 'pending'] } }),
-      SalesTarget.countDocuments({ closerRef: empId, status: { $in: ['approved', 'pending'] }, saleDate: { $gte: monthStart, $lte: monthEnd } }),
-      dayStart && dayEnd
-        ? SalesTarget.countDocuments({ closerRef: empId, status: { $in: ['approved', 'pending'] }, saleDate: { $gte: dayStart, $lte: dayEnd } })
+      SalesTarget.countDocuments({ closerRef: empId, status: { $in: ['approved', 'pending'] }, createdAt: { $gte: monthRange.start, $lt: monthRange.end } }),
+      dayRange
+        ? SalesTarget.countDocuments({ closerRef: empId, status: { $in: ['approved', 'pending'] }, createdAt: { $gte: dayRange.start, $lt: dayRange.end } })
         : Promise.resolve(0)
     ]);
 
     // Compute rank: count how many closers have more counted closes than me this month
     const rankAgg = await SalesTarget.aggregate([
-      { $match: { status: { $in: ['approved', 'pending'] }, closerRef: { $ne: null }, saleDate: { $gte: monthStart, $lte: monthEnd } } },
+      { $match: { status: { $in: ['approved', 'pending'] }, closerRef: { $ne: null }, createdAt: { $gte: monthRange.start, $lt: monthRange.end } } },
       { $group: { _id: '$closerRef', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);

@@ -3,6 +3,7 @@ import Employee from '../models/Employee.js';
 import Fine from '../models/Fine.js';
 import Attendance from '../models/Attendance.js';
 import SalesTarget from '../models/SalesTarget.js';
+import { getSalesShiftDate, getSalesShiftMonthRange } from '../utils/salesShift.js';
 
 // Helper: calculate daily tier bonus from sales count
 const calcDailyTierBonus = (count) => {
@@ -49,12 +50,22 @@ export const generateMonthlySalary = async (req, res, next) => {
       });
     }
 
+    const monthStart = new Date(Date.UTC(targetYear, targetMonth - 1, 1));
+    const monthEnd = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
+    const salesMonthRange = getSalesShiftMonthRange(targetYear, targetMonth);
+    if (!salesMonthRange) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid target month or year'
+      });
+    }
+
     // ── Closer (Verifier) salary path ──────────────────────────────────────
     if (employee.isCloser) {
       const approvedCloses = await SalesTarget.countDocuments({
         closerRef: employeeId,
         status: 'approved',
-        saleDate: { $gte: monthStart, $lte: monthEnd }
+        createdAt: { $gte: salesMonthRange.start, $lt: salesMonthRange.end }
       });
 
       const totalCloserPay = approvedCloses * 100;
@@ -99,9 +110,6 @@ export const generateMonthlySalary = async (req, res, next) => {
     const baseSalary = employee.baseSalary || 0;
 
     // Calculate date range for the target month
-    const monthStart = new Date(Date.UTC(targetYear, targetMonth - 1, 1));
-    const monthEnd = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
-
     // Query fines for the month and sum amounts
     const finesData = await Fine.find({
       employee: employeeId,
@@ -130,13 +138,14 @@ export const generateMonthlySalary = async (req, res, next) => {
     const approvedSales = await SalesTarget.find({
       agent: employeeId,
       status: 'approved',
-      saleDate: { $gte: monthStart, $lte: monthEnd }
-    }).select('saleDate pricePerSale');
+      createdAt: { $gte: salesMonthRange.start, $lt: salesMonthRange.end }
+    }).select('createdAt saleDate pricePerSale');
 
     // Group by day to calculate tier bonuses
     const salesByDay = {};
     approvedSales.forEach(sale => {
-      const dayKey = new Date(sale.saleDate).toDateString();
+      const dayKey = getSalesShiftDate(sale.createdAt || sale.saleDate);
+      if (!dayKey) return;
       salesByDay[dayKey] = (salesByDay[dayKey] || 0) + 1;
     });
 

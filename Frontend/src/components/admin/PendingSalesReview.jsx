@@ -343,7 +343,7 @@ const PendingSalesReview = ({ onRefresh }) => {
           />
         </div>
         <div className="text-sm text-blue-300 pt-6">
-          Showing {filteredByDate.length} submissions for {formatSalesShiftDate(`${selectedDate}T18:30:00+05:00`)}
+          Showing {filteredByDate.length} submissions for {formatSalesShiftDate(`${selectedDate}T18:00:00+05:00`)}
         </div>
       </div>
 

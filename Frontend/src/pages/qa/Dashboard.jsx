@@ -655,7 +655,7 @@ const QADashboard = () => {
               />
               {selectedShiftDate && (
                 <p className="mt-2 text-sm text-cyan-200">
-                  Showing shift day {formatSalesShiftDate(`${selectedShiftDate}T18:30:00+05:00`)}
+                  Showing shift day {formatSalesShiftDate(`${selectedShiftDate}T18:00:00+05:00`)}
                   <button
                     type="button"
                     onClick={() => handleSelectShiftDate(selectedShiftDate)}

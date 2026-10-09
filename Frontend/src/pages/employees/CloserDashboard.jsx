@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { salesTargetAPI } from '../../utils/api';
+import { formatSalesShiftDate, getCurrentSalesShiftDate } from '../../utils/salesShift';
 import {
   CheckCircle,
   DollarSign,
@@ -12,11 +13,6 @@ import {
   User,
   Calendar
 } from 'lucide-react';
-
-const fmtDate = (d) => {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' });
-};
 
 const fmtCurrency = (n) =>
   typeof n === 'number' ? `RS ${n.toLocaleString()}` : '—';
@@ -43,10 +39,7 @@ const CloserDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [selectedDate, setSelectedDate] = useState(getCurrentSalesShiftDate);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10 });
 
@@ -56,9 +49,9 @@ const CloserDashboard = () => {
     try {
       const [statsRes, closesRes] = await Promise.all([
         salesTargetAPI.getMyClosesStats({
-          month: selectedDate ? new Date(selectedDate).getMonth() + 1 : undefined,
-          year: selectedDate ? new Date(selectedDate).getFullYear() : undefined,
-          day: selectedDate ? new Date(selectedDate).getDate() : undefined
+          month: selectedDate ? Number(selectedDate.slice(5, 7)) : undefined,
+          year: selectedDate ? Number(selectedDate.slice(0, 4)) : undefined,
+          day: selectedDate ? Number(selectedDate.slice(8, 10)) : undefined
         }),
         salesTargetAPI.getMyCloses({ status: statusFilter, date: selectedDate, page, limit: 10 })
       ]);
@@ -265,7 +258,7 @@ const CloserDashboard = () => {
                             ? <span className="text-green-300">RS 200</span>
                             : <span className="text-white/30">—</span>}
                         </td>
-                        <td className="py-3 px-4 text-white/50">{fmtDate(row.saleDate)}</td>
+                        <td className="py-3 px-4 text-white/50">{formatSalesShiftDate(row.createdAt || row.saleDate)}</td>
                       </tr>
                     ))}
                     {closes.length === 0 && (

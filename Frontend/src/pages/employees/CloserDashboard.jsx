@@ -194,7 +194,7 @@ const CloserDashboard = () => {
               </div>
               <div>
                 <p className="text-teal-200 font-semibold text-sm">Commission Rate</p>
-                <p className="text-white text-2xl font-bold">RS 100 <span className="text-white/50 text-sm font-normal">per approved close</span></p>
+                <p className="text-white text-2xl font-bold">RS 200 <span className="text-white/50 text-sm font-normal">per approved close</span></p>
               </div>
               <div className="ml-auto text-right">
                 <p className="text-white/50 text-xs">This month's total</p>
@@ -262,7 +262,7 @@ const CloserDashboard = () => {
                         </td>
                         <td className="py-3 px-4 text-right font-semibold">
                           {row.status === 'approved'
-                            ? <span className="text-green-300">RS 100</span>
+                            ? <span className="text-green-300">RS 200</span>
                             : <span className="text-white/30">—</span>}
                         </td>
                         <td className="py-3 px-4 text-white/50">{fmtDate(row.saleDate)}</td>

@@ -60,7 +60,8 @@ export const validateEmployeeRegister = (data) => {
 export const validateLogin = (data) => {
   const schema = Joi.object({
     email: Joi.string().min(3).required(), // Changed to allow username or email
-    password: Joi.string().required()
+    password: Joi.string().required(),
+    deviceId: Joi.any().optional()
   });
   return schema.validate(data);
 };

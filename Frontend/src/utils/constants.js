@@ -17,6 +17,16 @@ export const FINE_TYPES = [
   { name: 'Sleeping', amount: 300, code: 'SLP' }
 ];
 
+// Must match BONUS_TYPES in Backend/models/Bonus.js
+export const BONUS_TYPES = [
+  'Performance',
+  'Attendance',
+  'Incentive',
+  'Referral',
+  'Festival',
+  'Other'
+];
+
 export const DEPARTMENTS = [
   'Sales',
   'Quality Assurance',

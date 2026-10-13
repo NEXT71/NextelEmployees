@@ -265,7 +265,14 @@ export const employeeAPI = {
       body: JSON.stringify(updateData),
     }),
 
-  // Delete employee
+  // Soft remove / restore (HR + admin): keeps history, disables or enables the login
+  deactivateEmployee: (id) =>
+    apiRequest(`/employees/${id}/deactivate`, { method: 'PATCH' }),
+
+  activateEmployee: (id) =>
+    apiRequest(`/employees/${id}/activate`, { method: 'PATCH' }),
+
+  // Permanently delete employee (superadmin only)
   deleteEmployee: (id) =>
     apiRequest(`/employees/${id}`, {
       method: 'DELETE',
@@ -391,6 +398,36 @@ export const fineAPI = {
     const queryString = new URLSearchParams(params).toString();
     return apiRequest(`/fines/reports/fines${queryString ? `?${queryString}` : ''}`);
   },
+};
+
+// Bonus API calls
+export const bonusAPI = {
+  // All bonuses (admin / HR / superadmin)
+  getAllBonuses: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/bonuses${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Bonuses for the logged-in employee
+  getMyBonuses: () =>
+    apiRequest('/bonuses/me'),
+
+  // Bonuses for one employee
+  getBonusesByEmployee: (employeeId) =>
+    apiRequest(`/bonuses/employee/${employeeId}`),
+
+  // Give a bonus
+  createBonus: (bonusData) =>
+    apiRequest('/bonuses', {
+      method: 'POST',
+      body: JSON.stringify(bonusData),
+    }),
+
+  // Delete a bonus
+  deleteBonus: (id) =>
+    apiRequest(`/bonuses/${id}`, {
+      method: 'DELETE',
+    }),
 };
 
 // Salary API calls

@@ -6,7 +6,7 @@ import { subscribeSocket } from '../../utils/socket';
 import { formatSalesShiftDate, getSalesShiftDate } from '../../utils/salesShift';
 import {
   CheckCircle, XCircle, Clock, RefreshCw, LogOut, AlertCircle,
-  ChevronDown, ChevronUp, ClipboardList, Search, Download
+  ChevronDown, ChevronUp, ClipboardList, Search, Download, Link2
 } from 'lucide-react';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -50,10 +50,11 @@ const STATUS_COLORS = {
   pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
   approved: 'bg-green-500/20 text-green-300 border-green-500/30',
   disapproved: 'bg-red-500/20 text-red-300 border-red-500/30',
+  under_review: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
 };
 
 const StatusBadge = memo(({ status }) => {
-  const label = status === 'disapproved' ? 'rejected' : status;
+  const label = status === 'disapproved' ? 'rejected' : status === 'under_review' ? 'under review' : status;
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border capitalize ${STATUS_COLORS[status] || STATUS_COLORS.pending}`}>
       {status === 'pending' && <Clock size={10} className="mr-1" />}
@@ -108,8 +109,84 @@ const RejectModal = memo(({ onConfirm, onCancel, isBulk, count }) => {
   );
 });
 
+// ─── Link Agent Modal ────────────────────────────────────────────────────────
+const LinkAgentModal = memo(({ sub, agents, loading, onConfirm, onCancel }) => {
+  const [query, setQuery] = useState(sub.agentName || '');
+  const [agentId, setAgentId] = useState('');
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return agents.filter((a) => {
+      if (!q) return true;
+      const name = `${a.firstName || ''} ${a.lastName || ''}`.toLowerCase();
+      return name.includes(q) || (a.employeeId || '').toLowerCase().includes(q);
+    });
+  }, [agents, query]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-md shadow-2xl p-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-orange-500/20 rounded-lg">
+            <Link2 size={20} className="text-orange-300" />
+          </div>
+          <h3 className="text-white text-lg font-semibold">Link Agent</h3>
+        </div>
+        <p className="text-white/60 text-sm mb-4">
+          Submitted as <span className="text-white font-medium">"{sub.agentName || 'Unknown'}"</span>, which is not a
+          registered employee. Choose the correct employee; the sale then moves to Pending for review.
+        </p>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setAgentId(''); }}
+          placeholder="Search employee name or ID..."
+          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50 mb-3"
+        />
+        <div className="max-h-56 overflow-y-auto rounded-xl border border-white/10 divide-y divide-white/10">
+          {loading ? (
+            <p className="text-white/40 text-sm p-4 text-center">Loading employees...</p>
+          ) : matches.length === 0 ? (
+            <p className="text-white/40 text-sm p-4 text-center">No matching employees. Register them first, or the sale will link automatically once registered.</p>
+          ) : (
+            matches.map((a) => (
+              <button
+                key={a._id}
+                type="button"
+                onClick={() => setAgentId(a._id)}
+                className={`w-full text-left px-4 py-2.5 text-sm transition-all ${
+                  agentId === a._id ? 'bg-purple-600/40 text-white' : 'text-white/80 hover:bg-white/10'
+                }`}
+              >
+                {a.firstName} {a.lastName}
+                <span className="text-white/40 ml-2">{a.employeeId}{a.department ? ` · ${a.department}` : ''}</span>
+              </button>
+            ))
+          )}
+        </div>
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all text-sm font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(agentId)}
+            disabled={!agentId}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-all text-sm font-medium flex items-center justify-center gap-2"
+          >
+            <Link2 size={14} />
+            Link Agent
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 // ─── Submission Row ───────────────────────────────────────────────────────────
-const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, onSelectDate, selectedShiftDate, expandedId, onToggleExpand, reviewNote, onReviewNoteChange, shouldFocusReview }) => {
+const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, onLink, onSelectDate, selectedShiftDate, expandedId, onToggleExpand, reviewNote, onReviewNoteChange, shouldFocusReview }) => {
   const isExpanded = expandedId === sub._id;
   const canAct = sub.status === 'pending';
   const reviewRef = useRef(null);
@@ -157,6 +234,24 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, onSe
         <td className="px-4 py-3"><StatusBadge status={sub.status} /></td>
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
+            {sub.status === 'under_review' && (
+              <>
+                <button
+                  onClick={() => onLink(sub)}
+                  title="Link to a registered employee"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-500/20 hover:bg-orange-500/40 text-orange-300 hover:text-orange-200 text-xs font-medium transition-all"
+                >
+                  <Link2 size={14} /> Link agent
+                </button>
+                <button
+                  onClick={() => onReject(sub._id)}
+                  title="Reject"
+                  className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 transition-all"
+                >
+                  <XCircle size={15} />
+                </button>
+              </>
+            )}
             {canAct && (
               <>
                 <button
@@ -263,6 +358,11 @@ const QADashboard = () => {
   // Rejection modal state
   const [rejectTarget, setRejectTarget] = useState(null); // { id: string } | { bulk: true }
 
+  // Link-agent modal state
+  const [linkTarget, setLinkTarget] = useState(null);
+  const [assignableAgents, setAssignableAgents] = useState([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
+
   const formatSyncLabel = (date) => {
     if (!date) return 'Not synced yet';
     const diff = Date.now() - date.getTime();
@@ -353,6 +453,37 @@ const QADashboard = () => {
       alert(`Approve failed: ${e.message}`);
     }
   }, []);
+
+  // ── link agent (under-review sales) ──────────────────────────────────────
+  const openLinkAgent = useCallback(async (sub) => {
+    setLinkTarget(sub);
+    if (assignableAgents.length > 0) return;
+    setAgentsLoading(true);
+    try {
+      const data = await apiFetch('/sales-submissions/agents');
+      setAssignableAgents(data.data || []);
+    } catch (e) {
+      alert(`Could not load employees: ${e.message}`);
+      setLinkTarget(null);
+    } finally {
+      setAgentsLoading(false);
+    }
+  }, [assignableAgents.length]);
+
+  const handleLinkConfirm = useCallback(async (agentId) => {
+    if (!linkTarget || !agentId) return;
+    try {
+      await apiFetch(`/sales-submissions/${linkTarget._id}/assign-agent`, {
+        method: 'POST',
+        body: JSON.stringify({ agentId }),
+      });
+      setLinkTarget(null);
+      fetchSubmissions();
+      fetchPendingCount();
+    } catch (e) {
+      alert(`Link failed: ${e.message}`);
+    }
+  }, [linkTarget, fetchSubmissions, fetchPendingCount]);
 
   // ── open reject modal for single ─────────────────────────────────────────
   const openRejectSingle = useCallback((id) => {
@@ -579,12 +710,13 @@ const QADashboard = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* ── Stats row ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           {[
             { label: 'Total Sales', value: submissionCounts.total, color: 'bg-blue-500/30', icon: ClipboardList },
             { label: 'Pending', value: submissionCounts.pending, color: 'bg-yellow-500/30', icon: Clock },
             { label: 'Approved', value: submissionCounts.approved, color: 'bg-green-500/30', icon: CheckCircle },
             { label: 'Rejected', value: submissionCounts.disapproved, color: 'bg-red-500/30', icon: XCircle },
+            { label: 'Under Review', value: submissionCounts.underReview || 0, color: 'bg-orange-500/30', icon: Clock },
           ].map(({ label, value, color, icon: Icon }) => (
             <div key={label} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 flex items-center gap-3">
               <div className={`p-2.5 rounded-lg ${color}`}>
@@ -602,7 +734,7 @@ const QADashboard = () => {
         <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-4 space-y-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1 flex-wrap">
-              {['pending', 'approved', 'rejected', 'all'].map((s) => (
+              {['pending', 'under_review', 'approved', 'rejected', 'all'].map((s) => (
                 <button
                   key={s}
                   onClick={() => { setStatusFilter(s); setSelectedIds(new Set()); setPage(1); }}
@@ -612,7 +744,7 @@ const QADashboard = () => {
                       : 'text-white/50 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  {s}
+                  {s === 'under_review' ? 'under review' : s}
                 </button>
               ))}
             </div>
@@ -777,6 +909,8 @@ const QADashboard = () => {
                     ? 'No approved submissions found for this period.'
                     : statusFilter === 'rejected'
                       ? 'No rejected submissions found for this period.'
+                      : statusFilter === 'under_review'
+                        ? 'No under-review submissions. These appear when a sale is submitted under a name that is not a registered employee.'
                       : 'No submissions found for this period.'}
               </p>
             </div>
@@ -813,6 +947,7 @@ const QADashboard = () => {
                       onToggle={toggleSelect}
                       onApprove={handleApprove}
                       onReject={openRejectSingle}
+                      onLink={openLinkAgent}
                       onSelectDate={handleSelectShiftDate}
                       selectedShiftDate={selectedShiftDate}
                       expandedId={expandedId}
@@ -852,6 +987,16 @@ const QADashboard = () => {
       </main>
 
       {/* ── Rejection modal ── */}
+      {linkTarget && (
+        <LinkAgentModal
+          sub={linkTarget}
+          agents={assignableAgents}
+          loading={agentsLoading}
+          onConfirm={handleLinkConfirm}
+          onCancel={() => setLinkTarget(null)}
+        />
+      )}
+
       {rejectTarget && (
         <RejectModal
           isBulk={!!rejectTarget.bulk}

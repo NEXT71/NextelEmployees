@@ -30,14 +30,28 @@ const auth = async (req, res, next) => {
       });
     }
 
-    if (decoded.sessionId) {
-      const activeUser = await User.findOne({
-        _id: decoded.userId || decoded._id,
-        activeSessionId: decoded.sessionId,
-        activeSessionExpiresAt: { $gt: new Date() }
-      }).select('_id').lean();
+    // Always confirm the account still exists and is enabled, so deleting or
+    // deactivating a user takes effect immediately instead of when the token expires.
+    const account = await User.findById(decoded.userId || decoded._id)
+      .select('role username isActive activeSessionId activeSessionExpiresAt')
+      .lean();
 
-      if (!activeUser) {
+    // superadmin is exempt from the isActive check so the system can never be locked out
+    if (!account || (account.role !== 'superadmin' && account.isActive === false)) {
+      return res.status(401).json({
+        success: false,
+        message: 'This account is disabled or no longer exists.',
+        error: 'ACCOUNT_DISABLED'
+      });
+    }
+
+    if (decoded.sessionId) {
+      const sessionValid =
+        account.activeSessionId === decoded.sessionId &&
+        account.activeSessionExpiresAt &&
+        account.activeSessionExpiresAt > new Date();
+
+      if (!sessionValid) {
         return res.status(401).json({
           success: false,
           message: 'This login session is no longer active. Please log in again.',
@@ -50,9 +64,9 @@ const auth = async (req, res, next) => {
       _id: decoded._id || decoded.userId,
       userId: decoded.userId || decoded._id,
       employeeId: decoded.employeeId,
-      role: decoded.role,
+      role: account.role, // current role from DB, not the possibly stale token
       email: decoded.email,
-      username: decoded.username,
+      username: account.username,
       sessionId: decoded.sessionId
     };
     

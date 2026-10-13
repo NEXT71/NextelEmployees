@@ -2,6 +2,10 @@ import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
 import mongoose from 'mongoose';
 import { normalizeName } from '../utils/employeeMatch.js';
+import { logAudit } from '../utils/audit.js';
+import {
+  BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcDailyEarning, getTierName
+} from '../utils/payRules.js';
 import { emitSalesSubmissionUpdate } from '../utils/socket.js';
 import { getSalesShiftDate, getSalesShiftMonthRange, getSalesShiftRange } from '../utils/salesShift.js';
 
@@ -133,9 +137,9 @@ const createSubmission = async (req, res, next) => {
       closer,
       closerRef: resolvedCloserRef,
       saleDate: saleDate || new Date(),
-      status: 'pending',
-      baseSalary: 1000,
-      pricePerSale: 1000
+      status: resolvedAgent ? 'pending' : 'under_review',
+      baseSalary: BASE_PER_SALE,
+      pricePerSale: BASE_PER_SALE
     });
 
     await submission.save();
@@ -246,9 +250,9 @@ const handleGoogleFormWebhook = async (req, res, next) => {
       closer: closer.trim(),
       closerRef: matchedCloser ? matchedCloser._id : null,
       saleDate: saleDate ? new Date(saleDate) : new Date(),
-      status: 'pending',
-      baseSalary: 1000,
-      pricePerSale: 1000,
+      status: matchedEmployee ? 'pending' : 'under_review',
+      baseSalary: BASE_PER_SALE,
+      pricePerSale: BASE_PER_SALE,
       submissionSource: 'Google Form'
     });
 
@@ -277,7 +281,6 @@ const handleGoogleFormWebhook = async (req, res, next) => {
 const getSubmissions = async (req, res, next) => {
   try {
     console.log('=== GET /api/sales-submissions ===');
-    console.log('User:', req.user);
     console.log('Query:', req.query);
 
     const { status, agentId, shiftDate, month, page = 1, limit = 50 } = req.query;
@@ -314,11 +317,11 @@ const getSubmissions = async (req, res, next) => {
 
     console.log('Filter:', filter, 'Skip:', skip, 'Limit:', limitNum);
 
-    const [submissions, total, allCount, pendingCount, approvedCount, rejectedCount] = await Promise.all([
+    const [submissions, total, allCount, pendingCount, approvedCount, rejectedCount, underReviewCount] = await Promise.all([
       SalesTarget.find(filter)
         .populate('agent', 'firstName lastName employeeId')
-        .populate('approvedBy', 'firstName lastName')
-        .populate('disapprovedBy', 'firstName lastName')
+        .populate('approvedBy', 'username')
+        .populate('disapprovedBy', 'username')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
@@ -326,7 +329,8 @@ const getSubmissions = async (req, res, next) => {
       SalesTarget.countDocuments(countFilter),
       SalesTarget.countDocuments({ ...countFilter, status: 'pending' }),
       SalesTarget.countDocuments({ ...countFilter, status: 'approved' }),
-      SalesTarget.countDocuments({ ...countFilter, status: 'disapproved' })
+      SalesTarget.countDocuments({ ...countFilter, status: 'disapproved' }),
+      SalesTarget.countDocuments({ ...countFilter, status: 'under_review' })
     ]);
 
     console.log('Found submissions:', submissions.length, 'Total:', total);
@@ -344,7 +348,8 @@ const getSubmissions = async (req, res, next) => {
         total: allCount,
         pending: pendingCount,
         approved: approvedCount,
-        disapproved: rejectedCount
+        disapproved: rejectedCount,
+        underReview: underReviewCount
       }
     });
   } catch (error) {
@@ -362,8 +367,8 @@ const getSubmissionById = async (req, res, next) => {
   try {
     const submission = await SalesTarget.findById(req.params.id)
       .populate('agent', 'firstName lastName employeeId')
-      .populate('approvedBy', 'firstName lastName')
-      .populate('disapprovedBy', 'firstName lastName');
+      .populate('approvedBy', 'username')
+      .populate('disapprovedBy', 'username');
 
     if (!submission) {
       return res.status(404).json({
@@ -395,6 +400,13 @@ const approveSubmission = async (req, res, next) => {
       });
     }
 
+    if (submission.status === 'under_review') {
+      return res.status(400).json({
+        success: false,
+        message: 'This sale is under review: the agent is not a registered employee yet. Link an agent first.'
+      });
+    }
+
     if (submission.status !== 'pending') {
       return res.status(400).json({
         success: false,
@@ -407,6 +419,11 @@ const approveSubmission = async (req, res, next) => {
     submission.approvedBy = req.user._id;
     submission.approvedAt = new Date();
     await submission.save();  // This triggers post-save hook to calculate bonus
+
+    await logAudit(req, {
+      action: 'sale.approve', entityType: 'sale', entityId: submission._id,
+      summary: `Approved sale ${submission._id} (${submission.agentName})`
+    });
 
     emitSalesSubmissionUpdate({
       type: 'approved',
@@ -440,7 +457,7 @@ const disapproveSubmission = async (req, res, next) => {
       });
     }
 
-    if (submission.status !== 'pending') {
+    if (!['pending', 'under_review'].includes(submission.status)) {
       return res.status(400).json({
         success: false,
         message: `Cannot disapprove submission with status: ${submission.status}`
@@ -454,6 +471,12 @@ const disapproveSubmission = async (req, res, next) => {
     submission.rejectionReason = rejectionReason || '';
     await submission.save();
 
+    await logAudit(req, {
+      action: 'sale.reject', entityType: 'sale', entityId: submission._id,
+      summary: `Rejected sale ${submission._id} (${submission.agentName})`,
+      meta: { reason: submission.rejectionReason }
+    });
+
     emitSalesSubmissionUpdate({
       type: 'disapproved',
       submissionId: submission._id.toString(),
@@ -466,6 +489,69 @@ const disapproveSubmission = async (req, res, next) => {
       message: 'Sales submission disapproved successfully',
       data: submission
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Employees a reviewer can link an under-review sale to (QA cannot use GET /employees)
+const getAssignableAgents = async (req, res, next) => {
+  try {
+    const agents = await Employee.find({ status: 'Active' })
+      .select('_id firstName lastName employeeId department')
+      .sort({ firstName: 1, lastName: 1 })
+      .lean();
+    res.status(200).json({ success: true, data: agents });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Manually link an under-review sale to a registered employee (moves it to pending)
+const assignAgent = async (req, res, next) => {
+  try {
+    const { agentId } = req.body;
+    if (!agentId || !mongoose.Types.ObjectId.isValid(agentId)) {
+      return res.status(400).json({ success: false, message: 'A valid agentId is required' });
+    }
+
+    const [submission, employee] = await Promise.all([
+      SalesTarget.findById(req.params.id),
+      Employee.findById(agentId).select('firstName lastName')
+    ]);
+    if (!submission) {
+      return res.status(404).json({ success: false, message: 'Sales submission not found' });
+    }
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+    if (submission.status !== 'under_review') {
+      return res.status(400).json({
+        success: false,
+        message: `Only under-review submissions can be linked (current status: ${submission.status})`
+      });
+    }
+
+    const submittedName = submission.agentName;
+    submission.agent = employee._id;
+    submission.agentName = normalizeName(`${employee.firstName || ''} ${employee.lastName || ''}`);
+    submission.status = 'pending';
+    await submission.save();
+
+    await logAudit(req, {
+      action: 'sale.linkAgent', entityType: 'sale', entityId: submission._id,
+      summary: `Linked sale ${submission._id} from "${submittedName}" to ${submission.agentName}`,
+      meta: { submittedName, agentId: String(employee._id) }
+    });
+
+    emitSalesSubmissionUpdate({
+      type: 'linked',
+      submissionId: submission._id.toString(),
+      status: submission.status,
+      submission: submission.toObject()
+    });
+
+    res.status(200).json({ success: true, message: 'Agent linked; submission is now pending', data: submission });
   } catch (error) {
     next(error);
   }
@@ -520,6 +606,12 @@ const bulkApproveSubmissions = async (req, res, next) => {
 
     const successCount = approvalResults.filter(r => r.status === 'approved').length;
     const failedCount = approvalResults.filter(r => r.status === 'failed').length;
+
+    await logAudit(req, {
+      action: 'sale.bulkApprove', entityType: 'sale', entityId: '',
+      summary: `Bulk approved ${successCount} sale(s), ${failedCount} failed`,
+      meta: { ids: approvalResults.filter(r => r.status === 'approved').map(r => String(r.submissionId)) }
+    });
 
     emitSalesSubmissionUpdate({
       type: 'bulkApproved',
@@ -595,6 +687,12 @@ const bulkDisapproveSubmissions = async (req, res, next) => {
     const successCount = disapprovalResults.filter(r => r.status === 'disapproved').length;
     const failedCount = disapprovalResults.filter(r => r.status === 'failed').length;
 
+    await logAudit(req, {
+      action: 'sale.bulkReject', entityType: 'sale', entityId: '',
+      summary: `Bulk rejected ${successCount} sale(s), ${failedCount} failed`,
+      meta: { reason: rejectionReason || '', ids: disapprovalResults.filter(r => r.status === 'disapproved').map(r => String(r.submissionId)) }
+    });
+
     emitSalesSubmissionUpdate({
       type: 'bulkDisapproved',
       submissionIds: disapprovalResults.filter(r => r.status === 'disapproved').map(r => r.submissionId),
@@ -656,7 +754,7 @@ const getAnalytics = async (req, res, next) => {
     
     const matchingSales = await SalesTarget.find(filter)
       .populate('agent', 'firstName lastName employeeId phone')
-      .populate('approvedBy', 'firstName lastName')
+      .populate('approvedBy', 'username')
       .sort({ createdAt: -1 });
 
     const approvedSales = matchingSales.filter((sale) => {
@@ -683,7 +781,7 @@ const getAnalytics = async (req, res, next) => {
         };
       }
       byAgent[agentId].totalSales += 1; // Each sale submission = 1 sale
-      byAgent[agentId].totalEarnings += sale.pricePerSale || 1000;
+      byAgent[agentId].totalEarnings += sale.pricePerSale || BASE_PER_SALE;
       byAgent[agentId].records.push(sale);
     });
 
@@ -745,7 +843,7 @@ const getAnalyticsSummary = async (req, res, next) => {
         };
       }
       byAgent[agentId].salesCount += 1;
-      byAgent[agentId].earnings += sale.pricePerSale || 1000;
+      byAgent[agentId].earnings += sale.pricePerSale || BASE_PER_SALE;
     });
 
     res.status(200).json({
@@ -761,23 +859,7 @@ const getAnalyticsSummary = async (req, res, next) => {
   }
 };
 
-// Helper: calculate daily tier bonus for a day's sale count
-const calcTierBonus = (count) => {
-  if (count >= 12) return 5000;
-  if (count >= 8) return 3000;
-  if (count >= 5) return 1000;
-  if (count >= 3) return 500;
-  return 0;
-};
-
-// Helper: get tier name from count
-const getTierNameFromCount = (count) => {
-  if (count >= 12) return 'tier4';
-  if (count >= 8) return 'tier3';
-  if (count >= 5) return 'tier2';
-  if (count >= 3) return 'tier1';
-  return 'noTier';
-};
+const getTierNameFromCount = getTierName;
 
 // Get CSR's own sales submissions (with all statuses)
 const getMySales = async (req, res, next) => {
@@ -799,8 +881,8 @@ const getMySales = async (req, res, next) => {
     const skip = (pageNum - 1) * limitNum;
 
     const sales = await SalesTarget.find(filter)
-      .populate('approvedBy', 'firstName lastName')
-      .populate('disapprovedBy', 'firstName lastName')
+      .populate('approvedBy', 'username')
+      .populate('disapprovedBy', 'username')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
@@ -836,12 +918,12 @@ const getMyMonthlyEarnings = async (req, res, next) => {
 
     const [approvedSalesForMonth, pendingSalesForMonth, disapprovedSalesForMonth] = await Promise.all([
       SalesTarget.find({ ...agentFilter, status: 'approved', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
-        .populate('approvedBy', 'firstName lastName')
+        .populate('approvedBy', 'username')
         .sort({ createdAt: 1 }),
       SalesTarget.find({ ...agentFilter, status: 'pending', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
         .sort({ createdAt: -1 }),
       SalesTarget.find({ ...agentFilter, status: 'disapproved', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
-        .populate('disapprovedBy', 'firstName lastName')
+        .populate('disapprovedBy', 'username')
         .sort({ createdAt: -1 })
     ]);
 
@@ -870,7 +952,7 @@ const getMyMonthlyEarnings = async (req, res, next) => {
     });
 
     const totalApproved = approvedSales.length;
-    const totalBaseSalary = totalApproved * 1000;
+    const totalBaseSalary = totalApproved * BASE_PER_SALE;
     const totalEarnings = totalBaseSalary + totalTierBonus;
     const totalDays = Object.keys(salesByDay).length;
 
@@ -879,9 +961,9 @@ const getMyMonthlyEarnings = async (req, res, next) => {
       date,
       sales: count,
       tier: getTierNameFromCount(count),
-      baseSalary: count * 1000,
+      baseSalary: count * BASE_PER_SALE,
       tierBonus: calcTierBonus(count),
-      totalEarning: count * 1000 + calcTierBonus(count)
+      totalEarning: calcDailyEarning(count)
     }));
 
     res.status(200).json({
@@ -928,7 +1010,7 @@ const getMySalesSummary = async (req, res, next) => {
       saleDate: { $gte: thirtyDaysAgo }
     });
 
-    const totalEarnings = approvedSales.length * 1000;
+    const totalEarnings = approvedSales.length * BASE_PER_SALE;
 
     res.status(200).json({
       success: true,
@@ -952,6 +1034,8 @@ export {
   getSubmissionById,
   approveSubmission,
   disapproveSubmission,
+  assignAgent,
+  getAssignableAgents,
   bulkApproveSubmissions,
   bulkDisapproveSubmissions,
   getPendingCount,
@@ -1052,9 +1136,9 @@ async function getMyClosesStats(req, res, next) {
         approvedAllTime: allTimeCount,
         approvedThisMonth: monthCount,
         approvedThisDay: dayCount,
-        earningsThisMonth: monthCount * 200,
-        earningsThisDay: dayCount * 200,
-        earningsAllTime: allTimeCount * 200,
+        earningsThisMonth: monthCount * CLOSER_RATE_PER_CLOSE,
+        earningsThisDay: dayCount * CLOSER_RATE_PER_CLOSE,
+        earningsAllTime: allTimeCount * CLOSER_RATE_PER_CLOSE,
         rank: rank || null,
         totalVerifiers: rankAgg.length,
         selectedMonth: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,

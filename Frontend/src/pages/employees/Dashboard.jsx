@@ -8,6 +8,7 @@ import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import AttendanceTimeStatus from '../../components/common/AttendanceTimeStatus';
 import MessageCenter from '../../components/common/MessageCenter';
+import MyBonuses from '../../components/employees/MyBonuses';
 import { employeeAPI, attendanceAPI, fineAPI, clearAuth, authAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { isWithinAttendanceWindow, isWithinClockInWindow } from '../../utils/attendanceTimeAccess';
@@ -768,6 +769,8 @@ const calculateSummary = () => {
           error={finesError}
           onRefresh={refreshFinesData}
         />
+
+        <MyBonuses />
 
 
       </div>

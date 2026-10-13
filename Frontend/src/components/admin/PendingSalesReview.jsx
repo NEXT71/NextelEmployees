@@ -562,7 +562,7 @@ const PendingSalesReview = ({ onRefresh }) => {
                   {submission.status === 'approved' && (
                     <div className="border-t border-white/10 pt-4">
                       <p className="text-xs text-green-300">
-                        ✓ Approved by {submission.approvedBy?.firstName || 'Admin'} on{' '}
+                        ✓ Approved by {submission.approvedBy?.username || 'Admin'} on{' '}
                         {new Date(submission.approvedAt).toLocaleDateString()}
                       </p>
                     </div>
@@ -571,7 +571,7 @@ const PendingSalesReview = ({ onRefresh }) => {
                   {submission.status === 'disapproved' && (
                     <div className="border-t border-white/10 pt-4">
                       <p className="text-xs text-red-300 mb-1">
-                        ✗ Disapproved by {submission.disapprovedBy?.firstName || 'Admin'} on{' '}
+                        ✗ Disapproved by {submission.disapprovedBy?.username || 'Admin'} on{' '}
                         {new Date(submission.disapprovedAt).toLocaleDateString()}
                       </p>
                       {submission.rejectionReason && (

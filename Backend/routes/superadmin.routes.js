@@ -27,6 +27,8 @@ import {
   getAllMessages,
   respondToMessage,
   resolveMessage,
+  getAuditLogs,
+  getAuditLogById,
 } from '../controllers/superadmin.controller.js';
 
 const router = express.Router();
@@ -64,6 +66,10 @@ router.delete('/fines/:id',       deleteFine);
 // Attendance
 router.get('/attendance',         getAllAttendance);
 router.patch('/attendance/:id',   updateAttendance);
+
+// Audit log
+router.get('/audit-logs',         getAuditLogs);
+router.get('/audit-logs/:id',     getAuditLogById);
 
 // Messages
 router.get('/messages',           getAllMessages);

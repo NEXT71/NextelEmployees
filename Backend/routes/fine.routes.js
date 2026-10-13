@@ -17,7 +17,7 @@ import roles from '../middlewares/roles.js';
 
 const fineRouter = express.Router();
 
-fineRouter.post('/', auth, applyFine);
+fineRouter.post('/', auth, roles('admin'), applyFine);
 fineRouter.post('/bulk', auth, roles('admin'), applyBulkFine);
 fineRouter.patch('/:id/approve', auth, roles('admin'), approveFine);
 fineRouter.delete('/:id', auth, roles('admin'), deleteFine);

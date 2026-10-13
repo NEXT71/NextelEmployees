@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { getSalesShiftDate, getSalesShiftRange } from '../utils/salesShift.js';
-
+import { BASE_PER_SALE, getDailyTier } from '../utils/payRules.js';
 const salesTargetSchema = new mongoose.Schema({
   // Agent who made the sale
   agent: {
@@ -64,23 +64,25 @@ const salesTargetSchema = new mongoose.Schema({
   // Pricing for this sale
   pricePerSale: {
     type: Number,
-    default: 1000
+    default: BASE_PER_SALE
   },
   baseSalary: {
     type: Number,
-    default: 1000  // 1 sale × 1000 RS
+    default: BASE_PER_SALE
   },
   
   // Approval workflow
   status: {
     type: String,
-    enum: ['pending', 'approved', 'disapproved'],
+    // under_review: submitted under a name that matches no registered employee yet.
+    // Cannot be approved until an agent is linked (then it becomes pending).
+    enum: ['pending', 'approved', 'disapproved', 'under_review'],
     default: 'pending'
   },
   
   approvedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employee',
+    ref: 'User',
     default: null
   },
   approvedAt: {
@@ -90,7 +92,7 @@ const salesTargetSchema = new mongoose.Schema({
   
   disapprovedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employee',
+    ref: 'User',
     default: null
   },
   disapprovedAt: {
@@ -114,7 +116,7 @@ const salesTargetSchema = new mongoose.Schema({
   },
   totalEarning: {
     type: Number,
-    default: 1000  // baseSalary + tierBonus (flat)
+    default: BASE_PER_SALE  // baseSalary + tierBonus (flat)
   },
   
   // When was this sale made
@@ -158,31 +160,9 @@ salesTargetSchema.post('save', async function(doc) {
       }
     });
     
-    // Tier definitions: Flat bonus based on daily sales count
-    const TIER_CONFIG = {
-      tier1: { minSales: 3, bonus: 500 },       // 3-4 sales: 500 RS bonus
-      tier2: { minSales: 5, bonus: 1000 },      // 5-7 sales: 1000 RS bonus
-      tier3: { minSales: 8, bonus: 3000 },      // 8-11 sales: 3000 RS bonus
-      tier4: { minSales: 12, bonus: 5000 }      // 12+ sales: 5000 RS bonus
-    };
-    
-    let achievedTier = 0;
-    let tierBonus = 0;
-    
-    if (dailySalesCount >= TIER_CONFIG.tier4.minSales) {
-      achievedTier = 4;
-      tierBonus = TIER_CONFIG.tier4.bonus;
-    } else if (dailySalesCount >= TIER_CONFIG.tier3.minSales) {
-      achievedTier = 3;
-      tierBonus = TIER_CONFIG.tier3.bonus;
-    } else if (dailySalesCount >= TIER_CONFIG.tier2.minSales) {
-      achievedTier = 2;
-      tierBonus = TIER_CONFIG.tier2.bonus;
-    } else if (dailySalesCount >= TIER_CONFIG.tier1.minSales) {
-      achievedTier = 1;
-      tierBonus = TIER_CONFIG.tier1.bonus;
-    }
-    
+    // Tier rules live in utils/payRules.js
+    const { tier: achievedTier, bonus: tierBonus } = getDailyTier(dailySalesCount);
+
     // Calculate total earning: (daily sales count × base salary) + flat daily bonus
     const baseSalary = doc.baseSalary;
     const totalEarning = (dailySalesCount * baseSalary) + tierBonus;

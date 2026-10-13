@@ -14,6 +14,7 @@ import authRouter from './routes/auth.routes.js';
 import employeeRouter from './routes/employee.routes.js';
 import attendanceRouter from './routes/attendance.routes.js';
 import fineRouter from './routes/fine.routes.js';
+import bonusRouter from './routes/bonus.routes.js';
 import salaryRouter from './routes/salary.routes.js';
 import messageRouter from './routes/message.routes.js';
 import salesTargetRouter from './routes/salesTarget.routes.js';
@@ -164,6 +165,7 @@ app.get('/api', (req, res) => {
       employees: '/api/employees',
       attendance: '/api/attendance',
       fines: '/api/fines',
+      bonuses: '/api/bonuses',
       salaries: '/api/salaries',
       messages: '/api/messages',
       'sales-targets': '/api/sales-targets',
@@ -177,6 +179,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/employees', employeeRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/fines', fineRouter);
+app.use('/api/bonuses', bonusRouter);
 app.use('/api/salaries', salaryRouter);
 app.use('/api/messages', messageRouter);
 app.use('/api/sales-targets', salesTargetRouter);

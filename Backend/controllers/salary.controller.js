@@ -1,17 +1,26 @@
 import Salary from '../models/Salary.js';
 import Employee from '../models/Employee.js';
 import Fine from '../models/Fine.js';
+import Bonus from '../models/Bonus.js';
 import Attendance from '../models/Attendance.js';
 import SalesTarget from '../models/SalesTarget.js';
+import { logAudit, logAuditDelete } from '../utils/audit.js';
+import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcCloserPay } from '../utils/payRules.js';
 import { getSalesShiftDate, getSalesShiftMonthRange } from '../utils/salesShift.js';
 
 // Helper: calculate daily tier bonus from sales count
-const calcDailyTierBonus = (count) => {
-  if (count >= 12) return 5000;
-  if (count >= 8) return 3000;
-  if (count >= 5) return 1000;
-  if (count >= 3) return 500;
-  return 0;
+const calcDailyTierBonus = calcTierBonus;
+
+// Manual bonuses (Bonus collection) dated inside the salary month
+const sumManualBonuses = async (employeeId, monthStart, monthEnd) => {
+  const bonuses = await Bonus.find({
+    employee: employeeId,
+    date: { $gte: monthStart, $lte: monthEnd }
+  }).select('amount');
+  return {
+    total: bonuses.reduce((sum, b) => sum + (b.amount || 0), 0),
+    count: bonuses.length
+  };
 };
 
 /**
@@ -68,7 +77,7 @@ export const generateMonthlySalary = async (req, res, next) => {
         createdAt: { $gte: salesMonthRange.start, $lt: salesMonthRange.end }
       });
 
-      const totalCloserPay = approvedCloses * 100;
+      const totalCloserPay = calcCloserPay(approvedCloses);
 
       const existingSalary = await Salary.findOne({ employee: employeeId, month: monthStart });
       if (existingSalary) {
@@ -79,12 +88,16 @@ export const generateMonthlySalary = async (req, res, next) => {
         });
       }
 
-      const closerNotes = `Verifier/Closer Pay: ${totalCloserPay} RS (${approvedCloses} approved closes × 100 RS)`;
+      const manualBonus = await sumManualBonuses(employeeId, monthStart, monthEnd);
+      const closerTotal = totalCloserPay + manualBonus.total;
+
+      let closerNotes = `Verifier/Closer Pay: ${totalCloserPay} RS (${approvedCloses} approved closes × ${CLOSER_RATE_PER_CLOSE} RS)`;
+      if (manualBonus.count > 0) closerNotes += ` | Bonuses: ${manualBonus.total} RS (${manualBonus.count})`;
       const salary = await Salary.create({
         employee: employeeId,
         month: monthStart,
         baseSalary: 0,
-        bonuses: totalCloserPay,
+        bonuses: closerTotal,
         deductions: 0,
         notes: closerNotes
       });
@@ -98,9 +111,10 @@ export const generateMonthlySalary = async (req, res, next) => {
           ...salary.toObject(),
           breakdown: {
             approvedCloses,
-            ratePerClose: 100,
+            ratePerClose: CLOSER_RATE_PER_CLOSE,
             totalCloserPay,
-            netPay: totalCloserPay
+            manualBonuses: manualBonus.total,
+            netPay: closerTotal
           }
         }
       });
@@ -154,12 +168,15 @@ export const generateMonthlySalary = async (req, res, next) => {
       totalTierBonus += calcDailyTierBonus(count);
     });
 
-    const totalSalesBase = approvedSales.length * 1000; // RS 1000 per approved sale
+    const totalSalesBase = approvedSales.length * BASE_PER_SALE;
     const totalSalesEarnings = totalSalesBase + totalTierBonus;
     // --- End sales earnings ---
 
+    const manualBonus = await sumManualBonuses(employeeId, monthStart, monthEnd);
+    const totalBonuses = totalSalesEarnings + manualBonus.total;
+
     // Create notes breakdown
-    const notes = `Base Salary: ${baseSalary} | Fines: ${totalFines} | Unpaid Leaves: ${leaveDeduction.toFixed(2)} (${absentDays} absent days) | Sales Earnings: ${totalSalesBase} (${approvedSales.length} approved sales) | Tier Bonus: ${totalTierBonus}`;
+    const notes = `Base Salary: ${baseSalary} | Fines: ${totalFines} | Unpaid Leaves: ${leaveDeduction.toFixed(2)} (${absentDays} absent days) | Sales Earnings: ${totalSalesBase} (${approvedSales.length} approved sales) | Tier Bonus: ${totalTierBonus} | Bonuses: ${manualBonus.total} (${manualBonus.count})`;
 
     // Check if salary record already exists for this month
     const existingSalary = await Salary.findOne({
@@ -180,7 +197,7 @@ export const generateMonthlySalary = async (req, res, next) => {
       employee: employeeId,
       month: monthStart,
       baseSalary,
-      bonuses: totalSalesEarnings, // approved sales base + tier bonus
+      bonuses: totalBonuses, // approved sales base + tier bonus + manual bonuses
       deductions: totalDeductions,
       notes
     });
@@ -198,12 +215,13 @@ export const generateMonthlySalary = async (req, res, next) => {
           salesBase: totalSalesBase,
           salesTierBonus: totalTierBonus,
           totalSalesEarnings,
+          manualBonuses: manualBonus.total,
           approvedSalesCount: approvedSales.length,
           fines: totalFines,
           leaveDeduction,
           absentDays,
           totalDeductions,
-          netPay: baseSalary + totalSalesEarnings - totalDeductions
+          netPay: baseSalary + totalBonuses - totalDeductions
         }
       }
     });
@@ -343,6 +361,7 @@ export const updateSalary = async (req, res, next) => {
     }
 
     // Find and update salary
+    const before = await Salary.findById(id).lean();
     const salary = await Salary.findByIdAndUpdate(
       id,
       {
@@ -358,6 +377,11 @@ export const updateSalary = async (req, res, next) => {
         message: 'Salary record not found'
       });
     }
+
+    await logAudit(req, {
+      action: 'salary.update', entityType: 'salary', entityId: salary._id,
+      summary: `Edited salary record ${salary._id}`, meta: { before, changes: { bonuses, notes } }
+    });
 
     // Calculate and add net pay
     const netPay = (salary.baseSalary || 0) + (salary.bonuses || 0) - (salary.deductions || 0);
@@ -402,6 +426,11 @@ export const deleteSalary = async (req, res, next) => {
         message: 'Salary record not found'
       });
     }
+
+    await logAuditDelete(req, {
+      action: 'salary.delete', entityType: 'salary', entityId: salary._id,
+      summary: `Deleted salary record ${salary._id}`, snapshot: salary
+    });
 
     return res.status(200).json({
       success: true,

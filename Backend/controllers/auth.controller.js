@@ -3,6 +3,8 @@ import Employee from '../models/Employee.js';
 import { generateToken } from '../config/jwt.js';
 import { validateLogin, validateEmployeeRegister } from '../validations/auth.validation.js';
 import crypto from 'crypto'; // Node's built-in crypto
+import { linkUnderReviewSalesToEmployee } from '../utils/linkSales.js';
+import { logAudit } from '../utils/audit.js';
 
 const REGISTRATION_EMAIL_DOMAIN = 'nextelbpo.co';
 
@@ -100,9 +102,6 @@ const getPasswordForRole = (roleKey, firstName, providedPassword) => {
 
 
 const registerEmployee = async (req, res, next) => {
-  console.log("📥 Incoming request body:", req.body);
-  console.log("👤 Authenticated user:", req.user);
-
   try {
     // Verify employee-management role
     if (!['admin', 'superadmin', 'hr'].includes(req.user.role)) {
@@ -292,6 +291,9 @@ const registerEmployee = async (req, res, next) => {
           },
           { new: true }
         );
+        if (updatedEmployee.user) {
+          await User.findByIdAndUpdate(updatedEmployee.user, { $set: { isActive: true } });
+        }
         return res.status(200).json({
           success: true,
           message: 'Previously inactive employee reactivated',
@@ -376,6 +378,21 @@ const registerEmployee = async (req, res, next) => {
       user: existingUser._id
     });
 
+    await logAudit(req, {
+      action: 'employee.register',
+      entityType: 'employee',
+      entityId: newEmployee._id,
+      summary: `Registered ${firstName} ${lastName} (${employeeId}) as ${rolePreset.userRole}`
+    });
+
+    // Pick up sales that were submitted under this person's name before they were registered
+    try {
+      const linked = await linkUnderReviewSalesToEmployee(newEmployee);
+      if (linked > 0) console.log(`🔗 Linked ${linked} under-review sale(s) to new employee ${newEmployee.employeeId}`);
+    } catch (linkErr) {
+      console.error('Failed to link under-review sales:', linkErr.message);
+    }
+
     // Log success (don't log the password for security)
     console.log(`✅ Employee registered successfully - Name: ${firstName} ${lastName}, Email: ${email}, Username: ${existingUser.username}`);
 
@@ -390,10 +407,9 @@ const registerEmployee = async (req, res, next) => {
         username: existingUser.username,
         department,
         role: rolePreset.userRole,
-        password: req.body.password ? undefined : password,
         message: req.body.password
           ? 'Employee account created with admin-provided password'
-          : 'Employee account created with auto-generated password'
+          : 'Employee account created with the default password for this role'
       }
     });
 
@@ -427,13 +443,8 @@ const registerEmployee = async (req, res, next) => {
 // User login (works for both regular users and employees)
 const login = async (req, res, next) => {
   try {
-    console.log('=== LOGIN ENDPOINT ===');
-    console.log('Request body:', req.body);
-    console.log('Request headers:', { host: req.hostname, origin: req.get('origin') });
-
     const { error } = validateLogin(req.body);
     if (error) {
-      console.log('Validation error:', error.details[0].message);
       return res.status(400).json({ 
         success: false,
         message: error.details[0].message 
@@ -441,8 +452,6 @@ const login = async (req, res, next) => {
     }
 
     const { email, password } = req.body;
-
-    console.log(`🔍 Login attempt - Email: ${email}`);
 
     // Find user by email OR username (for flexibility)
     const user = await User.findOne({ 
@@ -453,30 +462,24 @@ const login = async (req, res, next) => {
     });
     
     if (!user) {
-      console.log(`❌ User not found for email: ${email}`);
       return res.status(401).json({ 
         success: false,
         message: 'Invalid credentials' 
       });
     }
 
-    console.log(`✅ User found: ${user.email}, Role: ${user.role}, Active: ${user.isActive}`);
-
-    // Check if account is active (only for employees)
-    if (user.role === 'employee' && !user.isActive) {
-      console.log(`❌ Account not active for: ${user.email}`);
+    // Disabled accounts (deactivated employees, HR, QA, admin) cannot log in
+    if (user.role !== 'superadmin' && !user.isActive) {
       return res.status(401).json({
         success: false,
-        message: 'Account not active. Please verify your email first.'
+        message: 'This account is deactivated. Please contact HR.'
       });
     }
 
     // Check password
     const isMatch = await user.comparePassword(password);
-    console.log(`🔑 Password match result: ${isMatch}`);
-    
+
     if (!isMatch) {
-      console.log(`❌ Password mismatch for: ${email}`);
       return res.status(401).json({ 
         success: false,
         message: 'Invalid credentials' 
@@ -576,16 +579,12 @@ const login = async (req, res, next) => {
       await user.save();
     }
 
-    console.log(`✅ User login successful: ${user.email}`);
-
     // Generate token
     const token = generateToken({ 
       userId: user._id, 
       role: user.role,
       ...(sessionId ? { sessionId } : {})
     });
-
-    console.log(`✅ Token generated for user: ${user._id}`);
 
     const responsePayload = {
       success: true,
@@ -600,8 +599,6 @@ const login = async (req, res, next) => {
       }
     };
 
-    console.log(`📤 Sending response:`, responsePayload);
-    
     res.json(responsePayload);
   } catch (err) {
     console.error('❌ Login error:', err);

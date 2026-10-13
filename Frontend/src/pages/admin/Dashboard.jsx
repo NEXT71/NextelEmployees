@@ -6,6 +6,7 @@ import AdminMessageCenter from '../../components/admin/AdminMessageCenter';
 import BulkFineModal from '../../components/admin/BulkFineModal';
 import GenerateSalaryModal from '../../components/admin/GenerateSalaryModal';
 import BonusModal from '../../components/admin/BonusModal';
+import BonusesTab from './components/BonusesTab';
 import SalesRecordingModal from '../../components/admin/SalesRecordingModal';
 import SalesAnalytics from '../../components/admin/SalesAnalytics';
 import PendingSalesReview from '../../components/admin/PendingSalesReview';
@@ -18,7 +19,7 @@ import {
   X, Edit, Trash2, AlertCircle, Paperclip,
   Filter, Search, DollarSign, Calendar,
   User as UserIcon, Home, Phone, Mail, MessageSquare,
-  RefreshCw, Download, UserCheck, TrendingUp
+  RefreshCw, Download, UserCheck, TrendingUp, Gift
 } from 'lucide-react';
 import { authAPI } from '../../utils/api';
 
@@ -369,9 +370,19 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteEmployee = async (employeeId) => {
+  // Soft removal: deactivates (or reactivates) the employee and their login; history is kept.
+  const handleToggleEmployeeActive = async (employee) => {
+    const deactivating = employee.status !== 'Inactive';
+    const name = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+    const message = deactivating
+      ? `Deactivate ${name}? They will be logged out and unable to sign in. Their records are kept.`
+      : `Reactivate ${name}? They will be able to sign in again.`;
+    if (!window.confirm(message)) return;
+
     try {
-      const response = await employeeAPI.deleteEmployee(employeeId);
+      const response = deactivating
+        ? await employeeAPI.deactivateEmployee(employee._id)
+        : await employeeAPI.activateEmployee(employee._id);
 
       if (response.success) {
         const employeesResponse = await employeeAPI.getAllEmployees();
@@ -379,7 +390,7 @@ const AdminDashboard = () => {
         refreshSummary(); // Refresh summary stats
       }
     } catch (err) {
-      setError(err.message || 'Failed to delete employee');
+      setError(err.message || `Failed to ${deactivating ? 'deactivate' : 'reactivate'} employee`);
     }
   };
 
@@ -704,6 +715,14 @@ const AdminDashboard = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('bonuses')}
+            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'bonuses' ? 'text-yellow-300 border-b-2 border-yellow-400' : 'text-blue-200/70 hover:text-yellow-300'}`}
+          >
+            <Gift className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>Bonuses</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('salaries')}
             className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'salaries' ? 'text-green-300 border-b-2 border-green-400' : 'text-blue-200/70 hover:text-green-300'}`}
           >
@@ -721,8 +740,8 @@ const AdminDashboard = () => {
 
         </div>
 
-        {/* Search and Filters - Responsive */}
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        {/* Search and Filters - Responsive (Bonuses tab has its own filters) */}
+        <div className={`flex flex-col sm:flex-row gap-3 sm:gap-4 ${activeTab === 'bonuses' ? 'hidden' : ''}`}>
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 sm:h-5 sm:w-5 text-blue-200/70" />
@@ -917,6 +936,8 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {activeTab === 'bonuses' && <BonusesTab />}
+
         {/* Employees Table */}
         {activeTab === 'employees' && (
           <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
@@ -1011,13 +1032,23 @@ const AdminDashboard = () => {
                               >
                                 <Paperclip className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => handleDeleteEmployee(employee._id)}
-                                className="p-2 text-red-300 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors"
-                                title="Delete Employee"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              {employee.status === 'Inactive' ? (
+                                <button
+                                  onClick={() => handleToggleEmployeeActive(employee)}
+                                  className="px-2 py-1 text-xs font-medium text-green-300 hover:text-white hover:bg-green-500/20 rounded-lg transition-colors"
+                                  title="Reactivate Employee"
+                                >
+                                  Reactivate
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleToggleEmployeeActive(employee)}
+                                  className="p-2 text-red-300 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors"
+                                  title="Deactivate Employee"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

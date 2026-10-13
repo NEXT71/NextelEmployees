@@ -4,6 +4,24 @@ import Salary from '../models/Salary.js';
 import Fine from '../models/Fine.js';
 import Attendance from '../models/Attendance.js';
 import { validateEmployee } from '../validations/employee.validation.js';
+import { logAudit, logAuditDelete } from '../utils/audit.js';
+
+const PRIVILEGED_ROLES = ['admin', 'superadmin', 'hr'];
+
+// Privileged roles may read any employee; everyone else only their own record.
+const canAccessEmployee = async (req, employeeId) => {
+  if (PRIVILEGED_ROLES.includes(req.user.role)) return true;
+  const userId = req.user.userId || req.user._id;
+  if (!userId || !employeeId) return false;
+  try {
+    return !!(await Employee.exists({ _id: employeeId, user: userId }));
+  } catch {
+    return false; // malformed id
+  }
+};
+
+const forbidden = (res) =>
+  res.status(403).json({ success: false, message: 'Forbidden - Insufficient permissions' });
 
 // Get all employees
 const getAllEmployees = async (req, res, next) => {
@@ -42,6 +60,8 @@ const getAllEmployees = async (req, res, next) => {
 // Get single employee with fines and salaries
 const getEmployee = async (req, res, next) => {
   try {
+    if (!(await canAccessEmployee(req, req.params.id))) return forbidden(res);
+
     const employee = await Employee.findById(req.params.id)
       .select('-__v')
       .populate('user', 'username email role')
@@ -164,6 +184,15 @@ const updateEmployee = async (req, res, next) => {
     .select('-__v')
     .populate('user', 'username email role');
 
+    // Keep the login in step with the employee's status
+    if (employee.user && req.body.status && req.body.status !== currentEmployee.status) {
+      if (req.body.status === 'Inactive') {
+        await disableUserAccount(employee.user._id);
+      } else {
+        await User.findByIdAndUpdate(employee.user._id, { $set: { isActive: true } });
+      }
+    }
+
     // Update the associated User model if it exists
     if (employee.user) {
       const userUpdateData = {};
@@ -213,7 +242,74 @@ const updateEmployee = async (req, res, next) => {
   }
 };
 
-// Delete employee
+// Disable the login behind an employee and kill any live session.
+const disableUserAccount = (userId) =>
+  User.findByIdAndUpdate(userId, {
+    $set: { isActive: false, isLoggedIn: false },
+    $unset: { activeSessionId: 1, activeDeviceId: 1, activeSessionExpiresAt: 1 }
+  });
+
+// Soft-remove: employee becomes Inactive, login is disabled, history is kept.
+const deactivateEmployee = async (req, res, next) => {
+  try {
+    const employee = await Employee.findById(req.params.id).populate('user', 'role');
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+
+    const targetRole = employee.user?.role;
+    if (employee.user && String(employee.user._id) === String(req.user.userId || req.user._id)) {
+      return res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
+    }
+    if (['admin', 'superadmin'].includes(targetRole) && req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Only a superadmin can deactivate an admin account' });
+    }
+    if (targetRole === 'superadmin') {
+      return res.status(403).json({ success: false, message: 'A superadmin account cannot be deactivated' });
+    }
+
+    employee.status = 'Inactive';
+    await employee.save();
+    if (employee.user) await disableUserAccount(employee.user._id);
+
+    await logAudit(req, {
+      action: 'employee.deactivate',
+      entityType: 'employee',
+      entityId: employee._id,
+      summary: `Deactivated ${employee.firstName} ${employee.lastName} (${employee.employeeId})`
+    });
+
+    res.json({ success: true, message: 'Employee deactivated; login disabled', data: employee });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const activateEmployee = async (req, res, next) => {
+  try {
+    const employee = await Employee.findById(req.params.id);
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+
+    employee.status = 'Active';
+    await employee.save();
+    if (employee.user) await User.findByIdAndUpdate(employee.user, { $set: { isActive: true } });
+
+    await logAudit(req, {
+      action: 'employee.activate',
+      entityType: 'employee',
+      entityId: employee._id,
+      summary: `Reactivated ${employee.firstName} ${employee.lastName} (${employee.employeeId})`
+    });
+
+    res.json({ success: true, message: 'Employee reactivated; login enabled', data: employee });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Permanently delete employee (superadmin only - see routes)
 const deleteEmployee = async (req, res, next) => {
   try {
     const employee = await Employee.findById(req.params.id);
@@ -224,6 +320,14 @@ const deleteEmployee = async (req, res, next) => {
         message: `Employee not found with id ${req.params.id}`
       });
     }
+
+    await logAuditDelete(req, {
+      action: 'employee.delete',
+      entityType: 'employee',
+      entityId: employee._id,
+      summary: `Permanently deleted ${employee.firstName} ${employee.lastName} (${employee.employeeId})`,
+      snapshot: employee
+    });
 
     // Find and delete associated user account by employeeId reference
     // This handles both directions of the relationship
@@ -268,6 +372,8 @@ const deleteEmployee = async (req, res, next) => {
 // Get employee fines
 const getEmployeeFines = async (req, res, next) => {
   try {
+    if (!(await canAccessEmployee(req, req.params.id))) return forbidden(res);
+
     const fines = await Fine.find({ employee: req.params.id })
       .sort('-date')
       .populate('approvedBy', 'username');
@@ -285,6 +391,8 @@ const getEmployeeFines = async (req, res, next) => {
 // Get employee salaries
 const getEmployeeSalaries = async (req, res, next) => {
   try {
+    if (!(await canAccessEmployee(req, req.params.id))) return forbidden(res);
+
     const salaries = await Salary.find({ employee: req.params.id })
       .sort('-month');
 
@@ -302,7 +410,12 @@ const getEmployeeSalaries = async (req, res, next) => {
 const getEmployeeByUserId = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
+    const ownUserId = req.user.userId || req.user._id;
+    if (!PRIVILEGED_ROLES.includes(req.user.role) && String(ownUserId) !== String(userId)) {
+      return forbidden(res);
+    }
+
     // Find employee by user reference (as created in registerEmployee)
     const employee = await Employee.findOne({ user: userId })
       .populate('user', 'username email role')
@@ -340,6 +453,8 @@ export {
   getEmployee,
   createEmployee,
   deleteEmployee,
+  deactivateEmployee,
+  activateEmployee,
   updateEmployee,
   getEmployeeFines,
   getEmployeeSalaries,

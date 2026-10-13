@@ -1,5 +1,6 @@
 import Fine from '../models/Fine.js';
 import Employee from '../models/Employee.js';
+import { logAudit, logAuditDelete } from '../utils/audit.js';
 
 const FINE_TYPES = [
   { name: 'Clothing', amount: 300 },
@@ -36,6 +37,11 @@ const applyFine = async (req, res, next) => {
       date: new Date(),
       approved: canApproveFine(req.user),
       approvedBy: canApproveFine(req.user) ? req.user._id : null
+    });
+
+    await logAudit(req, {
+      action: 'fine.apply', entityType: 'fine', entityId: fine._id,
+      summary: `Fined ${employee.firstName} ${employee.lastName}: ${type} (${fine.amount})`
     });
 
     res.status(201).json({
@@ -129,6 +135,8 @@ const approveFine = async (req, res, next) => {
       });
     }
 
+    await logAudit(req, { action: 'fine.approve', entityType: 'fine', entityId: fine._id, summary: `Approved fine ${fine._id}` });
+
     res.json({
       success: true,
       data: fine
@@ -148,6 +156,8 @@ const deleteFine = async (req, res, next) => {
         message: 'Fine not found'
       });
     }
+
+    await logAuditDelete(req, { action: 'fine.delete', entityType: 'fine', entityId: fine._id, summary: `Deleted fine ${fine._id}`, snapshot: fine });
 
     res.json({
       success: true,

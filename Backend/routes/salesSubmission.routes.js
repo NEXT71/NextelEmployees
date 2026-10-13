@@ -7,6 +7,8 @@ import {
   getSubmissionById,
   approveSubmission,
   disapproveSubmission,
+  assignAgent,
+  getAssignableAgents,
   bulkApproveSubmissions,
   bulkDisapproveSubmissions,
   getPendingCount,
@@ -31,8 +33,8 @@ router.get('/debug/health', (req, res) => {
   });
 });
 
-// DEBUG: Comprehensive diagnostic endpoint (no auth required - for debugging)
-router.get('/debug/status', async (req, res) => {
+// DEBUG: Comprehensive diagnostic endpoint (admin only - exposes customer data)
+router.get('/debug/status', auth, admin, async (req, res) => {
   try {
     const SalesTarget = (await import('../models/SalesTarget.js')).default;
     const db = SalesTarget.collection.conn.db;
@@ -87,8 +89,8 @@ router.get('/debug/status', async (req, res) => {
   }
 });
 
-// DEBUG: Show all sales records (no auth required - for debugging)
-router.get('/debug/all-records', async (req, res) => {
+// DEBUG: Show all sales records (admin only - exposes customer data)
+router.get('/debug/all-records', auth, admin, async (req, res) => {
   try {
     const SalesTarget = (await import('../models/SalesTarget.js')).default;
     const records = await SalesTarget.find()
@@ -140,6 +142,7 @@ router.get('/my/closes/stats', auth, getMyClosesStats);
 
 // Static routes BEFORE dynamic routes
 router.get('/pending/count', auth, qa, getPendingCount);
+router.get('/agents', auth, qa, getAssignableAgents);
 router.post('/bulk/approve', auth, qa, bulkApproveSubmissions);
 router.post('/bulk/disapprove', auth, qa, bulkDisapproveSubmissions);
 
@@ -151,6 +154,9 @@ router.get('/:id', auth, qa, getSubmissionById);
 
 // Single approval (qa + admin + superadmin)
 router.post('/:id/approve', auth, qa, approveSubmission);
+
+// Link an under-review sale to a registered employee (qa + admin + superadmin)
+router.post('/:id/assign-agent', auth, qa, assignAgent);
 
 // Single disapproval (qa + admin + superadmin)
 router.post('/:id/disapprove', auth, qa, disapproveSubmission);

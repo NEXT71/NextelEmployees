@@ -5,7 +5,10 @@ import Salary from '../models/Salary.js';
 import Fine from '../models/Fine.js';
 import Attendance from '../models/Attendance.js';
 import Message from '../models/Message.js';
+import AuditLog from '../models/AuditLog.js';
+import { logAudit, logAuditDelete } from '../utils/audit.js';
 import { getSalesShiftDate, getSalesShiftRange } from '../utils/salesShift.js';
+import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcDailyEarning, getDailyTier } from '../utils/payRules.js';
 
 const recalculateSaleBonuses = async (agentId, saleDate) => {
   if (!agentId || !saleDate) return;
@@ -23,22 +26,7 @@ const recalculateSaleBonuses = async (agentId, saleDate) => {
     }
   });
 
-  let achievedTier = 0;
-  let tierBonus = 0;
-
-  if (dailySalesCount >= 12) {
-    achievedTier = 4;
-    tierBonus = 5000;
-  } else if (dailySalesCount >= 8) {
-    achievedTier = 3;
-    tierBonus = 3000;
-  } else if (dailySalesCount >= 5) {
-    achievedTier = 2;
-    tierBonus = 1000;
-  } else if (dailySalesCount >= 3) {
-    achievedTier = 1;
-    tierBonus = 500;
-  }
+  const { tier: achievedTier, bonus: tierBonus } = getDailyTier(dailySalesCount);
 
   await SalesTarget.updateMany(
     {
@@ -52,7 +40,7 @@ const recalculateSaleBonuses = async (agentId, saleDate) => {
     {
       achievedTier,
       tierBonus,
-      totalEarning: Math.round((dailySalesCount * 1000) + tierBonus)
+      totalEarning: Math.round(calcDailyEarning(dailySalesCount))
     }
   );
 };
@@ -88,6 +76,21 @@ export const toggleUserActive = async (req, res, next) => {
 
     user.isActive = !user.isActive;
     await user.save();
+
+    // Deactivating must end any live session immediately
+    if (!user.isActive) {
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { isLoggedIn: false }, $unset: { activeSessionId: 1, activeDeviceId: 1, activeSessionExpiresAt: 1 } }
+      );
+    }
+
+    await logAudit(req, {
+      action: user.isActive ? 'user.activate' : 'user.deactivate',
+      entityType: 'user',
+      entityId: user._id,
+      summary: `${user.isActive ? 'Activated' : 'Deactivated'} user ${user.username} (${user.role})`
+    });
 
     res.json({
       success: true,
@@ -146,7 +149,7 @@ export const getEmployeeFullHistory = async (req, res, next) => {
       salesByMonth[key].sales.push(sale);
       if (sale.status === 'approved') {
         salesByMonth[key].approved++;
-        salesByMonth[key].earnings += sale.pricePerSale || 1000;
+        salesByMonth[key].earnings += sale.pricePerSale || BASE_PER_SALE;
       } else if (sale.status === 'pending') {
         salesByMonth[key].pending++;
       } else if (sale.status === 'disapproved') {
@@ -165,10 +168,7 @@ export const getEmployeeFullHistory = async (req, res, next) => {
       });
       let tierBonus = 0;
       Object.values(byDay).forEach(count => {
-        if (count >= 12) tierBonus += 5000;
-        else if (count >= 8) tierBonus += 3000;
-        else if (count >= 5) tierBonus += 1000;
-        else if (count >= 3) tierBonus += 500;
+        tierBonus += calcTierBonus(count);
       });
       monthData.tierBonus = tierBonus;
       monthData.totalEarnings = monthData.earnings + tierBonus;
@@ -232,6 +232,7 @@ export const updateSale = async (req, res, next) => {
     const previousAgent = sale.agent;
     const previousSaleDate = sale.saleDate;
     const previousStatus = sale.status;
+    const before = sale.toObject();
 
     const {
       agent,
@@ -279,6 +280,14 @@ export const updateSale = async (req, res, next) => {
     }
 
     await sale.save();
+
+    await logAudit(req, {
+      action: 'sale.update',
+      entityType: 'sale',
+      entityId: sale._id,
+      summary: `Edited sale ${sale._id} (${previousStatus} -> ${sale.status})`,
+      meta: { before, changes: req.body }
+    });
 
     const nextAgent = sale.agent;
     const nextSaleDate = sale.saleDate;
@@ -346,6 +355,7 @@ export const updateSalary = async (req, res, next) => {
     const { id } = req.params;
     const { month, baseSalary, bonuses, deductions, notes } = req.body;
 
+    const before = await Salary.findById(id).lean();
     const salary = await Salary.findByIdAndUpdate(
       id,
       {
@@ -361,6 +371,11 @@ export const updateSalary = async (req, res, next) => {
     if (!salary) {
       return res.status(404).json({ success: false, message: 'Salary record not found' });
     }
+
+    await logAudit(req, {
+      action: 'salary.update', entityType: 'salary', entityId: salary._id,
+      summary: `Edited salary record ${salary._id}`, meta: { before, changes: req.body }
+    });
 
     res.json({
       success: true,
@@ -455,7 +470,7 @@ export const getCloserLeaderboard = async (req, res, next) => {
         $group: {
           _id: '$closerRef',
           approvedCloses: { $sum: 1 },
-          totalEarnings: { $sum: 100 }, // 100 RS per close
+          totalEarnings: { $sum: CLOSER_RATE_PER_CLOSE },
           lastCloseDate: { $max: '$saleDate' }
         }
       },
@@ -475,7 +490,7 @@ export const getCloserLeaderboard = async (req, res, next) => {
         : 'Unknown',
       employeeId: row._id?.employeeId || '—',
       approvedCloses: row.approvedCloses,
-      totalEarnings: row.approvedCloses * 100,
+      totalEarnings: row.approvedCloses * CLOSER_RATE_PER_CLOSE,
       lastCloseDate: row.lastCloseDate
     }));
 
@@ -493,6 +508,10 @@ export const deleteSale = async (req, res, next) => {
     if (!sale) {
       return res.status(404).json({ success: false, message: 'Sale not found' });
     }
+    await logAuditDelete(req, {
+      action: 'sale.delete', entityType: 'sale', entityId: sale._id,
+      summary: `Deleted sale ${sale._id} (${sale.agentName}, ${sale.status})`, snapshot: sale
+    });
     res.json({ success: true, message: 'Sale deleted successfully' });
   } catch (err) {
     next(err);
@@ -507,6 +526,10 @@ export const deleteSalary = async (req, res, next) => {
     if (!salary) {
       return res.status(404).json({ success: false, message: 'Salary record not found' });
     }
+    await logAuditDelete(req, {
+      action: 'salary.delete', entityType: 'salary', entityId: salary._id,
+      summary: `Deleted salary record ${salary._id}`, snapshot: salary
+    });
     res.json({ success: true, message: 'Salary record deleted successfully' });
   } catch (err) {
     next(err);
@@ -521,10 +544,23 @@ export const deleteEmployee = async (req, res, next) => {
     if (!employee) {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
+    const [salaries, sales, fines, attendance] = await Promise.all([
+      Salary.find({ employee: id }).lean(),
+      SalesTarget.find({ agent: id }).lean(),
+      Fine.find({ employee: id }).lean(),
+      Attendance.find({ employee: id }).lean()
+    ]);
+    await logAuditDelete(req, {
+      action: 'employee.delete', entityType: 'employee', entityId: employee._id,
+      summary: `Permanently deleted ${employee.firstName} ${employee.lastName} (${employee.employeeId}) with ${salaries.length} salaries, ${sales.length} sales, ${fines.length} fines, ${attendance.length} attendance records`,
+      snapshot: employee,
+      meta: { salaries, sales, fines, attendance }
+    });
     await Promise.all([
       Salary.deleteMany({ employee: id }),
       SalesTarget.deleteMany({ agent: id }),
       Fine.deleteMany({ employee: id }),
+      Attendance.deleteMany({ employee: id }),
       employee.user ? User.findByIdAndDelete(employee.user) : Promise.resolve(),
     ]);
     await Employee.findByIdAndDelete(id);
@@ -539,13 +575,20 @@ export const bulkDeleteSales = async (req, res, next) => {
   try {
     const { ids, all } = req.body;
     let result;
+    let filter;
     if (all === true) {
-      result = await SalesTarget.deleteMany({});
+      filter = {};
     } else if (Array.isArray(ids) && ids.length > 0) {
-      result = await SalesTarget.deleteMany({ _id: { $in: ids } });
+      filter = { _id: { $in: ids } };
     } else {
       return res.status(400).json({ success: false, message: 'Provide ids array or all: true' });
     }
+    const snapshot = await SalesTarget.find(filter).lean();
+    await logAuditDelete(req, {
+      action: 'sale.bulkDelete', entityType: 'sale', entityId: '',
+      summary: `Bulk deleted ${snapshot.length} sale(s)${all === true ? ' (ALL)' : ''}`, snapshot
+    });
+    result = await SalesTarget.deleteMany(filter);
     res.json({ success: true, message: `${result.deletedCount} sale(s) deleted` });
   } catch (err) {
     next(err);
@@ -557,13 +600,20 @@ export const bulkDeleteSalaries = async (req, res, next) => {
   try {
     const { ids, all } = req.body;
     let result;
+    let filter;
     if (all === true) {
-      result = await Salary.deleteMany({});
+      filter = {};
     } else if (Array.isArray(ids) && ids.length > 0) {
-      result = await Salary.deleteMany({ _id: { $in: ids } });
+      filter = { _id: { $in: ids } };
     } else {
       return res.status(400).json({ success: false, message: 'Provide ids array or all: true' });
     }
+    const snapshot = await Salary.find(filter).lean();
+    await logAuditDelete(req, {
+      action: 'salary.bulkDelete', entityType: 'salary', entityId: '',
+      summary: `Bulk deleted ${snapshot.length} salary record(s)${all === true ? ' (ALL)' : ''}`, snapshot
+    });
+    result = await Salary.deleteMany(filter);
     res.json({ success: true, message: `${result.deletedCount} salary record(s) deleted` });
   } catch (err) {
     next(err);
@@ -584,12 +634,26 @@ export const bulkDeleteEmployees = async (req, res, next) => {
     }
     const empIds = employeesToDelete.map(e => e._id);
     const userIds = employeesToDelete.map(e => e.user).filter(Boolean);
+    const [empDocs, salaries, sales, fines, attendance] = await Promise.all([
+      Employee.find({ _id: { $in: empIds } }).lean(),
+      Salary.find({ employee: { $in: empIds } }).lean(),
+      SalesTarget.find({ agent: { $in: empIds } }).lean(),
+      Fine.find({ employee: { $in: empIds } }).lean(),
+      Attendance.find({ employee: { $in: empIds } }).lean()
+    ]);
+    await logAuditDelete(req, {
+      action: 'employee.bulkDelete', entityType: 'employee', entityId: '',
+      summary: `Bulk deleted ${empIds.length} employee(s)${all === true ? ' (ALL)' : ''} with ${salaries.length} salaries, ${sales.length} sales, ${fines.length} fines, ${attendance.length} attendance records`,
+      snapshot: empDocs,
+      meta: { salaries, sales, fines, attendance }
+    });
     await Promise.all([
       Employee.deleteMany({ _id: { $in: empIds } }),
       User.deleteMany({ _id: { $in: userIds } }),
       Salary.deleteMany({ employee: { $in: empIds } }),
       SalesTarget.deleteMany({ agent: { $in: empIds } }),
       Fine.deleteMany({ employee: { $in: empIds } }),
+      Attendance.deleteMany({ employee: { $in: empIds } }),
     ]);
     res.json({ success: true, message: `${empIds.length} employee(s) and all associated records deleted` });
   } catch (err) {
@@ -671,6 +735,7 @@ export const approveFine = async (req, res, next) => {
       { new: true }
     ).populate('employee', 'firstName lastName employeeId');
     if (!fine) return res.status(404).json({ success: false, message: 'Fine not found' });
+    await logAudit(req, { action: 'fine.approve', entityType: 'fine', entityId: fine._id, summary: `Approved fine ${fine._id}` });
     res.json({ success: true, data: fine });
   } catch (err) {
     next(err);
@@ -681,6 +746,7 @@ export const deleteFine = async (req, res, next) => {
   try {
     const fine = await Fine.findByIdAndDelete(req.params.id);
     if (!fine) return res.status(404).json({ success: false, message: 'Fine not found' });
+    await logAuditDelete(req, { action: 'fine.delete', entityType: 'fine', entityId: fine._id, summary: `Deleted fine ${fine._id}`, snapshot: fine });
     res.json({ success: true, message: 'Fine deleted' });
   } catch (err) {
     next(err);
@@ -720,6 +786,51 @@ export const updateAttendance = async (req, res, next) => {
     ).populate('employee', 'firstName lastName employeeId');
     if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
     res.json({ success: true, data: record });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Audit log ───────────────────────────────────────────────────────────────
+export const getAuditLogs = async (req, res, next) => {
+  try {
+    const { action, entityType, entityId, actor, page = 1, limit = 50 } = req.query;
+    const filter = {};
+    if (action) filter.action = action;
+    if (entityType) filter.entityType = entityType;
+    if (entityId) filter.entityId = String(entityId);
+    if (actor) filter.actor = actor;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
+
+    // Snapshots can be large; omit them from the list view
+    const [logs, total] = await Promise.all([
+      AuditLog.find(filter)
+        .select('-meta.snapshot')
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .lean(),
+      AuditLog.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      data: logs,
+      pagination: { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// One entry including its snapshot (for recovering deleted data)
+export const getAuditLogById = async (req, res, next) => {
+  try {
+    const log = await AuditLog.findById(req.params.id).lean();
+    if (!log) return res.status(404).json({ success: false, message: 'Audit entry not found' });
+    res.json({ success: true, data: log });
   } catch (err) {
     next(err);
   }

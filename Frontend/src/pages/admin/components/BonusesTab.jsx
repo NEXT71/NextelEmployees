@@ -161,6 +161,8 @@ const BonusesTab = memo(({ onRefresh }) => {
   const [monthFilter, setMonthFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  // 'active' (default, includes On Leave) | 'inactive' | 'all'
+  const [statusFilter, setStatusFilter] = useState('active');
 
   useEffect(() => {
     const load = async () => {
@@ -188,10 +190,19 @@ const BonusesTab = memo(({ onRefresh }) => {
     [employees]
   );
 
+  // Records for an employee missing from the list are treated as active
+  const matchesStatus = useCallback((employeeId) => {
+    if (statusFilter === 'all') return true;
+    const emp = employees.find((e) => e._id === employeeId);
+    const isInactive = String(emp?.status || '').toLowerCase() === 'inactive';
+    return statusFilter === 'inactive' ? isInactive : !isInactive;
+  }, [employees, statusFilter]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return bonuses.filter((b) => {
       if (!b.employee) return false;
+      if (!matchesStatus(b.employee._id)) return false;
       if (employeeFilter && b.employee._id !== employeeFilter) return false;
       if (typeFilter && b.type !== typeFilter) return false;
       if (monthFilter && new Date(b.date).toISOString().slice(0, 7) !== monthFilter) return false;
@@ -203,7 +214,7 @@ const BonusesTab = memo(({ onRefresh }) => {
         (b.description || '').toLowerCase().includes(q)
       );
     });
-  }, [bonuses, search, monthFilter, employeeFilter, typeFilter]);
+  }, [bonuses, search, monthFilter, employeeFilter, typeFilter, matchesStatus]);
 
   const grouped = useMemo(() => {
     return filtered.reduce((groups, bonus) => {
@@ -220,6 +231,7 @@ const BonusesTab = memo(({ onRefresh }) => {
     setMonthFilter('');
     setEmployeeFilter('');
     setTypeFilter('');
+    setStatusFilter('active');
   }, []);
 
   const handleCreated = useCallback((bonus) => {
@@ -295,9 +307,14 @@ const BonusesTab = memo(({ onRefresh }) => {
           />
         </div>
         <input type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className={controlClass} />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={controlClass}>
+          <option value="active">Active employees</option>
+          <option value="inactive">Inactive employees</option>
+          <option value="all">All employees</option>
+        </select>
         <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className={controlClass}>
           <option value="">All Employees</option>
-          {employees.map((emp) => (
+          {employees.filter((emp) => matchesStatus(emp._id)).map((emp) => (
             <option key={emp._id} value={emp._id}>{emp.firstName} {emp.lastName}</option>
           ))}
         </select>

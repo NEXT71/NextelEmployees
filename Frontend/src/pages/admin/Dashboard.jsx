@@ -56,6 +56,8 @@ const AdminDashboard = () => {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
+  // 'active' (default, includes On Leave) | 'inactive' | 'all'
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState('active');
   const [fineFilter, setFineFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -541,6 +543,26 @@ const AdminDashboard = () => {
     setAppliedEmployeeFilter('');
     setAppliedFineFilter('');
   };
+  // Employee status lookup, shared by the Employees, Fines and Salaries tabs.
+  // Records for an employee missing from the list are treated as active.
+  const employeeStatusById = useMemo(() => {
+    const map = {};
+    employees.forEach(e => { map[e._id] = String(e.status || '').toLowerCase(); });
+    return map;
+  }, [employees]);
+
+  const matchesEmployeeStatus = useCallback((employeeId) => {
+    if (employeeStatusFilter === 'all') return true;
+    const isInactive = employeeStatusById[employeeId] === 'inactive';
+    return employeeStatusFilter === 'inactive' ? isInactive : !isInactive;
+  }, [employeeStatusFilter, employeeStatusById]);
+
+  // Employees offered in pickers (bulk fine, generate salary): never inactive ones
+  const activeEmployees = useMemo(
+    () => employees.filter(e => String(e.status || '').toLowerCase() !== 'inactive'),
+    [employees]
+  );
+
   // Memoized filter operations for employees
   const filteredEmployees = useMemo(() => {
     return employees.filter(employee => {
@@ -550,10 +572,10 @@ const AdminDashboard = () => {
         employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesDepartment = departmentFilter ? employee.department === departmentFilter : true;
-      
-      return matchesSearch && matchesDepartment;
+
+      return matchesSearch && matchesDepartment && matchesEmployeeStatus(employee._id);
     });
-  }, [employees, searchTerm, departmentFilter]);
+  }, [employees, searchTerm, departmentFilter, matchesEmployeeStatus]);
 
   // Memoized filter operations for fines
   const filteredFines = useMemo(() => {
@@ -562,7 +584,8 @@ const AdminDashboard = () => {
       
       const employee = employees.find(e => e._id === fine.employee._id);
       if (!employee) return false;
-      
+      if (!matchesEmployeeStatus(employee._id)) return false;
+
       const matchesEmployee = appliedEmployeeFilter ? fine.employee._id === appliedEmployeeFilter : true;
       const matchesType = appliedFineFilter ? fine.type === appliedFineFilter : true;
       
@@ -584,7 +607,7 @@ const AdminDashboard = () => {
       
       return matchesEmployee && matchesType && matchesMonth && matchesDate && matchesSearch;
     });
-  }, [fines, employees, appliedEmployeeFilter, appliedFineFilter, appliedMonthFilter, appliedDateFilter, appliedSearchTerm]);
+  }, [fines, employees, matchesEmployeeStatus, appliedEmployeeFilter, appliedFineFilter, appliedMonthFilter, appliedDateFilter, appliedSearchTerm]);
 
   // Group fines by employee for the grouped display (memoized)
   const groupedFines = useMemo(() => {
@@ -602,15 +625,16 @@ const AdminDashboard = () => {
   const filteredSalaries = useMemo(() => {
     return salaries.filter(salary => {
       if (!salary.employee) return false;
-      
-      const matchesSearch = salarySearchTerm ? 
+      if (!matchesEmployeeStatus(salary.employee._id)) return false;
+
+      const matchesSearch = salarySearchTerm ?
         `${salary.employee.firstName} ${salary.employee.lastName}`.toLowerCase().includes(salarySearchTerm.toLowerCase()) ||
         salary.employee.employeeId?.toLowerCase().includes(salarySearchTerm.toLowerCase()) ||
         salary.employee.email?.toLowerCase().includes(salarySearchTerm.toLowerCase()) : true;
       
       return matchesSearch;
     });
-  }, [salaries, salarySearchTerm]);
+  }, [salaries, salarySearchTerm, matchesEmployeeStatus]);
 
   if (loading) {
     return (
@@ -755,7 +779,24 @@ const AdminDashboard = () => {
             />
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {/* Shared by Employees, Fines and Salaries: active employees by default */}
+            {['employees', 'fines', 'salaries'].includes(activeTab) && (
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <UserCheck className="h-5 w-5 text-blue-200/70" />
+                </div>
+                <select
+                  value={employeeStatusFilter}
+                  onChange={(e) => setEmployeeStatusFilter(e.target.value)}
+                  className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                >
+                  <option value="active">Active employees</option>
+                  <option value="inactive">Inactive employees</option>
+                  <option value="all">All employees</option>
+                </select>
+              </div>
+            )}
             {activeTab === 'employees' ? (
               <>
                 <div className="relative">
@@ -808,7 +849,7 @@ const AdminDashboard = () => {
                     className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
                   >
                     <option value="">All Employees</option>
-                    {employees.map(employee => (
+                    {employees.filter(employee => matchesEmployeeStatus(employee._id)).map(employee => (
                       <option key={employee._id} value={employee._id}>
                         {employee.firstName} {employee.lastName} ({employee.employeeId})
                       </option>
@@ -998,12 +1039,14 @@ const AdminDashboard = () => {
                           <td className="px-6 py-4">
                             <span className={`
                               inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm
-                              ${employee.status === 'active' || !employee.status
-                                ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
-                                : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                              ${String(employee.status || 'active').toLowerCase() === 'active'
+                                ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                                : String(employee.status).toLowerCase() === 'on leave'
+                                  ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                                  : 'bg-red-500/20 text-red-300 border border-red-500/30'
                               }
                             `}>
-                              {employee.status || 'active'}
+                              {employee.status || 'Active'}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-sm text-blue-100 font-mono">
@@ -1056,7 +1099,9 @@ const AdminDashboard = () => {
                     ) : (
                       <tr>
                         <td colSpan="6" className="px-6 py-4 text-center text-blue-200/70">
-                          No employees found matching your criteria
+                          {employeeStatusFilter === 'active' && employees.some(e => String(e.status || '').toLowerCase() === 'inactive')
+                            ? 'No active employees match your criteria. Switch the status filter to see inactive employees.'
+                            : 'No employees found matching your criteria'}
                         </td>
                       </tr>
                     )}
@@ -1818,7 +1863,7 @@ const AdminDashboard = () => {
       <BulkFineModal
         isOpen={showBulkFineModal}
         onClose={() => setShowBulkFineModal(false)}
-        employees={employees}
+        employees={activeEmployees}
         onApply={handleBulkFine}
       />
 
@@ -1874,7 +1919,7 @@ const AdminDashboard = () => {
           };
           fetchData();
         }}
-        employees={employees}
+        employees={activeEmployees}
       />
 
       {/* Bonus Modal */}

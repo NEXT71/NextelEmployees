@@ -7,7 +7,8 @@ const EmployeeList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  // 'active' (default, includes On Leave) | 'inactive' | 'all'
+  const [filterStatus, setFilterStatus] = useState('active');
   const [showActions, setShowActions] = useState(null);
 
   const fetchEmployees = useCallback(async () => {
@@ -37,7 +38,10 @@ const EmployeeList = () => {
         emp.employeeId?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesDepartment = !filterDepartment || emp.department === filterDepartment;
-      const matchesStatus = !filterStatus || emp.status === filterStatus;
+      const isInactive = String(emp.status || '').toLowerCase() === 'inactive';
+      const matchesStatus =
+        filterStatus === 'all' ||
+        (filterStatus === 'inactive' ? isInactive : !isInactive);
       
       return matchesSearch && matchesDepartment && matchesStatus;
     });
@@ -117,9 +121,9 @@ const EmployeeList = () => {
               onChange={(e) => setFilterStatus(e.target.value)}
               className="w-full bg-blue-900/50 border border-blue-600/50 rounded-lg pl-10 pr-4 py-3 text-blue-100 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors appearance-none"
             >
-              <option value="">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value="active">Active employees</option>
+              <option value="inactive">Inactive employees</option>
+              <option value="all">All employees</option>
             </select>
           </div>
         </div>
@@ -131,7 +135,11 @@ const EmployeeList = () => {
           <div className="flex flex-col items-center justify-center h-64 text-slate-400">
             <Users className="w-12 h-12 mb-4 opacity-50" />
             <p className="text-lg">No employees found</p>
-            <p className="text-sm">Try adjusting your search or filters</p>
+            <p className="text-sm">
+              {filterStatus === 'active'
+                ? 'Showing active employees only. Change the status filter to see inactive ones.'
+                : 'Try adjusting your search or filters'}
+            </p>
           </div>
         ) : (
           <table className="w-full">
@@ -178,9 +186,11 @@ const EmployeeList = () => {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                      employee.status === 'Active' 
-                        ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      employee.status === 'Active'
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : employee.status === 'On Leave'
+                          ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
                     }`}>
                       {employee.status === 'Active' ? (
                         <UserCheck className="w-3 h-3 mr-1" />

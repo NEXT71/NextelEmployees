@@ -2,11 +2,12 @@ import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
+import { AccountsPanel, AuditPanel, SettingsPanel } from './SecurityPanels';
 import {
   Users, Shield, TrendingUp, DollarSign, Clock, CheckCircle,
   LogOut, RefreshCw,
   User as UserIcon, BarChart2, FileText, Award, X, Edit,
-  AlertTriangle, ToggleLeft, ToggleRight, Eye, Trash2
+  AlertTriangle, ToggleLeft, ToggleRight, Eye, Trash2, KeyRound, Settings, History
 } from 'lucide-react';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -536,6 +537,9 @@ const TABS = [
   { key: 'fines',      label: 'Fines',      icon: AlertTriangle },
   { key: 'attendance', label: 'Attendance', icon: Clock },
   { key: 'messages',   label: 'Messages',   icon: FileText },
+  { key: 'accounts',   label: 'Accounts',   icon: KeyRound },
+  { key: 'audit',      label: 'Audit Log',  icon: History },
+  { key: 'settings',   label: 'Settings',   icon: Settings },
 ];
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
@@ -928,6 +932,10 @@ const SuperAdminDashboard = () => {
             </div>
           </div>
         )}
+
+        {activeTab === 'accounts' && <AccountsPanel />}
+        {activeTab === 'audit' && <AuditPanel />}
+        {activeTab === 'settings' && <SettingsPanel />}
 
         {/* ── Users ── */}
         {!loading && activeTab === 'users' && (

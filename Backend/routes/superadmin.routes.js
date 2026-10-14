@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import auth from '../middlewares/auth.js';
 import superadmin from '../middlewares/superadmin.js';
 import {
@@ -30,6 +30,18 @@ import {
   getAuditLogs,
   getAuditLogById,
 } from '../controllers/superadmin.controller.js';
+import {
+  createUserAccount,
+  changeUserRole,
+  resetUserPassword,
+  getUserSessions,
+  forceLogoutUser,
+  unbindUserDevice,
+  previewRestore,
+  restoreFromAudit,
+  getSettings,
+  updateFineAmounts,
+} from '../controllers/superadminAccounts.controller.js';
 
 const router = express.Router();
 
@@ -38,6 +50,12 @@ router.use(auth, superadmin);
 
 router.get('/stats',            getSuperAdminStats);
 router.get('/users',            getAllUsers);
+router.get('/users/sessions', getUserSessions);
+router.post('/users', createUserAccount);
+router.patch('/users/:id/role', changeUserRole);
+router.post('/users/:id/reset-password', resetUserPassword);
+router.post('/users/:id/force-logout', forceLogoutUser);
+router.post('/users/:id/unbind-device', unbindUserDevice);
 router.patch('/users/:id/toggle-active', toggleUserActive);
 router.get('/employees',        getAllEmployees);
 router.get('/employees/:id/full-history', getEmployeeFullHistory);
@@ -70,6 +88,12 @@ router.patch('/attendance/:id',   updateAttendance);
 // Audit log
 router.get('/audit-logs',         getAuditLogs);
 router.get('/audit-logs/:id',     getAuditLogById);
+router.get('/audit-logs/:id/restore-preview', previewRestore);
+router.post('/audit-logs/:id/restore', restoreFromAudit);
+
+// Settings
+router.get('/settings', getSettings);
+router.put('/settings/fine-amounts', updateFineAmounts);
 
 // Messages
 router.get('/messages',           getAllMessages);
@@ -77,3 +101,4 @@ router.patch('/messages/:id/respond', respondToMessage);
 router.patch('/messages/:id/resolve', resolveMessage);
 
 export default router;
+

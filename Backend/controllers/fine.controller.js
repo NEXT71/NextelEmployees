@@ -1,19 +1,7 @@
 import Fine from '../models/Fine.js';
 import Employee from '../models/Employee.js';
 import { logAudit, logAuditDelete } from '../utils/audit.js';
-
-const FINE_TYPES = [
-  { name: 'Clothing', amount: 300 },
-  { name: 'Late', amount: 300 },
-  { name: 'Absent', amount: 500 },
-  { name: 'Performance', amount: 500 },
-  { name: 'Late After Break', amount: 300 },
-  { name: 'MisBehave', amount: 1000 },
-  { name: 'Vape-Pod', amount: 300 },
-  { name: 'Saturday Off', amount: 500 },
-  { name: 'Mobile Usage/Wifi', amount: 300 },
-  { name: 'Sleeping', amount: 300 }
-];
+import { getFineAmounts } from '../utils/settings.js';
 
 const canApproveFine = (user) => ['admin', 'superadmin', 'hr'].includes(user?.role);
 
@@ -29,10 +17,11 @@ const applyFine = async (req, res, next) => {
       });
     }
 
+    const fineAmounts = await getFineAmounts();
     const fine = await Fine.create({
       employee: employeeId,
       type,
-      amount: amount || FINE_TYPES.find(t => t.name === type)?.amount || 0,
+      amount: amount || fineAmounts[type] || 0,
       description,
       date: new Date(),
       approved: canApproveFine(req.user),
@@ -84,7 +73,7 @@ const applyBulkFine = async (req, res, next) => {
     }
 
     // Calculate fine amount
-    const fineAmount = amount || FINE_TYPES.find(t => t.name === type)?.amount || 0;
+    const fineAmount = amount || (await getFineAmounts())[type] || 0;
     const fineDate = date ? new Date(date) : new Date();
 
     // Create fines for all employees

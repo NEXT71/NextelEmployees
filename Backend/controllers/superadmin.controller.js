@@ -7,8 +7,9 @@ import Attendance from '../models/Attendance.js';
 import Message from '../models/Message.js';
 import AuditLog from '../models/AuditLog.js';
 import { logAudit, logAuditDelete } from '../utils/audit.js';
-import { getSalesShiftDate, getSalesShiftRange } from '../utils/salesShift.js';
-import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcDailyEarning, getDailyTier } from '../utils/payRules.js';
+import { getSalesShiftDate, getSalesShiftRange, getSalesWeekStart } from '../utils/salesShift.js';
+import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcDailyEarning, getDailyTier } from '../utils/payRules.js';
+import { hasCplDid } from '../utils/didCategories.js';
 
 const recalculateSaleBonuses = async (agentId, saleDate) => {
   if (!agentId || !saleDate) return;
@@ -157,7 +158,33 @@ export const getEmployeeFullHistory = async (req, res, next) => {
       }
     });
 
-    // Add daily tier bonus to each month's earnings
+    const salesByWeek = {};
+    salesRecords.filter((sale) => sale.status === 'approved').forEach((sale) => {
+      if (!hasCplDid(sale.dids)) return;
+      const shiftDate = getSalesShiftDate(sale.createdAt || sale.saleDate);
+      const weekStart = shiftDate && getSalesWeekStart(shiftDate);
+      if (!weekStart) return;
+      salesByWeek[weekStart] = (salesByWeek[weekStart] || 0) + 1;
+    });
+
+    Object.entries(salesByWeek).forEach(([weekStart, count]) => {
+      const weeklyBonus = calcWeeklyBonus(count);
+      if (!weeklyBonus) return;
+      const monthKey = weekStart.slice(0, 7);
+      if (!salesByMonth[monthKey]) {
+        salesByMonth[monthKey] = {
+          month: monthKey,
+          approved: 0,
+          pending: 0,
+          disapproved: 0,
+          earnings: 0,
+          sales: []
+        };
+      }
+      salesByMonth[monthKey].weeklyBonus = (salesByMonth[monthKey].weeklyBonus || 0) + weeklyBonus;
+    });
+
+    // Add daily tier and weekly sales bonuses to each month's earnings
     Object.values(salesByMonth).forEach(monthData => {
       const approvedSales = monthData.sales.filter(s => s.status === 'approved');
       const byDay = {};
@@ -171,7 +198,8 @@ export const getEmployeeFullHistory = async (req, res, next) => {
         tierBonus += calcTierBonus(count);
       });
       monthData.tierBonus = tierBonus;
-      monthData.totalEarnings = monthData.earnings + tierBonus;
+      monthData.weeklyBonus = monthData.weeklyBonus || 0;
+      monthData.totalEarnings = monthData.earnings + tierBonus + monthData.weeklyBonus;
     });
 
     res.json({

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
 import { subscribeSocket } from '../../utils/socket';
 import { formatSalesShiftDate, getSalesShiftDate } from '../../utils/salesShift';
+import { getDidCategories } from '../../utils/didCategories';
 import {
   CheckCircle, XCircle, Clock, RefreshCw, LogOut, AlertCircle,
   ChevronDown, ChevronUp, ClipboardList, Search, Download, Link2
@@ -373,10 +374,10 @@ const QADashboard = () => {
 
   const getPackageValue = (sub) => {
     const candidate = (sub.package || sub.packageType || sub.product || '').toString().trim();
-    if (candidate) return candidate;
+    const category = getDidCategories(sub.dids);
+    if (candidate) return category ? `${candidate} (${category})` : candidate;
     if (sub.dids) {
-      const found = ['D4', 'D36', 'D38'].find((code) => sub.dids.includes(code));
-      return found || sub.dids;
+      return category || sub.dids;
     }
     return '';
   };

@@ -1,7 +1,9 @@
 import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
 import { normalizeName } from '../utils/employeeMatch.js';
-import { getSalesShiftMonthRange, getSalesShiftRange } from '../utils/salesShift.js';
+import { getSalesShiftDate, getSalesShiftMonthRange, getSalesShiftRange, getSalesWeekStart } from '../utils/salesShift.js';
+import { calcWeeklyBonus } from '../utils/payRules.js';
+import { hasCplDid } from '../utils/didCategories.js';
 
 /**
  * Record Daily Sales for CSR
@@ -144,7 +146,7 @@ export const getCsrDailySalesReport = async (req, res, next) => {
       totalEarnings: 0,
       averageSalesPerDay: 0,
       topDay: null,
-      tiers: { tier1: 0, tier2: 0, tier3: 0, noTier: 0 }
+      tiers: { tier1: 0, tier2: 0, tier3: 0, tier4: 0, tier5: 0, noTier: 0 }
     };
 
     salesRecords.forEach(record => {
@@ -155,6 +157,8 @@ export const getCsrDailySalesReport = async (req, res, next) => {
       if (record.achievedTier === 1) summary.tiers.tier1++;
       else if (record.achievedTier === 2) summary.tiers.tier2++;
       else if (record.achievedTier === 3) summary.tiers.tier3++;
+      else if (record.achievedTier === 4) summary.tiers.tier4++;
+      else if (record.achievedTier === 5) summary.tiers.tier5++;
       else summary.tiers.noTier++;
 
       // Find top day
@@ -246,6 +250,18 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
       createdAt: { $gte: monthRange.start, $lt: monthRange.end }
     }).sort({ createdAt: 1 });
 
+    const weeklySalesRange = {
+      start: new Date(monthRange.start),
+      end: new Date(monthRange.end)
+    };
+    weeklySalesRange.start.setUTCDate(weeklySalesRange.start.getUTCDate() - 7);
+    weeklySalesRange.end.setUTCDate(weeklySalesRange.end.getUTCDate() + 7);
+    const approvedSalesForWeeks = await SalesTarget.find({
+      agent: employee._id,
+      status: 'approved',
+      createdAt: { $gte: weeklySalesRange.start, $lt: weeklySalesRange.end }
+    }).select('createdAt saleDate dids');
+
     // Calculate monthly stats
     const monthlyStats = {
       month: new Date(year, month - 1).toLocaleDateString('default', { month: 'long', year: 'numeric' }),
@@ -257,7 +273,7 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
       averageSalesPerDay: 0,
       bestDay: null,
       worstDay: null,
-      daysPerTier: { tier1: 0, tier2: 0, tier3: 0, noTier: 0 }
+      daysPerTier: { tier1: 0, tier2: 0, tier3: 0, tier4: 0, tier5: 0, noTier: 0 }
     };
 
     salesRecords.forEach(record => {
@@ -270,6 +286,8 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
       if (record.achievedTier === 1) monthlyStats.daysPerTier.tier1++;
       else if (record.achievedTier === 2) monthlyStats.daysPerTier.tier2++;
       else if (record.achievedTier === 3) monthlyStats.daysPerTier.tier3++;
+      else if (record.achievedTier === 4) monthlyStats.daysPerTier.tier4++;
+      else if (record.achievedTier === 5) monthlyStats.daysPerTier.tier5++;
       else monthlyStats.daysPerTier.noTier++;
 
       // Best and worst days
@@ -288,6 +306,18 @@ export const getCsrMonthlyEarnings = async (req, res, next) => {
         };
       }
     });
+
+    const salesByWeek = {};
+    approvedSalesForWeeks.forEach((record) => {
+      if (!hasCplDid(record.dids)) return;
+      const shiftDate = getSalesShiftDate(record.createdAt || record.saleDate);
+      const weekStart = shiftDate && getSalesWeekStart(shiftDate);
+      if (!weekStart || weekStart.slice(0, 7) !== `${year}-${String(month).padStart(2, '0')}`) return;
+      salesByWeek[weekStart] = (salesByWeek[weekStart] || 0) + 1;
+    });
+    monthlyStats.totalWeeklyBonus = Object.values(salesByWeek)
+      .reduce((total, count) => total + calcWeeklyBonus(count), 0);
+    monthlyStats.totalEarnings += monthlyStats.totalWeeklyBonus;
 
     if (monthlyStats.totalDays > 0) {
       monthlyStats.averageSalesPerDay = Math.round(monthlyStats.totalSales / monthlyStats.totalDays * 100) / 100;
@@ -521,10 +551,12 @@ export const submitGoogleFormData = async (req, res, next) => {
 // Helper functions
 function getTierName(tier) {
   switch(tier) {
-    case 1: return 'Tier 1 (5-6 sales)';
-    case 2: return 'Tier 2 (7-9 sales)';
-    case 3: return 'Tier 3 (10+ sales)';
-    default: return 'No Tier (Below 5 sales)';
+    case 1: return 'Tier 1 (3-4 sales)';
+    case 2: return 'Tier 2 (5-7 sales)';
+    case 3: return 'Tier 3 (8-9 sales)';
+    case 4: return 'Tier 4 (10-14 sales)';
+    case 5: return 'Tier 5 (15+ sales)';
+    default: return 'No Tier (Below 3 sales)';
   }
 }
 
@@ -532,8 +564,11 @@ function getTierDescription(tier, record) {
   const pricePerSale = record.pricePerSale || 1000;
   switch(tier) {
     case 1: return `Base rate: RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalary}`;
-    case 2: return `Base (RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalary}) + 20% bonus (RS${record.tierBonus})`;
-    case 3: return `Base (RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalary}) + 50% bonus (RS${record.tierBonus})`;
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+      return `Base (RS${pricePerSale}/sale × ${record.salesCount} = RS${record.baseSalary}) + flat bonus (RS${record.tierBonus})`;
     default: return `Below minimum target (${record.salesCount} sales)`;
   }
 }

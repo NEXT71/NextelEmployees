@@ -8,6 +8,7 @@ import StatsCard from '../../components/common/StatsCard';
 import MessageCenter from '../../components/common/MessageCenter';
 import { subscribeSocket } from '../../utils/socket';
 import { formatSalesShiftDate, getCurrentSalesShiftDate } from '../../utils/salesShift';
+import { getDidCategories } from '../../utils/didCategories';
 
 const CSRSalesDashboard = () => {
   const navigate = useNavigate();
@@ -23,6 +24,13 @@ const CSRSalesDashboard = () => {
   const [submissionStatusFilter, setSubmissionStatusFilter] = useState('all');
   const [error, setError] = useState('');
   const [showMessageCenter, setShowMessageCenter] = useState(false);
+  const tierBarColors = {
+    tier1: 'bg-blue-500',
+    tier2: 'bg-green-500',
+    tier3: 'bg-purple-500',
+    tier4: 'bg-orange-500',
+    tier5: 'bg-amber-500'
+  };
 
   const loadMonthlyData = useCallback(async () => {
     try {
@@ -81,12 +89,14 @@ const CSRSalesDashboard = () => {
 
   const getTierColor = (tier) => {
     const colors = {
-      'Tier 1 (5-6 sales)': 'text-blue-400 bg-blue-900/30 border-blue-600/50',
-      'Tier 2 (7-9 sales)': 'text-green-400 bg-green-900/30 border-green-600/50',
-      'Tier 3 (10+ sales)': 'text-purple-400 bg-purple-900/30 border-purple-600/50',
-      'No Tier (Below 5 sales)': 'text-gray-400 bg-gray-900/30 border-gray-600/50'
+      'Tier 1 (3-4 sales)': 'text-blue-400 bg-blue-900/30 border-blue-600/50',
+      'Tier 2 (5-7 sales)': 'text-green-400 bg-green-900/30 border-green-600/50',
+      'Tier 3 (8-9 sales)': 'text-purple-400 bg-purple-900/30 border-purple-600/50',
+      'Tier 4 (10-14 sales)': 'text-orange-400 bg-orange-900/30 border-orange-600/50',
+      'Tier 5 (15+ sales)': 'text-amber-400 bg-amber-900/30 border-amber-600/50',
+      'No Tier (Below 3 sales)': 'text-gray-400 bg-gray-900/30 border-gray-600/50'
     };
-    return colors[tier] || colors['No Tier (Below 5 sales)'];
+    return colors[tier] || colors['No Tier (Below 3 sales)'];
   };
 
   const TierProgressBar = ({ tier, minSales }) => {
@@ -100,7 +110,7 @@ const CSRSalesDashboard = () => {
           <div className="bg-black/30 rounded-full h-2 overflow-hidden">
             <div
               className={`h-full transition-all duration-300 ${
-                tier === 'tier1' ? 'bg-blue-500' : tier === 'tier2' ? 'bg-green-500' : 'bg-purple-500'
+                tierBarColors[tier] || 'bg-gray-500'
               }`}
               style={{ width: `${percentage}%` }}
             />
@@ -261,7 +271,12 @@ const CSRSalesDashboard = () => {
                           {sub.customer?.firstName} {sub.customer?.lastName}
                           <div className="text-xs text-gray-400">{sub.customer?.phone}</div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-300">{sub.dids}</td>
+                        <td className="px-4 py-3 text-sm text-gray-300">
+                          {sub.dids}
+                          {getDidCategories(sub.dids) && (
+                            <div className="text-xs text-blue-300">{getDidCategories(sub.dids)}</div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-300">{sub.closer}</td>
                         <td className="px-4 py-3 text-center">
                           {sub.status === 'approved' && (
@@ -357,7 +372,7 @@ const CSRSalesDashboard = () => {
       {monthlyData && (
         <>
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <StatsCard
               icon={<TrendingUp className="w-5 h-5" />}
               title="Total Sales"
@@ -376,8 +391,15 @@ const CSRSalesDashboard = () => {
               icon={<Award className="w-5 h-5" />}
               title="Tier Bonus"
               value={`RS ${(monthlyData.totalTierBonus / 1000).toFixed(1)}K`}
-              subtitle="Performance bonus"
+              subtitle="Daily performance bonus"
               trend={monthlyData.totalTierBonus > 0 ? 'up' : 'stable'}
+            />
+            <StatsCard
+              icon={<Target className="w-5 h-5" />}
+              title="Weekly Bonus"
+              value={`RS ${((monthlyData.totalWeeklyBonus || 0) / 1000).toFixed(1)}K`}
+              subtitle="RS 5,000 at 35 approved CPL sales/week"
+              trend={monthlyData.totalWeeklyBonus > 0 ? 'up' : 'stable'}
             />
             <StatsCard
               icon={<Target className="w-5 h-5" />}
@@ -395,42 +417,27 @@ const CSRSalesDashboard = () => {
               Tier Performance
             </h3>
 
-            <div className="space-y-4">
-              {/* Tier 1 */}
-              <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-600/30">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="text-blue-200 font-medium">Tier 1</h4>
-                    <p className="text-xs text-gray-400">5-6 sales (Base rate)</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+              {[
+                { tier: 'tier1', sales: '3-4', bonus: 500, card: 'bg-blue-900/20 border-blue-600/30', title: 'text-blue-200', count: 'text-blue-400' },
+                { tier: 'tier2', sales: '5-7', bonus: 1000, card: 'bg-green-900/20 border-green-600/30', title: 'text-green-200', count: 'text-green-400' },
+                { tier: 'tier3', sales: '8-9', bonus: 2000, card: 'bg-purple-900/20 border-purple-600/30', title: 'text-purple-200', count: 'text-purple-400' },
+                { tier: 'tier4', sales: '10-14', bonus: 3000, card: 'bg-orange-900/20 border-orange-600/30', title: 'text-orange-200', count: 'text-orange-400' },
+                { tier: 'tier5', sales: '15+', bonus: 5000, card: 'bg-amber-900/20 border-amber-600/30', title: 'text-amber-200', count: 'text-amber-400' }
+              ].map(({ tier, sales, bonus, card, title, count }, index) => (
+                <div key={tier} className={`${card} rounded-lg p-4 border`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h4 className={`${title} font-medium`}>Tier {index + 1}</h4>
+                      <p className="text-xs text-gray-400">{sales} sales (RS {bonus.toLocaleString()} bonus)</p>
+                    </div>
+                    <span className={`text-2xl font-bold ${count}`}>
+                      {monthlyData.daysPerTier[tier] || 0}
+                    </span>
                   </div>
-                  <span className="text-2xl font-bold text-blue-400">{monthlyData.daysPerTier.tier1}</span>
+                  <TierProgressBar tier={tier} minSales={Number(sales.match(/\d+/)[0])} />
                 </div>
-                <TierProgressBar tier="tier1" minSales={5} />
-              </div>
-
-              {/* Tier 2 */}
-              <div className="bg-green-900/20 rounded-lg p-4 border border-green-600/30">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="text-green-200 font-medium">Tier 2</h4>
-                    <p className="text-xs text-gray-400">7-9 sales (+20% bonus)</p>
-                  </div>
-                  <span className="text-2xl font-bold text-green-400">{monthlyData.daysPerTier.tier2}</span>
-                </div>
-                <TierProgressBar tier="tier2" minSales={7} />
-              </div>
-
-              {/* Tier 3 */}
-              <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-600/30">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="text-purple-200 font-medium">Tier 3</h4>
-                    <p className="text-xs text-gray-400">10+ sales (+50% bonus)</p>
-                  </div>
-                  <span className="text-2xl font-bold text-purple-400">{monthlyData.daysPerTier.tier3}</span>
-                </div>
-                <TierProgressBar tier="tier3" minSales={10} />
-              </div>
+              ))}
             </div>
 
             {/* Best Day */}

@@ -254,10 +254,8 @@ const SalesRecordingModal = ({ isOpen, onClose, onSuccess, department = 'Sales' 
                   <div>
                     <p className="text-sm font-medium text-amber-200">{preview.tierName}</p>
                     <p className="text-xs text-amber-300 mt-1">
-                      {preview.tier === 0 && 'Below target - work towards 5 sales for Tier 1'}
-                      {preview.tier === 1 && 'Base rate applied'}
-                      {preview.tier === 2 && '20% bonus applied for achieving 7+ sales'}
-                      {preview.tier === 3 && '50% bonus applied for achieving 10+ sales'}
+                      Daily bonuses: 3/5/8/10/15 sales earn RS 500/1,000/2,000/3,000/5,000.
+                      Weekly bonus: 35 approved CPL sales earn RS 5,000.
                     </p>
                   </div>
                 </div>

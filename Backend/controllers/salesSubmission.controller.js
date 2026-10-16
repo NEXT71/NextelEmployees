@@ -4,10 +4,11 @@ import mongoose from 'mongoose';
 import { normalizeName } from '../utils/employeeMatch.js';
 import { logAudit } from '../utils/audit.js';
 import {
-  BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcDailyEarning, getTierName
+  BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcDailyEarning, calcWeeklyBonus, getTierName
 } from '../utils/payRules.js';
 import { emitSalesSubmissionUpdate } from '../utils/socket.js';
-import { getSalesShiftDate, getSalesShiftMonthRange, getSalesShiftRange } from '../utils/salesShift.js';
+import { getSalesShiftDate, getSalesShiftMonthRange, getSalesShiftRange, getSalesWeekStart } from '../utils/salesShift.js';
+import { hasCplDid } from '../utils/didCategories.js';
 
 // Helper: resolve employee._id from a user _id (for consistent agent storage)
 const resolveEmployeeId = async (userId) => {
@@ -916,7 +917,14 @@ const getMyMonthlyEarnings = async (req, res, next) => {
     const employeeId = await getMyEmployeeId(req.user._id);
     const agentFilter = employeeId ? { agent: employeeId } : { agent: req.user._id };
 
-    const [approvedSalesForMonth, pendingSalesForMonth, disapprovedSalesForMonth] = await Promise.all([
+    const weeklySalesRange = {
+      start: new Date(monthRange.start),
+      end: new Date(monthRange.end)
+    };
+    weeklySalesRange.start.setUTCDate(weeklySalesRange.start.getUTCDate() - 7);
+    weeklySalesRange.end.setUTCDate(weeklySalesRange.end.getUTCDate() + 7);
+
+    const [approvedSalesForMonth, pendingSalesForMonth, disapprovedSalesForMonth, approvedSalesForWeeks] = await Promise.all([
       SalesTarget.find({ ...agentFilter, status: 'approved', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
         .populate('approvedBy', 'username')
         .sort({ createdAt: 1 }),
@@ -924,7 +932,12 @@ const getMyMonthlyEarnings = async (req, res, next) => {
         .sort({ createdAt: -1 }),
       SalesTarget.find({ ...agentFilter, status: 'disapproved', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
         .populate('disapprovedBy', 'username')
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1 }),
+      SalesTarget.find({
+        ...agentFilter,
+        status: 'approved',
+        createdAt: { $gte: weeklySalesRange.start, $lt: weeklySalesRange.end }
+      }).select('createdAt saleDate dids')
     ]);
 
     const inSalesShiftMonth = (sale) => {
@@ -936,6 +949,15 @@ const getMyMonthlyEarnings = async (req, res, next) => {
     const pendingSales = pendingSalesForMonth.filter(inSalesShiftMonth);
     const disapprovedSales = disapprovedSalesForMonth.filter(inSalesShiftMonth);
 
+    const salesByWeek = {};
+    approvedSalesForWeeks.forEach((sale) => {
+      if (!hasCplDid(sale.dids)) return;
+      const shiftDate = getSalesShiftDate(sale.createdAt || sale.saleDate);
+      const weekStart = shiftDate && getSalesWeekStart(shiftDate);
+      if (!weekStart || weekStart.slice(0, 7) !== `${yearNum}-${String(monthNum).padStart(2, '0')}`) return;
+      salesByWeek[weekStart] = (salesByWeek[weekStart] || 0) + 1;
+    });
+
     const salesByDay = {};
     approvedSales.forEach(sale => {
       const dayKey = getSalesShiftDate(sale.createdAt || sale.saleDate);
@@ -944,16 +966,18 @@ const getMyMonthlyEarnings = async (req, res, next) => {
     });
 
     let totalTierBonus = 0;
-    const daysPerTier = { tier1: 0, tier2: 0, tier3: 0, tier4: 0, noTier: 0 };
+    const daysPerTier = { tier1: 0, tier2: 0, tier3: 0, tier4: 0, tier5: 0, noTier: 0 };
     Object.values(salesByDay).forEach(count => {
       totalTierBonus += calcTierBonus(count);
       const tierKey = getTierNameFromCount(count);
       daysPerTier[tierKey]++;
     });
 
+    const totalWeeklyBonus = Object.values(salesByWeek)
+      .reduce((total, count) => total + calcWeeklyBonus(count), 0);
     const totalApproved = approvedSales.length;
     const totalBaseSalary = totalApproved * BASE_PER_SALE;
-    const totalEarnings = totalBaseSalary + totalTierBonus;
+    const totalEarnings = totalBaseSalary + totalTierBonus + totalWeeklyBonus;
     const totalDays = Object.keys(salesByDay).length;
 
     // Build daily breakdown for the dashboard table
@@ -977,6 +1001,7 @@ const getMyMonthlyEarnings = async (req, res, next) => {
           totalSales: totalApproved,
           totalBaseSalary,
           totalTierBonus,
+          totalWeeklyBonus,
           totalEarnings,
           totalPendingSales: pendingSales.length,
           totalDisapprovedSales: disapprovedSales.length,

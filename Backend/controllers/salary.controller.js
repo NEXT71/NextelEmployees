@@ -5,8 +5,9 @@ import Bonus from '../models/Bonus.js';
 import Attendance from '../models/Attendance.js';
 import SalesTarget from '../models/SalesTarget.js';
 import { logAudit, logAuditDelete } from '../utils/audit.js';
-import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcCloserPay } from '../utils/payRules.js';
-import { getSalesShiftDate, getSalesShiftMonthRange } from '../utils/salesShift.js';
+import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcCloserPay } from '../utils/payRules.js';
+import { getSalesShiftDate, getSalesShiftMonthRange, getSalesWeekStart } from '../utils/salesShift.js';
+import { hasCplDid } from '../utils/didCategories.js';
 
 // Helper: calculate daily tier bonus from sales count
 const calcDailyTierBonus = calcTierBonus;
@@ -155,6 +156,18 @@ export const generateMonthlySalary = async (req, res, next) => {
       createdAt: { $gte: salesMonthRange.start, $lt: salesMonthRange.end }
     }).select('createdAt saleDate pricePerSale');
 
+    const salesWeekRange = {
+      start: new Date(salesMonthRange.start),
+      end: new Date(salesMonthRange.end)
+    };
+    salesWeekRange.start.setUTCDate(salesWeekRange.start.getUTCDate() - 7);
+    salesWeekRange.end.setUTCDate(salesWeekRange.end.getUTCDate() + 7);
+    const approvedSalesForWeeks = await SalesTarget.find({
+      agent: employeeId,
+      status: 'approved',
+      createdAt: { $gte: salesWeekRange.start, $lt: salesWeekRange.end }
+    }).select('createdAt saleDate dids');
+
     // Group by day to calculate tier bonuses
     const salesByDay = {};
     approvedSales.forEach(sale => {
@@ -168,15 +181,26 @@ export const generateMonthlySalary = async (req, res, next) => {
       totalTierBonus += calcDailyTierBonus(count);
     });
 
+    const salesByWeek = {};
+    approvedSalesForWeeks.forEach((sale) => {
+      if (!hasCplDid(sale.dids)) return;
+      const shiftDate = getSalesShiftDate(sale.createdAt || sale.saleDate);
+      const weekStart = shiftDate && getSalesWeekStart(shiftDate);
+      if (!weekStart || weekStart.slice(0, 7) !== `${targetYear}-${String(targetMonth).padStart(2, '0')}`) return;
+      salesByWeek[weekStart] = (salesByWeek[weekStart] || 0) + 1;
+    });
+    const totalWeeklyBonus = Object.values(salesByWeek)
+      .reduce((total, count) => total + calcWeeklyBonus(count), 0);
+
     const totalSalesBase = approvedSales.length * BASE_PER_SALE;
-    const totalSalesEarnings = totalSalesBase + totalTierBonus;
+    const totalSalesEarnings = totalSalesBase + totalTierBonus + totalWeeklyBonus;
     // --- End sales earnings ---
 
     const manualBonus = await sumManualBonuses(employeeId, monthStart, monthEnd);
     const totalBonuses = totalSalesEarnings + manualBonus.total;
 
     // Create notes breakdown
-    const notes = `Base Salary: ${baseSalary} | Fines: ${totalFines} | Unpaid Leaves: ${leaveDeduction.toFixed(2)} (${absentDays} absent days) | Sales Earnings: ${totalSalesBase} (${approvedSales.length} approved sales) | Tier Bonus: ${totalTierBonus} | Bonuses: ${manualBonus.total} (${manualBonus.count})`;
+    const notes = `Base Salary: ${baseSalary} | Fines: ${totalFines} | Unpaid Leaves: ${leaveDeduction.toFixed(2)} (${absentDays} absent days) | Sales Earnings: ${totalSalesBase} (${approvedSales.length} approved sales) | Daily Tier Bonus: ${totalTierBonus} | Weekly Sales Bonus: ${totalWeeklyBonus} | Bonuses: ${manualBonus.total} (${manualBonus.count})`;
 
     // Check if salary record already exists for this month
     const existingSalary = await Salary.findOne({
@@ -214,6 +238,7 @@ export const generateMonthlySalary = async (req, res, next) => {
           baseSalary,
           salesBase: totalSalesBase,
           salesTierBonus: totalTierBonus,
+          salesWeeklyBonus: totalWeeklyBonus,
           totalSalesEarnings,
           manualBonuses: manualBonus.total,
           approvedSalesCount: approvedSales.length,

@@ -108,11 +108,11 @@ const salesTargetSchema = new mongoose.Schema({
   // Tier and bonus calculated at daily aggregation level
   achievedTier: {
     type: Number,
-    default: 0  // 0, 1, 2, 3, or 4 - calculated from daily total (3, 5, 8, 12 sales)
+    default: 0  // Calculated from daily total (3, 5, 8, 10, 15 sales)
   },
   tierBonus: {
     type: Number,
-    default: 0  // Flat bonus amount: 500, 1000, 3000, or 5000 RS
+    default: 0  // Flat daily bonus amount: 500, 1000, 2000, 3000, or 5000 RS
   },
   totalEarning: {
     type: Number,

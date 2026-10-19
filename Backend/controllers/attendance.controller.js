@@ -46,9 +46,9 @@ export const clockIn = async (req, res) => {
     if (!isWithinClockInWindow(clockInTimestamp)) {
       return res.status(403).json({
         success: false,
-        message: 'Clock in is allowed from 6:55 PM to 6:00 AM Pakistan Standard Time',
+        message: 'Clock in is allowed from 6:00 PM to 6:00 AM Pakistan Standard Time',
         currentTime: formatPKTTime(getCurrentPKTTime()),
-        allowedWindow: '6:55 PM - 6:00 AM PKT; clock-ins at or after 7:00 PM are marked late',
+        allowedWindow: '6:00 PM - 6:00 AM PKT; clock-ins at or after 7:00 PM are marked late',
         error: 'ATTENDANCE_TIME_RESTRICTED'
       });
     }
@@ -870,7 +870,7 @@ export const getAttendanceTimeWindow = async (req, res) => {
         isWithinAttendanceWindow: isWithinAttendanceWindow(),
         isClockInAllowed: isWithinClockInWindow(),
         currentTime: formatPKTTime(currentTime),
-        allowedWindow: 'Clock in: 6:00 PM - before 7:00 PM; clock out: 6:00 PM - 6:00 AM PKT',
+        allowedWindow: 'Clock in: 6:00 PM - 6:00 AM PKT (7:00 PM onward is late); clock out: 6:00 PM - 6:00 AM PKT',
         ...timeInfo
       }
     });

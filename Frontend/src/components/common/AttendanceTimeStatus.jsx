@@ -143,7 +143,7 @@ const AttendanceTimeStatus = ({ className = '', compact = false }) => {
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <p className={`font-medium ${isClockInAllowed ? 'text-green-300' : 'text-red-300'}`}>
-                  {isClockInAllowed ? '✅ Clock-in available' : '❌ Clock-in restricted'} · 6:55 PM–6:00 AM PKT; 7:00 PM onward is late
+                  {isClockInAllowed ? '✅ Clock-in available' : '❌ Clock-in restricted'} · 6:00 PM–6:00 AM PKT; 7:00 PM onward is late
                 </p>
                 <p className={`text-sm ${isClockOutAllowed ? 'text-green-300' : 'text-red-300'}`}>
                   {isClockOutAllowed ? '✅ Clock-out available' : '❌ Clock-out restricted'} · 6:00 PM to 6:00 AM PKT
@@ -184,7 +184,7 @@ const AttendanceTimeStatus = ({ className = '', compact = false }) => {
                 <span className="text-sm font-medium text-blue-200">Allowed Window</span>
               </div>
               <p className="text-lg font-semibold text-white">
-                Clock-in 6:55 PM–6:00 AM; late from 7:00 PM
+                Clock-in 6:00 PM–6:00 AM; late from 7:00 PM
               </p>
               <p className="text-xs text-blue-200/60 mt-1">
                 Pakistan Standard Time

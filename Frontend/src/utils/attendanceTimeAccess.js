@@ -45,7 +45,7 @@ export const isWithinClockInWindow = () => {
   const minute = Number(parts.find((part) => part.type === 'minute')?.value);
   const timeInMinutes = hour * 60 + minute;
 
-  return timeInMinutes >= 18 * 60 + 55 || timeInMinutes < 6 * 60;
+  return timeInMinutes >= 18 * 60 || timeInMinutes < 6 * 60;
 };
 
 // Get current Pakistan Standard Time

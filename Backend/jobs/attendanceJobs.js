@@ -3,7 +3,7 @@ import Employee from '../models/Employee.js';
 import Attendance from '../models/Attendance.js';
 
 /**
- * Mark all active employees as absent at the start of attendance window (6:00 PM PKT)
+ * Mark all active employees as absent shortly before the attendance window opens (5:45 PM PKT)
  * This creates baseline attendance records for all employees
  * When employees clock in, their status will be updated from Absent to Present/Late
  */
@@ -92,7 +92,7 @@ export const markAbsentEmployees = async () => {
           clockIn: null,
           clockOut: null,
           autoMarked: true,
-          notes: 'Auto-marked absent at shift start (6:00 PM PKT)'
+          notes: 'Auto-marked absent before shift start (5:45 PM PKT)'
         });
         absentRecords.push(record);
         successCount++;
@@ -264,18 +264,18 @@ export const finalizeAttendance = async () => {
 
 /**
  * Schedule automated attendance jobs
- * - 6:00 PM PKT: Mark all employees absent (start of NEW shift) - NO AUTO-RESET HERE
+ * - 5:45 PM PKT: Mark all employees absent (start of NEW shift) - NO AUTO-RESET HERE
  * - 6:30 AM PKT: Finalize attendance (end of CURRENT shift) + Auto clock-out (SAFE - shift has ended)
  * 
  * CRITICAL: Auto-reset only happens at 6:30 AM when the shift ENDS
  * This prevents employees from being auto-clocked out while still working
  */
 export const scheduleAttendanceJobs = () => {
-  // Schedule absence marking at 6:00 PM PKT daily
-  // This creates NEW attendance records for the shift starting NOW
+  // Schedule absence marking at 5:45 PM PKT daily
+  // This creates NEW attendance records for the shift starting soon
   // NO auto-reset here because the previous shift hasn't ended yet
-  cron.schedule('0 18 * * *', async () => {
-    console.log('⏰ Scheduled job triggered: Mark absences at shift start (6:00 PM PKT)');
+  cron.schedule('45 17 * * *', async () => {
+    console.log('⏰ Scheduled job triggered: Mark absences before shift start (5:45 PM PKT)');
     console.log('📝 Creating absence records for NEW shift starting now');
     console.log('⚠️ Previous shift is still ongoing (ends at 6:30 AM)');
     await markAbsentEmployees();
@@ -296,7 +296,7 @@ export const scheduleAttendanceJobs = () => {
   });
   
   console.log('✅ Attendance scheduling initialized:');
-  console.log('   - 6:00 PM PKT: Create absence records for NEW shift (no auto-reset)');
+  console.log('   - 5:45 PM PKT: Create absence records for NEW shift (no auto-reset)');
   console.log('   - 6:30 AM PKT: Finalize CURRENT shift + Auto clock-out (safe)');
   console.log('');
   console.log('🔒 Security: Auto clock-out only at 6:30 AM when shift ends');

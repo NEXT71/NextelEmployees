@@ -95,7 +95,7 @@ const isWithinClockInWindow = (date = new Date()) => {
   const minute = Number(timeParts.find((part) => part.type === 'minute')?.value);
   const currentTimeInMinutes = hour * 60 + minute;
 
-  return currentTimeInMinutes >= 18 * 60 + 55 || currentTimeInMinutes < 6 * 60;
+  return currentTimeInMinutes >= 18 * 60 || currentTimeInMinutes < 6 * 60;
 };
 
 const isLateClockIn = (date = new Date()) => {

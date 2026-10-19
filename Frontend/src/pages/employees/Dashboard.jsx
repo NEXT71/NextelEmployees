@@ -224,7 +224,7 @@ const handleClockIn = async () => {
     
     // Check if within attendance window before attempting
     if (!isWithinClockInWindow()) {
-      setError('Clock in is allowed from 6:55 PM to 6:00 AM Pakistan Standard Time');
+      setError('Clock in is allowed from 6:00 PM to 6:00 AM Pakistan Standard Time');
       return;
     }
     
@@ -379,7 +379,7 @@ const calculateSummary = () => {
                   <span className="text-sm text-orange-300">
                     {clockedIn
                       ? 'Clock-out is only allowed between 6:00 PM and 6:00 AM PKT'
-                      : 'Clock-in is allowed from 6:55 PM to 6:00 AM PKT'}
+                      : 'Clock-in is allowed from 6:00 PM to 6:00 AM PKT'}
                   </span>
                 </div>
               </div>
@@ -419,7 +419,7 @@ const calculateSummary = () => {
                 title={!isTimeAllowed
                   ? clockedIn
                     ? 'Clock-out is only allowed between 6:00 PM and 6:00 AM PKT'
-                    : 'Clock-in is allowed from 6:55 PM to 6:00 AM PKT'
+                    : 'Clock-in is allowed from 6:00 PM to 6:00 AM PKT'
                   : ''}
               >
                 <div className="flex items-center space-x-2">

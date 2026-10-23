@@ -461,38 +461,26 @@ export const getAdminAttendance = async (req, res) => {
 
     console.log('⏱️ Starting attendance query:', { isDateRange, date, startDate, endDate });
 
-    // ====== KEY OPTIMIZATION: Different logic for date ranges vs single dates ======
-    // For date ranges: Skip employee filtering - just return existing records (FAST)
-    // For single dates: Fetch all non-admin employees and create missing records
-    
-    let nonAdminEmployeeIds = [];
-    
-    if (!isDateRange) {
-      // SINGLE DATE PATH: Fetch all non-admin employees
-      console.log('📋 Single date query - fetching all non-admin employees');
-      
-      let employeeFilter = {};
-      if (department) {
-        employeeFilter.department = department;
-      }
-      
-      // Find all employees and filter out admins
-      const employees = await Employee.find(employeeFilter)
-        .populate('user', 'role username')
-        .lean();
-      
-      console.log('🔍 Total employees found:', employees.length);
-      
-      // Filter out admin users
-      const nonAdminEmployees = employees.filter(emp => emp.user?.role !== 'admin');
-      console.log('✅ Non-admin employees:', nonAdminEmployees.length);
-      
-      nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);
-      query.employee = { $in: nonAdminEmployeeIds };
-    } else {
-      // DATE RANGE PATH: Don't filter by employees - just get all records
-      console.log('⚡ Date range query - fetching ALL attendance records (no employee filtering)');
+    // Only active, non-admin employees appear in the admin/HR attendance view.
+    // For single dates, missing records are also created for these employees below.
+    let employeeFilter = { status: 'Active' };
+    if (department) {
+      employeeFilter.department = department;
     }
+
+    const employees = await Employee.find(employeeFilter)
+      .select('_id user')
+      .populate('user', 'role')
+      .lean();
+
+    console.log('🔍 Active employees found:', employees.length);
+
+    // Filter out admin users
+    const nonAdminEmployees = employees.filter(emp => emp.user?.role !== 'admin');
+    console.log('✅ Active non-admin employees:', nonAdminEmployees.length);
+
+    const nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);
+    query.employee = { $in: nonAdminEmployeeIds };
 
     // Get total count for pagination
     const totalCount = await Attendance.countDocuments(query);
@@ -761,13 +749,13 @@ export const getAdminAttendanceSummary = async (req, res) => {
       };
     }
 
-    // Get all employees and filter out admins
-    let employeeFilter = {};
+    // Get active employees only and filter out admins
+    let employeeFilter = { status: 'Active' };
     if (department) {
       employeeFilter.department = department;
     }
-    
-    // Find all non-admin employees
+
+    // Find all active non-admin employees
     const employees = await Employee.find(employeeFilter)
       .populate('user', 'role');
     

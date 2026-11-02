@@ -1019,6 +1019,7 @@ const getMyMonthlyEarnings = async (req, res, next) => {
           month: new Date(yearNum, monthNum - 1).toLocaleDateString('default', { month: 'long', year: 'numeric' }),
           totalDays,
           totalSales: totalApproved,
+          totalSubmittedSales: totalApproved + pendingSales.length + disapprovedSales.length,
           totalBaseSalary,
           totalTierBonus,
           totalWeeklyBonus,

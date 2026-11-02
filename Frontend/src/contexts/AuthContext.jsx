@@ -53,9 +53,13 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = useCallback((userData) => {
-    setUser(userData);
+    // Login response returns `id`, while /auth/me returns `_id` — normalize so
+    // pages relying on user._id work without a page refresh
+    setUser({ ...userData, _id: userData?._id || userData?.id });
     setIsLoggedIn(true);
-  }, []);
+    // Load the full profile (same shape as after a refresh)
+    checkAuth();
+  }, [checkAuth]);
 
   const value = {
     user,

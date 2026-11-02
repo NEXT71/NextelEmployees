@@ -202,6 +202,8 @@ export const authAPI = {
     // Store token if login successful
     if (response && response.token) {
       setToken(response.token);
+      // Drop any cached data from a previous session
+      apiCache.clear();
     }
     
     return response;

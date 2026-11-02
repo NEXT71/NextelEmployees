@@ -58,6 +58,27 @@ export const getCurrentSalesShiftDate = (now = new Date()) => {
   return shiftDate.toISOString().slice(0, 10);
 };
 
+// Shift-date range ({ from, to } as YYYY-MM-DD) for a named period ending on the current shift date.
+// Weeks start on Sunday to match the weekly bonus.
+export const getSalesPeriodRange = (period, now = new Date()) => {
+  const to = getCurrentSalesShiftDate(now);
+  const start = new Date(`${to}T00:00:00Z`);
+
+  if (period === 'today') {
+    // start is already the current shift date
+  } else if (period === 'week') {
+    start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+  } else if (period === 'month') {
+    start.setUTCDate(1);
+  } else if (period === 'last30') {
+    start.setUTCDate(start.getUTCDate() - 29);
+  } else {
+    return null;
+  }
+
+  return { from: start.toISOString().slice(0, 10), to };
+};
+
 export const formatSalesShiftDate = (value) => {
   const shiftDate = getSalesShiftDate(value);
   const date = shiftDate ? new Date(`${shiftDate}T12:00:00Z`) : new Date(value);

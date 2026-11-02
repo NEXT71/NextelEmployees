@@ -7,7 +7,7 @@ import Header from '../../components/common/Header';
 import StatsCard from '../../components/common/StatsCard';
 import MessageCenter from '../../components/common/MessageCenter';
 import { subscribeSocket } from '../../utils/socket';
-import { formatSalesShiftDate, getCurrentSalesShiftDate } from '../../utils/salesShift';
+import { formatSalesShiftDate, getCurrentSalesShiftDate, getSalesPeriodRange } from '../../utils/salesShift';
 import { getDidCategories } from '../../utils/didCategories';
 
 const CSRSalesDashboard = () => {
@@ -22,6 +22,9 @@ const CSRSalesDashboard = () => {
   const [submissions, setSubmissions] = useState([]);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
   const [submissionStatusFilter, setSubmissionStatusFilter] = useState('all');
+  const [submissionPeriod, setSubmissionPeriod] = useState('month'); // 'today' | 'week' | 'month' | 'last30' | 'all'
+  const [submissionCounts, setSubmissionCounts] = useState(null);
+  const [submissionTotal, setSubmissionTotal] = useState(0);
   const [error, setError] = useState('');
   const [showMessageCenter, setShowMessageCenter] = useState(false);
   const tierBarColors = {
@@ -53,18 +56,25 @@ const CSRSalesDashboard = () => {
   const loadSubmissions = useCallback(async () => {
     try {
       setSubmissionsLoading(true);
-      const params = {};
+      const params = { limit: 500 };
       if (submissionStatusFilter !== 'all') params.status = submissionStatusFilter;
+      const range = getSalesPeriodRange(submissionPeriod);
+      if (range) {
+        params.from = range.from;
+        params.to = range.to;
+      }
       const response = await salesTargetAPI.getMySubmissions(params);
       if (response?.data) {
         setSubmissions(response.data);
+        setSubmissionCounts(response.counts || null);
+        setSubmissionTotal(response.pagination?.total ?? response.data.length);
       }
     } catch (err) {
       // silently fail - submissions tab will show empty state
     } finally {
       setSubmissionsLoading(false);
     }
-  }, [submissionStatusFilter]);
+  }, [submissionStatusFilter, submissionPeriod]);
 
   useEffect(() => {
     if (user) {
@@ -194,6 +204,26 @@ const CSRSalesDashboard = () => {
                 My Sale Submissions
               </h2>
               <div className="flex items-center gap-3 flex-wrap">
+                {/* Period filter */}
+                <div className="flex gap-1 bg-black/30 rounded-lg p-1 flex-wrap">
+                  {[
+                    { key: 'today', label: 'Today' },
+                    { key: 'week', label: 'This Week' },
+                    { key: 'month', label: 'This Month' },
+                    { key: 'last30', label: 'Last 30 Days' },
+                    { key: 'all', label: 'All Time' }
+                  ].map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => setSubmissionPeriod(key)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                        submissionPeriod === key ? 'bg-cyan-600 text-white' : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 {/* Status filter */}
                 <div className="flex gap-1 bg-black/30 rounded-lg p-1">
                   {['all', 'pending', 'approved', 'disapproved'].map(s => (
@@ -224,21 +254,24 @@ const CSRSalesDashboard = () => {
               </div>
             </div>
 
-            {/* Summary badges */}
-            {monthlyData && (
-              <div className="px-6 py-4 border-b border-blue-600/20 flex gap-4 flex-wrap">
+            {/* Summary badges for the selected period */}
+            {submissionCounts && (
+              <div className="px-6 py-4 border-b border-blue-600/20 flex gap-4 flex-wrap items-center">
                 <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-600/30 rounded-lg px-3 py-1.5">
                   <Clock size={14} className="text-amber-400" />
-                  <span className="text-amber-200 text-sm font-medium">{monthlyData.totalPendingSales} Pending</span>
+                  <span className="text-amber-200 text-sm font-medium">{submissionCounts.pending} Pending</span>
                 </div>
                 <div className="flex items-center gap-2 bg-green-900/30 border border-green-600/30 rounded-lg px-3 py-1.5">
                   <CheckCircle size={14} className="text-green-400" />
-                  <span className="text-green-200 text-sm font-medium">{monthlyData.totalSales} Approved</span>
+                  <span className="text-green-200 text-sm font-medium">{submissionCounts.approved} Approved</span>
                 </div>
                 <div className="flex items-center gap-2 bg-red-900/30 border border-red-600/30 rounded-lg px-3 py-1.5">
                   <XCircle size={14} className="text-red-400" />
-                  <span className="text-red-200 text-sm font-medium">{monthlyData.totalDisapprovedSales} Rejected</span>
+                  <span className="text-red-200 text-sm font-medium">{submissionCounts.disapproved} Rejected</span>
                 </div>
+                {submissionTotal > submissions.length && (
+                  <span className="text-xs text-gray-400">Showing latest {submissions.length} of {submissionTotal}</span>
+                )}
               </div>
             )}
 
@@ -319,8 +352,10 @@ const CSRSalesDashboard = () => {
                 <p className="font-medium">No submissions found</p>
                 <p className="text-sm text-gray-500">
                   {submissionStatusFilter !== 'all'
-                    ? `No ${submissionStatusFilter} submissions`
-                    : 'Submit a sale to see it here'}
+                    ? `No ${submissionStatusFilter} submissions in this period`
+                    : submissionPeriod !== 'all'
+                      ? 'No submissions in this period'
+                      : 'Submit a sale to see it here'}
                 </p>
                 <button
                   onClick={() => setActiveTab('submit')}

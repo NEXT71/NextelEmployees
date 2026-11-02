@@ -865,34 +865,54 @@ const getTierNameFromCount = getTierName;
 // Get CSR's own sales submissions (with all statuses)
 const getMySales = async (req, res, next) => {
   try {
-    const { startDate, endDate, status, page = 1, limit = 50 } = req.query;
+    const { startDate, endDate, from, to, status, page = 1, limit = 50 } = req.query;
 
     // Resolve employee._id from logged-in user
     const employeeId = await getMyEmployeeId(req.user._id);
     const agentFilter = employeeId ? { agent: employeeId } : { agent: req.user._id };
 
-    const filter = { ...agentFilter };
-    if (status && status !== 'all') filter.status = status;
-    if (startDate && endDate) {
-      filter.saleDate = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    const periodFilter = { ...agentFilter };
+    if (from && to) {
+      // Shift-date range (YYYY-MM-DD), matched on createdAt like the dashboard totals
+      const fromRange = getSalesShiftRange(from);
+      const toRange = getSalesShiftRange(to);
+      if (!fromRange || !toRange) {
+        return res.status(400).json({ success: false, message: 'Invalid from/to date' });
+      }
+      periodFilter.createdAt = { $gte: fromRange.start, $lt: toRange.end };
+    } else if (startDate && endDate) {
+      periodFilter.saleDate = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
+    const filter = { ...periodFilter };
+    if (status && status !== 'all') filter.status = status;
+
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 50));
     const skip = (pageNum - 1) * limitNum;
 
-    const sales = await SalesTarget.find(filter)
-      .populate('approvedBy', 'username')
-      .populate('disapprovedBy', 'username')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
+    const [sales, total, statusCounts] = await Promise.all([
+      SalesTarget.find(filter)
+        .populate('approvedBy', 'username')
+        .populate('disapprovedBy', 'username')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      SalesTarget.countDocuments(filter),
+      // Per-status totals for the selected period, ignoring the status filter
+      SalesTarget.aggregate([
+        { $match: periodFilter },
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ])
+    ]);
 
-    const total = await SalesTarget.countDocuments(filter);
+    const counts = { pending: 0, approved: 0, disapproved: 0, under_review: 0 };
+    statusCounts.forEach(({ _id, count }) => { counts[_id] = count; });
 
     res.status(200).json({
       success: true,
       data: sales,
+      counts,
       pagination: { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) }
     });
   } catch (error) {

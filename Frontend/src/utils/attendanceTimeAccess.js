@@ -1,40 +1,14 @@
 // Attendance-specific time access utilities for frontend
-// Mirrors the backend logic for Pakistan Standard Time attendance access control (6:00 PM to 6:30 AM)
+// Mirrors the backend rules (Backend/middlewares/attendanceTimeAccess.js), Pakistan Standard Time:
+// night shift 5:30 PM to 6:30 AM; clock-in closes at 6:00 AM; clock-out allowed until 6:30 AM.
 
-// Check if current time is within attendance access window (6:00 PM to 6:30 AM PKT)
-export const isWithinAttendanceWindow = () => {
-  try {
-    // Get current time in Pakistan Standard Time (UTC+5)
-    const now = new Date();
-    const pktTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Karachi"}));
-    
-    const currentHour = pktTime.getHours();
-    const currentMinute = pktTime.getMinutes();
-    
-    // 6:00 PM to 6:30 AM (18:00 to 06:30)
-    const startHour = 18; // 6 PM
-    const endHour = 6; // 6 AM
-    const endMinute = 30; // 30 minutes past 6 AM
-    
-    // Check if current time is within the allowed window
-    let isWithinWindow = false;
-    
-    if (currentHour >= startHour) {
-      // After 6 PM today
-      isWithinWindow = true;
-    } else if (currentHour < endHour || (currentHour === endHour && currentMinute <= endMinute)) {
-      // Before 5:30 AM next day
-      isWithinWindow = true;
-    }
-    
-    return isWithinWindow;
-  } catch (error) {
-    console.error('Error checking attendance window:', error);
-    return false;
-  }
-};
+export const SHIFT_START_MINUTES = 17 * 60 + 30; // 5:30 PM
+export const CLOCK_IN_END_MINUTES = 6 * 60;      // 6:00 AM
+export const SHIFT_END_MINUTES = 6 * 60 + 30;    // 6:30 AM
+export const SHIFT_WINDOW_LABEL = '5:30 PM - 6:30 AM PKT';
+export const CLOCK_IN_WINDOW_LABEL = '5:30 PM - 6:00 AM PKT';
 
-export const isWithinClockInWindow = () => {
+const pktMinutesNow = () => {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Karachi',
     hour: '2-digit',
@@ -43,9 +17,24 @@ export const isWithinClockInWindow = () => {
   }).formatToParts(new Date());
   const hour = Number(parts.find((part) => part.type === 'hour')?.value);
   const minute = Number(parts.find((part) => part.type === 'minute')?.value);
-  const timeInMinutes = hour * 60 + minute;
+  return hour * 60 + minute;
+};
 
-  return timeInMinutes >= 18 * 60 || timeInMinutes < 6 * 60;
+// Clock-out window: 5:30 PM to 6:30 AM PKT
+export const isWithinAttendanceWindow = () => {
+  try {
+    const minutes = pktMinutesNow();
+    return minutes >= SHIFT_START_MINUTES || minutes <= SHIFT_END_MINUTES;
+  } catch (error) {
+    console.error('Error checking attendance window:', error);
+    return false;
+  }
+};
+
+// Clock-in window: 5:30 PM to 6:00 AM PKT
+export const isWithinClockInWindow = () => {
+  const minutes = pktMinutesNow();
+  return minutes >= SHIFT_START_MINUTES || minutes < CLOCK_IN_END_MINUTES;
 };
 
 // Get current Pakistan Standard Time
@@ -77,20 +66,20 @@ export const getTimeUntilNextAttendanceAccess = () => {
   const now = getCurrentPKTTime();
   const nextAccess = new Date(now);
   
-  // Set to next 6:00 PM
-  nextAccess.setHours(18, 0, 0, 0);
+  // Set to next shift start (5:30 PM)
+  nextAccess.setHours(Math.floor(SHIFT_START_MINUTES / 60), SHIFT_START_MINUTES % 60, 0, 0);
   
   const currentHour = now.getHours();
   const currentMinute = now.getMinutes();
   const currentTimeInMinutes = (currentHour * 60) + currentMinute;
   
-  // If it's currently outside 6:00 PM - 6:30 AM window, next access is today at 6:00 PM or tomorrow
-  if (currentTimeInMinutes < (18 * 60) && currentTimeInMinutes > (6 * 60 + 30)) {
-    // Between 6:31 AM and 5:59 PM today, next access is today at 6:00 PM
+  // Outside the shift window, next access is today at 5:30 PM or tomorrow
+  if (currentTimeInMinutes < SHIFT_START_MINUTES && currentTimeInMinutes > SHIFT_END_MINUTES) {
+    // Between 6:31 AM and 5:29 PM today, next access is today at 5:30 PM
     return nextAccess;
   } else {
-    // After 6:00 PM today or before 5:30 AM, next access is tomorrow at 6:00 PM
-    if (currentTimeInMinutes >= (18 * 60)) {
+    // After 5:30 PM today, next access is tomorrow at 5:30 PM
+    if (currentTimeInMinutes >= SHIFT_START_MINUTES) {
       nextAccess.setDate(nextAccess.getDate() + 1);
     }
     return nextAccess;
@@ -121,7 +110,7 @@ export const getAttendanceWindowInfo = () => {
   return {
     isAccessible: isWithin,
     currentTime,
-    accessWindow: '6:00 PM - 6:30 AM PKT',
+    accessWindow: SHIFT_WINDOW_LABEL,
     message: isWithin 
       ? 'Clock in/Clock out is currently available'
       : 'Clock in/Clock out is currently restricted',
@@ -140,7 +129,7 @@ export const validateAttendanceAction = (action = 'Clock in/Clock out') => {
   if (!isAllowed) {
     return {
       success: false,
-      message: `${action} is only allowed between 6:00 PM - 6:30 AM Pakistan Standard Time`,
+      message: `${action} is only allowed between ${SHIFT_WINDOW_LABEL}`,
       ...windowInfo
     };
   }
@@ -175,7 +164,7 @@ export const isApproachingAttendanceWindowEnd = (minutesBeforeEnd = 30) => {
   const currentMinute = now.getMinutes();
   const currentTimeInMinutes = (currentHour * 60) + currentMinute;
   
-  const endTime = (6 * 60) + 30; // 6:30 AM = 390 minutes
+  const endTime = SHIFT_END_MINUTES; // 6:30 AM
   const warningTime = endTime - minutesBeforeEnd;
   
   // If we're in the early morning hours (0-6:30), check if we're close to 6:30 AM

@@ -2,11 +2,12 @@ import { LogIn, LogOut } from 'lucide-react';
 import Panel from '../ui/Panel';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
+import { SHIFT_START_MINUTES, SHIFT_END_MINUTES } from '../../utils/attendanceTimeAccess';
 
-// The night shift runs 6:00 PM → 6:00 AM PKT. Positions on the track are
-// minutes since 6:00 PM, out of 12 hours.
-const SHIFT_START = 18 * 60;
-const SHIFT_LENGTH = 12 * 60;
+// The night shift runs 5:30 PM → 6:30 AM PKT. Positions on the track are
+// minutes since 5:30 PM, out of 13 hours.
+const SHIFT_START = SHIFT_START_MINUTES;
+const SHIFT_LENGTH = 24 * 60 - SHIFT_START_MINUTES + SHIFT_END_MINUTES;
 const LATE_AFTER = 19 * 60; // matches isLateClockIn in the backend
 
 // Accepts a Date or an ISO string (the API sends strings); null if unreadable
@@ -38,14 +39,15 @@ const isLateTime = (date) => {
 export const formatPKT = (date) =>
   new Date(date).toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour: 'numeric', minute: '2-digit' });
 
+// Track labels: shift start and end, plus every two hours (offsets from 5:30 PM)
 const HOURS = [
-  { label: '6 PM', at: 0 },
-  { label: '8 PM', at: 120, wide: true },
-  { label: '10 PM', at: 240, wide: true },
-  { label: '12 AM', at: 360 },
-  { label: '2 AM', at: 480, wide: true },
-  { label: '4 AM', at: 600, wide: true },
-  { label: '6 AM', at: 720 },
+  { label: '5:30 PM', at: 0 },
+  { label: '8 PM', at: 150, wide: true },
+  { label: '10 PM', at: 270, wide: true },
+  { label: '12 AM', at: 390 },
+  { label: '2 AM', at: 510, wide: true },
+  { label: '4 AM', at: 630, wide: true },
+  { label: '6:30 AM', at: SHIFT_LENGTH },
 ];
 
 const ShiftTrack = ({ now, clockInAt, clockOutAt }) => {
@@ -56,7 +58,7 @@ const ShiftTrack = ({ now, clockInAt, clockOutAt }) => {
   const late = clockInAt && isLateTime(clockInAt);
 
   const summary = [
-    'Shift 6 PM to 6 AM',
+    'Shift 5:30 PM to 6:30 AM',
     clockInAt && `clocked in at ${formatPKT(clockInAt)}`,
     clockOutAt && `clocked out at ${formatPKT(clockOutAt)}`,
     nowOnShift && `now ${formatPKT(now)}`,
@@ -136,7 +138,7 @@ const ShiftPanel = ({ now, clockInAt: clockInRaw, clockOutAt: clockOutRaw, canCl
       : 'Clock in before 7:00 PM PKT to be on time.';
   } else {
     badge = <Badge tone="neutral">Off shift</Badge>;
-    note = 'Clock-in opens at 6:00 PM PKT.';
+    note = 'Clock-in opens at 5:30 PM PKT.';
   }
 
   return (

@@ -159,7 +159,7 @@ const EmployeeDashboard = () => {
   const handleClockIn = async () => {
     setError('');
     if (!isWithinClockInWindow()) {
-      setError('Clock-in is open from 6:00 PM to 6:00 AM PKT.');
+      setError('Clock-in is open from 5:30 PM to 6:00 AM PKT.');
       return;
     }
     setClockBusy(true);
@@ -184,7 +184,7 @@ const EmployeeDashboard = () => {
   const handleClockOut = async () => {
     setError('');
     if (!isWithinAttendanceWindow()) {
-      setError('Clock-out is open from 6:00 PM to 6:30 AM PKT.');
+      setError('Clock-out is open from 5:30 PM to 6:30 AM PKT.');
       return;
     }
     setClockBusy(true);

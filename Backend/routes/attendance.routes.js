@@ -17,7 +17,7 @@ import { attendanceTimeAccessControl } from '../middlewares/attendanceTimeAccess
 
 const attendanceRouter = express.Router();
 
-// Clock-in is checked in the controller (6:00 PM - 6:00 AM PKT); clock-out keeps the overnight window.
+// Clock-in is checked in the controller (5:30 PM - 6:00 AM PKT); clock-out uses the shift window (5:30 PM - 6:30 AM PKT).
 attendanceRouter.post('/clock-in', auth, clockIn);
 attendanceRouter.post('/clock-out', auth, attendanceTimeAccessControl, clockOut);
 

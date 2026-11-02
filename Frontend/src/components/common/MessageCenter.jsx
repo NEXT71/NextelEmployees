@@ -1,9 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Send, MessageCircle, X, AlertCircle, CheckCircle, 
-  Clock, MessageSquare, RefreshCw
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Send, RefreshCw } from 'lucide-react';
 import { messageAPI } from '../../utils/api';
+import Dialog from '../ui/Dialog';
+import { Tabs } from '../ui/Tabs';
+import { Field, Input, Select, Textarea } from '../ui/Field';
+import Button from '../ui/Button';
+import Badge from '../ui/Badge';
+import Alert from '../ui/Alert';
+
+const emptyForm = {
+  subject: '',
+  message: '',
+  priority: 'medium',
+  category: 'general',
+  targetAdmins: [], // Array of admin IDs
+  sendToAllAdmins: true, // Toggle for all admins vs specific admins
+};
+
+const priorityTone = { urgent: 'absent', high: 'late', medium: 'neutral', low: 'neutral' };
+const statusTone = { unread: 'shift', read: 'neutral', responded: 'present', resolved: 'present' };
+const statusLabel = { unread: 'Sent', read: 'Read', responded: 'Replied', resolved: 'Resolved' };
+
+const formatDate = (dateString) =>
+  new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 const MessageCenter = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState('send'); // 'send' or 'history'
@@ -14,18 +33,8 @@ const MessageCenter = ({ isOpen, onClose }) => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [availableAdmins, setAvailableAdmins] = useState([]);
   const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [messageForm, setMessageForm] = useState(emptyForm);
 
-  // Form state for sending messages
-  const [messageForm, setMessageForm] = useState({
-    subject: '',
-    message: '',
-    priority: 'medium',
-    category: 'general',
-    targetAdmins: [], // Array of admin IDs
-    sendToAllAdmins: true // Toggle for all admins vs specific admins
-  });
-
-  // Fetch available admins
   const fetchAdmins = async () => {
     try {
       setLoadingAdmins(true);
@@ -38,7 +47,6 @@ const MessageCenter = ({ isOpen, onClose }) => {
     }
   };
 
-  // Fetch message history
   const fetchMessages = async () => {
     try {
       setLoadingHistory(true);
@@ -63,432 +71,218 @@ const MessageCenter = ({ isOpen, onClose }) => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    
+
     if (!messageForm.subject.trim() || !messageForm.message.trim()) {
-      setError('Subject and message are required');
+      setError('Add a subject and a message.');
       return;
     }
-
-    // Validate admin selection if not sending to all
     if (!messageForm.sendToAllAdmins && messageForm.targetAdmins.length === 0) {
-      setError('Please select at least one admin or choose "Send to All Admins"');
+      setError('Pick at least one admin, or send to all admins.');
       return;
     }
 
     try {
       setLoading(true);
       setError('');
-      
+      setSuccess('');
+
       const messageData = {
         subject: messageForm.subject.trim(),
         message: messageForm.message.trim(),
         priority: messageForm.priority,
-        category: messageForm.category
+        category: messageForm.category,
       };
-
-      // Add targetAdmins only if not sending to all admins
       if (!messageForm.sendToAllAdmins) {
         messageData.targetAdmins = messageForm.targetAdmins;
       }
-      
-      const response = await messageAPI.sendMessage(messageData);
 
+      const response = await messageAPI.sendMessage(messageData);
       if (response.success) {
-        const targetText = messageForm.sendToAllAdmins 
-          ? 'all admins' 
-          : messageForm.targetAdmins.length === 1 
-            ? '1 admin' 
-            : `${messageForm.targetAdmins.length} admins`;
-        setSuccess(`Message sent successfully to ${targetText}!`);
-        
-        setMessageForm({
-          subject: '',
-          message: '',
-          priority: 'medium',
-          category: 'general',
-          targetAdmins: [],
-          sendToAllAdmins: true
-        });
-        
-        // Refresh history if on history tab
-        if (activeTab === 'history') {
-          fetchMessages();
-        }
+        const count = messageForm.targetAdmins.length;
+        const targetText = messageForm.sendToAllAdmins ? 'all admins' : count === 1 ? '1 admin' : `${count} admins`;
+        setSuccess(`Message sent to ${targetText}. Replies show up under Sent messages.`);
+        setMessageForm(emptyForm);
       }
     } catch (err) {
-      setError(err.message || 'Failed to send message');
+      setError(err.message || 'Message not sent. Try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleInputChange = (field, value) => {
-    setMessageForm(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setMessageForm((prev) => ({ ...prev, [field]: value }));
     if (error) setError('');
+    if (success) setSuccess('');
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'urgent': return 'bg-red-500/20 text-red-300 border-red-500/30';
-      case 'high': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
-      case 'medium': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'low': return 'bg-green-500/20 text-green-300 border-green-500/30';
-      default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-    }
-  };
+  const toggleAdmin = (id, checked) =>
+    handleInputChange(
+      'targetAdmins',
+      checked ? [...messageForm.targetAdmins, id] : messageForm.targetAdmins.filter((a) => a !== id)
+    );
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'unread': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'read': return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-      case 'responded': return 'bg-green-500/20 text-green-300 border-green-500/30';
-      case 'resolved': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-      default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-    }
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  if (!isOpen) return null;
+  const canSend = messageForm.subject.trim() && messageForm.message.trim();
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl w-full max-w-4xl mx-auto max-h-[90vh] overflow-hidden">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/20">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/20 rounded-lg">
-              <MessageCircle className="w-6 h-6 text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-white">Message Center</h2>
-              <p className="text-sm text-blue-200/80">Contact admins for support</p>
-            </div>
+    <Dialog open={isOpen} onClose={onClose} title="Messages" description="Ask an admin about pay, attendance or anything else.">
+      <Tabs
+        className="-mt-2 mb-5"
+        value={activeTab}
+        onChange={setActiveTab}
+        items={[
+          { key: 'send', label: 'New message' },
+          { key: 'history', label: 'Sent messages' },
+        ]}
+      />
+
+      {error && <Alert className="mb-4">{error}</Alert>}
+      {success && <Alert tone="success" className="mb-4">{success}</Alert>}
+
+      {activeTab === 'send' && (
+        <form onSubmit={handleSendMessage} className="space-y-5">
+          <Field label="Subject" htmlFor="msg-subject" hint={`${messageForm.subject.length}/200`}>
+            <Input
+              id="msg-subject"
+              value={messageForm.subject}
+              onChange={(e) => handleInputChange('subject', e.target.value)}
+              placeholder="e.g. Fine on 2 Nov looks wrong"
+              maxLength={200}
+              required
+            />
+          </Field>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Topic" htmlFor="msg-category">
+              <Select id="msg-category" value={messageForm.category} onChange={(e) => handleInputChange('category', e.target.value)}>
+                <option value="general">General</option>
+                <option value="technical">Technical support</option>
+                <option value="hr">HR</option>
+                <option value="payroll">Pay and salary</option>
+                <option value="attendance">Attendance</option>
+              </Select>
+            </Field>
+            <Field label="Priority" htmlFor="msg-priority">
+              <Select id="msg-priority" value={messageForm.priority} onChange={(e) => handleInputChange('priority', e.target.value)}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </Select>
+            </Field>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-300" />
-          </button>
-        </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-white/10">
-          <button
-            onClick={() => setActiveTab('send')}
-            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'send'
-                ? 'text-blue-300 border-b-2 border-blue-400 bg-blue-500/5'
-                : 'text-blue-200/70 hover:text-blue-300 hover:bg-white/5'
-            }`}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <Send className="w-4 h-4" />
-              Send Message
-            </div>
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'history'
-                ? 'text-blue-300 border-b-2 border-blue-400 bg-blue-500/5'
-                : 'text-blue-200/70 hover:text-blue-300 hover:bg-white/5'
-            }`}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              Message History
-            </div>
-          </button>
-        </div>
+          <fieldset>
+            <legend className="text-sm font-medium text-ink mb-2">Send to</legend>
+            <label className="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
+              <input
+                type="checkbox"
+                checked={messageForm.sendToAllAdmins}
+                onChange={(e) => handleInputChange('sendToAllAdmins', e.target.checked)}
+                className="w-4 h-4 rounded border-line accent-ink"
+              />
+              All admins
+            </label>
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
-          
-          {/* Error/Success Messages */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" />
-              {error}
-            </div>
-          )}
-          
-          {success && (
-            <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded-lg text-green-300 text-sm flex items-center gap-2">
-              <CheckCircle className="w-4 h-4" />
-              {success}
-            </div>
-          )}
-
-          {/* Send Message Tab */}
-          {activeTab === 'send' && (
-            <form onSubmit={handleSendMessage} className="space-y-6">
-              
-              {/* Subject */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Subject *
-                </label>
-                <input
-                  type="text"
-                  value={messageForm.subject}
-                  onChange={(e) => handleInputChange('subject', e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                  placeholder="Brief description of your issue"
-                  maxLength={200}
-                  required
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  {messageForm.subject.length}/200 characters
-                </p>
-              </div>
-
-              {/* Priority and Category */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Priority
-                  </label>
-                  <select
-                    value={messageForm.priority}
-                    onChange={(e) => handleInputChange('priority', e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  >
-                    <option value="low" className="bg-gray-800">Low</option>
-                    <option value="medium" className="bg-gray-800">Medium</option>
-                    <option value="high" className="bg-gray-800">High</option>
-                    <option value="urgent" className="bg-gray-800">Urgent</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Category
-                  </label>
-                  <select
-                    value={messageForm.category}
-                    onChange={(e) => handleInputChange('category', e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  >
-                    <option value="general" className="bg-gray-800">General</option>
-                    <option value="technical" className="bg-gray-800">Technical Support</option>
-                    <option value="hr" className="bg-gray-800">HR Related</option>
-                    <option value="payroll" className="bg-gray-800">Payroll/Salary</option>
-                    <option value="attendance" className="bg-gray-800">Attendance</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Admin Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Send To
-                </label>
-                
-                {/* Send to All Toggle */}
-                <div className="mb-4">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={messageForm.sendToAllAdmins}
-                      onChange={(e) => handleInputChange('sendToAllAdmins', e.target.checked)}
-                      className="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500/50"
-                    />
-                    <span className="text-sm text-gray-300">Send to all admins</span>
-                  </label>
-                </div>
-
-                {/* Specific Admin Selection */}
-                {!messageForm.sendToAllAdmins && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-gray-400 mb-2">Select specific admins:</p>
-                    {loadingAdmins ? (
-                      <div className="text-center py-4">
-                        <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                      </div>
-                    ) : availableAdmins.length === 0 ? (
-                      <p className="text-sm text-gray-400">No admins available</p>
-                    ) : (
-                      <div className="max-h-32 overflow-y-auto border border-white/20 rounded-lg bg-white/5 p-2">
-                        {availableAdmins.map((admin) => (
-                          <label key={admin._id} className="flex items-center gap-2 p-2 hover:bg-white/5 rounded cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={messageForm.targetAdmins.includes(admin._id)}
-                              onChange={(e) => {
-                                const isChecked = e.target.checked;
-                                const newTargetAdmins = isChecked
-                                  ? [...messageForm.targetAdmins, admin._id]
-                                  : messageForm.targetAdmins.filter(id => id !== admin._id);
-                                handleInputChange('targetAdmins', newTargetAdmins);
-                              }}
-                              className="w-3 h-3 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500/50"
-                            />
-                            <span className="text-sm text-gray-300">{admin.username}</span>
-                            {admin.email && (
-                              <span className="text-xs text-gray-500">({admin.email})</span>
-                            )}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {!messageForm.sendToAllAdmins && messageForm.targetAdmins.length > 0 && (
-                      <p className="text-xs text-blue-300 mt-2">
-                        {messageForm.targetAdmins.length} admin{messageForm.targetAdmins.length !== 1 ? 's' : ''} selected
-                      </p>
-                    )}
+            {!messageForm.sendToAllAdmins && (
+              <div className="mt-3">
+                {loadingAdmins ? (
+                  <p className="text-sm text-muted">Loading admins…</p>
+                ) : availableAdmins.length === 0 ? (
+                  <p className="text-sm text-muted">No admins are available right now.</p>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto rounded-lg border border-line divide-y divide-line">
+                    {availableAdmins.map((admin) => (
+                      <label key={admin._id} className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-paper">
+                        <input
+                          type="checkbox"
+                          checked={messageForm.targetAdmins.includes(admin._id)}
+                          onChange={(e) => toggleAdmin(admin._id, e.target.checked)}
+                          className="w-4 h-4 rounded border-line accent-ink"
+                        />
+                        <span className="text-ink">{admin.username}</span>
+                        {admin.email && <span className="text-muted truncate">{admin.email}</span>}
+                      </label>
+                    ))}
                   </div>
                 )}
               </div>
+            )}
+          </fieldset>
 
-              {/* Message */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Message *
-                </label>
-                <textarea
-                  value={messageForm.message}
-                  onChange={(e) => handleInputChange('message', e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                  placeholder="Describe your issue in detail..."
-                  rows={6}
-                  maxLength={1000}
-                  required
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  {messageForm.message.length}/1000 characters
-                </p>
-              </div>
+          <Field label="Message" htmlFor="msg-body" hint={`${messageForm.message.length}/1000`}>
+            <Textarea
+              id="msg-body"
+              value={messageForm.message}
+              onChange={(e) => handleInputChange('message', e.target.value)}
+              placeholder="Include dates and amounts so an admin can check quickly."
+              rows={5}
+              maxLength={1000}
+              required
+            />
+          </Field>
 
-              {/* Submit Button */}
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={loading || !messageForm.subject.trim() || !messageForm.message.trim()}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      {messageForm.sendToAllAdmins 
-                        ? 'Send to All Admins'
-                        : messageForm.targetAdmins.length === 0
-                          ? 'Send to Admins'
-                          : messageForm.targetAdmins.length === 1
-                            ? 'Send to 1 Admin'
-                            : `Send to ${messageForm.targetAdmins.length} Admins`
-                      }
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          )}
+          <div className="flex justify-end">
+            <Button type="submit" icon={Send} disabled={loading || !canSend}>
+              {loading ? 'Sending…' : 'Send message'}
+            </Button>
+          </div>
+        </form>
+      )}
 
-          {/* Message History Tab */}
-          {activeTab === 'history' && (
-            <div className="space-y-4">
-              
-              {/* Refresh Button */}
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium text-white">Your Messages</h3>
-                <button
-                  onClick={fetchMessages}
-                  disabled={loadingHistory}
-                  className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-blue-300 transition-colors flex items-center gap-2 text-sm"
-                >
-                  <RefreshCw className={`w-4 h-4 ${loadingHistory ? 'animate-spin' : ''}`} />
-                  Refresh
-                </button>
-              </div>
+      {activeTab === 'history' && (
+        <div>
+          <div className="flex justify-end mb-3">
+            <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchMessages} disabled={loadingHistory}>
+              Refresh
+            </Button>
+          </div>
 
-              {/* Messages List */}
-              {loadingHistory ? (
-                <div className="text-center py-8">
-                  <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                  <p className="text-blue-300">Loading messages...</p>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <MessageCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>No messages found</p>
-                  <p className="text-sm">Send your first message to admins!</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {messages.map((message) => (
-                    <div
-                      key={message._id}
-                      className="bg-white/5 border border-white/10 rounded-lg p-4"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <h4 className="text-white font-medium mb-1">
-                            {message.subject}
-                          </h4>
-                          <div className="flex items-center gap-2 text-sm text-gray-400">
-                            <Clock className="w-3 h-3" />
-                            {formatDate(message.createdAt)}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 rounded text-xs border ${getPriorityColor(message.priority)}`}>
-                            {message.priority}
-                          </span>
-                          <span className={`px-2 py-1 rounded text-xs border ${getStatusColor(message.status)}`}>
-                            {message.status}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <p className="text-gray-300 text-sm mb-3">
-                        {message.message}
-                      </p>
-                      
-                      {message.adminResponse && (
-                        <div className="mt-3 pt-3 border-t border-white/10">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center">
-                              <CheckCircle className="w-3 h-3 text-green-400" />
-                            </div>
-                            <span className="text-sm text-green-400 font-medium">Admin Response</span>
-                            <span className="text-xs text-gray-500">
-                              {formatDate(message.adminResponse.respondedAt)}
-                            </span>
-                          </div>
-                          <p className="text-gray-300 text-sm bg-green-500/5 border border-green-500/20 rounded-lg p-3">
-                            {message.adminResponse.message}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+          {loadingHistory ? (
+            <p className="py-8 text-sm text-muted">Loading messages…</p>
+          ) : messages.length === 0 ? (
+            <div className="py-8 text-sm">
+              <p className="text-ink font-medium">No messages yet</p>
+              <p className="text-muted mt-1">Messages you send to admins, and their replies, appear here.</p>
+              <Button variant="secondary" size="sm" className="mt-4" onClick={() => setActiveTab('send')}>
+                Write a message
+              </Button>
             </div>
+          ) : (
+            <ul className="space-y-3">
+              {messages.map((message) => (
+                <li key={message._id} className="rounded-lg border border-line p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-ink">{message.subject}</h3>
+                      <p className="text-xs text-muted mt-0.5">{formatDate(message.createdAt)}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {(message.priority === 'high' || message.priority === 'urgent') && (
+                        <Badge tone={priorityTone[message.priority]}>
+                          {message.priority === 'urgent' ? 'Urgent' : 'High priority'}
+                        </Badge>
+                      )}
+                      <Badge tone={statusTone[message.status] || 'neutral'}>{statusLabel[message.status] || message.status}</Badge>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-ink-soft whitespace-pre-line">{message.message}</p>
+
+                  {message.adminResponse && (
+                    <div className="mt-3 rounded-lg bg-paper border-l-2 border-present px-3 py-2.5">
+                      <p className="text-xs text-muted">
+                        Reply from admin, {formatDate(message.adminResponse.respondedAt)}
+                      </p>
+                      <p className="mt-1 text-sm text-ink whitespace-pre-line">{message.adminResponse.message}</p>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-      </div>
-    </div>
+      )}
+    </Dialog>
   );
 };
 

@@ -1,17 +1,61 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Calendar, Target, Award, DollarSign, AlertCircle, MessageCircle, ClipboardList, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
-import { salesTargetAPI, authAPI } from '../../utils/api';
+import { TrendingUp, ClipboardList, RefreshCw } from 'lucide-react';
+import { salesTargetAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
-import Header from '../../components/common/Header';
-import StatsCard from '../../components/common/StatsCard';
-import MessageCenter from '../../components/common/MessageCenter';
+import EmployeeShell from '../../components/employees/EmployeeShell';
+import { formatPKR } from '../../components/employees/MonthLedger';
+import Panel, { Section } from '../../components/ui/Panel';
+import DataTable from '../../components/ui/DataTable';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Alert from '../../components/ui/Alert';
+import { Tabs, Segmented } from '../../components/ui/Tabs';
+import { Select } from '../../components/ui/Field';
 import { subscribeSocket } from '../../utils/socket';
 import { formatSalesShiftDate, getCurrentSalesShiftDate, getSalesPeriodRange } from '../../utils/salesShift';
 import { getDidCategories } from '../../utils/didCategories';
 
+const TIERS = [
+  { key: 'tier1', label: 'Tier 1', sales: '3–4 sales', bonus: 500 },
+  { key: 'tier2', label: 'Tier 2', sales: '5–7 sales', bonus: 1000 },
+  { key: 'tier3', label: 'Tier 3', sales: '8–9 sales', bonus: 2000 },
+  { key: 'tier4', label: 'Tier 4', sales: '10–14 sales', bonus: 3000 },
+  { key: 'tier5', label: 'Tier 5', sales: '15+ sales', bonus: 5000 },
+];
+
+const PERIODS = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This week' },
+  { key: 'month', label: 'This month' },
+  { key: 'last30', label: 'Last 30 days' },
+  { key: 'all', label: 'All time' },
+];
+
+const STATUSES = [
+  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'disapproved', label: 'Rejected' },
+];
+
+const submissionBadge = {
+  approved: <Badge tone="present">Approved</Badge>,
+  pending: <Badge tone="late">Pending</Badge>,
+  disapproved: <Badge tone="absent">Rejected</Badge>,
+};
+
+const formatDay = (date) =>
+  new Date(`${String(date).slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' });
+
+const Figure = ({ label, value, hint, tone = 'text-ink' }) => (
+  <div>
+    <dt className="text-sm text-muted">{label}</dt>
+    <dd className={`mt-0.5 text-lg font-semibold tabular-nums ${tone}`}>{value}</dd>
+    {hint && <dd className="text-xs text-muted mt-0.5">{hint}</dd>}
+  </div>
+);
+
 const CSRSalesDashboard = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const currentShiftDate = getCurrentSalesShiftDate();
   const [activeMonth, setActiveMonth] = useState(Number(currentShiftDate.slice(5, 7)));
@@ -19,6 +63,7 @@ const CSRSalesDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'submissions'
   const [monthlyData, setMonthlyData] = useState(null);
   const [dailyRecords, setDailyRecords] = useState([]);
+  const [loadingMonth, setLoadingMonth] = useState(true);
   const [submissions, setSubmissions] = useState([]);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
   const [submissionStatusFilter, setSubmissionStatusFilter] = useState('all');
@@ -26,30 +71,20 @@ const CSRSalesDashboard = () => {
   const [submissionCounts, setSubmissionCounts] = useState(null);
   const [submissionTotal, setSubmissionTotal] = useState(0);
   const [error, setError] = useState('');
-  const [showMessageCenter, setShowMessageCenter] = useState(false);
-  const tierBarColors = {
-    tier1: 'bg-blue-500',
-    tier2: 'bg-green-500',
-    tier3: 'bg-purple-500',
-    tier4: 'bg-orange-500',
-    tier5: 'bg-amber-500'
-  };
 
   const loadMonthlyData = useCallback(async () => {
     try {
       setError('');
-
-      const response = await salesTargetAPI.getCsrMonthlyEarnings({
-        year: activeYear,
-        month: activeMonth
-      });
-
+      setLoadingMonth(true);
+      const response = await salesTargetAPI.getCsrMonthlyEarnings({ year: activeYear, month: activeMonth });
       if (response.data) {
         setMonthlyData(response.data.monthlyStats);
         setDailyRecords(response.data.dailyBreakdown || []);
       }
     } catch (err) {
-      setError(err.message || 'Failed to load sales data');
+      setError(err.message || 'Could not load your sales for this month.');
+    } finally {
+      setLoadingMonth(false);
     }
   }, [activeYear, activeMonth]);
 
@@ -97,490 +132,213 @@ const CSRSalesDashboard = () => {
     return cleanup;
   }, [activeTab, loadSubmissions]);
 
-  const getTierColor = (tier) => {
-    const colors = {
-      'Tier 1 (3-4 sales)': 'text-blue-400 bg-blue-900/30 border-blue-600/50',
-      'Tier 2 (5-7 sales)': 'text-green-400 bg-green-900/30 border-green-600/50',
-      'Tier 3 (8-9 sales)': 'text-purple-400 bg-purple-900/30 border-purple-600/50',
-      'Tier 4 (10-14 sales)': 'text-orange-400 bg-orange-900/30 border-orange-600/50',
-      'Tier 5 (15+ sales)': 'text-amber-400 bg-amber-900/30 border-amber-600/50',
-      'No Tier (Below 3 sales)': 'text-gray-400 bg-gray-900/30 border-gray-600/50'
-    };
-    return colors[tier] || colors['No Tier (Below 3 sales)'];
-  };
+  const monthLabel = new Date(activeYear, activeMonth - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const maxTierDays = monthlyData ? Math.max(1, ...TIERS.map((t) => monthlyData.daysPerTier?.[t.key] || 0)) : 1;
 
-  const TierProgressBar = ({ tier, minSales }) => {
-    if (!monthlyData) return null;
-    const total = monthlyData.totalDays;
-    const percentage = Math.min((monthlyData.daysPerTier[tier.toLowerCase()] / total) * 100, 100);
-    
-    return (
-      <div className="flex items-center gap-3">
-        <div className="flex-1">
-          <div className="bg-black/30 rounded-full h-2 overflow-hidden">
-            <div
-              className={`h-full transition-all duration-300 ${
-                tierBarColors[tier] || 'bg-gray-500'
-              }`}
-              style={{ width: `${percentage}%` }}
-            />
-          </div>
-        </div>
-        <span className="text-sm font-medium text-gray-300 min-w-fit">
-          {monthlyData.daysPerTier[tier.toLowerCase()] || 0} days
-        </span>
-      </div>
-    );
-  };
-
-  const handleLogout = async () => {
-    try {
-      await authAPI.logout();
-      navigate('/');
-    } catch (err) {
-      console.error('Logout failed:', err);
-    }
-  };
+  const emptySubmissions =
+    submissionStatusFilter !== 'all'
+      ? `No ${STATUSES.find((s) => s.key === submissionStatusFilter).label.toLowerCase()} sales in this period.`
+      : submissionPeriod !== 'all'
+        ? 'No sales submitted in this period.'
+        : 'Sales you submit will show up here.';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 relative overflow-hidden">
-      {/* Background elements */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+    <EmployeeShell>
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
+        <h1 className="text-[28px] leading-tight font-semibold text-ink">My sales</h1>
+        {activeTab === 'dashboard' && (
+          <div className="flex items-center gap-2">
+            <Select aria-label="Month" value={activeMonth} onChange={(e) => setActiveMonth(parseInt(e.target.value, 10))} className="w-44">
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  {new Date(2026, i).toLocaleDateString('en-US', { month: 'long' })}
+                </option>
+              ))}
+            </Select>
+            <Select aria-label="Year" value={activeYear} onChange={(e) => setActiveYear(parseInt(e.target.value, 10))} className="w-24">
+              {[2024, 2025, 2026, 2027].map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </Select>
+          </div>
+        )}
       </div>
 
-      {/* Header */}
-      <Header 
-        userName={user?.username} 
-        onLogout={handleLogout} 
-        pageTitle="Sales Dashboard"
-        onNavigateToDashboard={() => navigate('/employeedashboard')}
-        onNavigateToSalary={() => navigate('/employee/salary-slips')}
+      <Tabs
+        className="mb-6"
+        value={activeTab}
+        onChange={setActiveTab}
+        items={[
+          { key: 'dashboard', label: 'Overview', icon: TrendingUp },
+          { key: 'submissions', label: 'Submissions', icon: ClipboardList, count: monthlyData?.totalPendingSales },
+        ]}
       />
 
-            {/* Tab Navigation */}
-      <div className="container mx-auto p-4 sm:p-6 lg:p-8 relative z-10">
-        <div className="flex gap-2 mb-6 bg-blue-900/40 backdrop-blur-md border border-blue-600/30 rounded-lg p-1 w-fit flex-wrap">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
-              activeTab === 'dashboard'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white'
-            }`}
-          >
-            <TrendingUp size={20} />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('submissions')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-md font-semibold transition-all ${
-              activeTab === 'submissions'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white'
-            }`}
-          >
-            <ClipboardList size={20} />
-            My Submissions
-            {monthlyData?.totalPendingSales > 0 && (
-              <span className="bg-amber-500 text-black text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
-                {monthlyData.totalPendingSales}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
       {activeTab === 'submissions' ? (
-        /* My Submissions Tab */
-        <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
-          <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-xl overflow-hidden">
-            {/* Header */}
-            <div className="p-6 border-b border-blue-600/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-blue-400" />
-                My Sale Submissions
-              </h2>
-              <div className="flex items-center gap-3 flex-wrap">
-                {/* Period filter */}
-                <div className="flex gap-1 bg-black/30 rounded-lg p-1 flex-wrap">
-                  {[
-                    { key: 'today', label: 'Today' },
-                    { key: 'week', label: 'This Week' },
-                    { key: 'month', label: 'This Month' },
-                    { key: 'last30', label: 'Last 30 Days' },
-                    { key: 'all', label: 'All Time' }
-                  ].map(({ key, label }) => (
-                    <button
-                      key={key}
-                      onClick={() => setSubmissionPeriod(key)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                        submissionPeriod === key ? 'bg-cyan-600 text-white' : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {/* Status filter */}
-                <div className="flex gap-1 bg-black/30 rounded-lg p-1">
-                  {['all', 'pending', 'approved', 'disapproved'].map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setSubmissionStatusFilter(s)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-all ${
-                        submissionStatusFilter === s
-                          ? s === 'approved' ? 'bg-green-600 text-white'
-                            : s === 'disapproved' ? 'bg-red-600 text-white'
-                            : s === 'pending' ? 'bg-amber-600 text-white'
-                            : 'bg-blue-600 text-white'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={loadSubmissions}
-                  disabled={submissionsLoading}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-700/50 hover:bg-blue-700 text-white rounded-lg text-sm transition-all"
-                >
-                  <RefreshCw size={14} className={submissionsLoading ? 'animate-spin' : ''} />
-                  Refresh
-                </button>
-              </div>
-            </div>
-
-            {/* Summary badges for the selected period */}
-            {submissionCounts && (
-              <div className="px-6 py-4 border-b border-blue-600/20 flex gap-4 flex-wrap items-center">
-                <div className="flex items-center gap-2 bg-amber-900/30 border border-amber-600/30 rounded-lg px-3 py-1.5">
-                  <Clock size={14} className="text-amber-400" />
-                  <span className="text-amber-200 text-sm font-medium">{submissionCounts.pending} Pending</span>
-                </div>
-                <div className="flex items-center gap-2 bg-green-900/30 border border-green-600/30 rounded-lg px-3 py-1.5">
-                  <CheckCircle size={14} className="text-green-400" />
-                  <span className="text-green-200 text-sm font-medium">{submissionCounts.approved} Approved</span>
-                </div>
-                <div className="flex items-center gap-2 bg-red-900/30 border border-red-600/30 rounded-lg px-3 py-1.5">
-                  <XCircle size={14} className="text-red-400" />
-                  <span className="text-red-200 text-sm font-medium">{submissionCounts.disapproved} Rejected</span>
-                </div>
-                {submissionTotal > submissions.length && (
-                  <span className="text-xs text-gray-400">Showing latest {submissions.length} of {submissionTotal}</span>
-                )}
-              </div>
-            )}
-
-            {/* Table */}
-            {submissionsLoading ? (
-              <div className="p-12 flex flex-col items-center gap-3 text-gray-400">
-                <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
-                <p>Loading submissions...</p>
-              </div>
-            ) : submissions.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-blue-600/30 text-xs font-semibold text-gray-300 uppercase tracking-wider bg-black/20">
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-left">Customer</th>
-                      <th className="px-4 py-3 text-left">DIDs</th>
-                      <th className="px-4 py-3 text-left">Closer</th>
-                      <th className="px-4 py-3 text-center">Status</th>
-                      <th className="px-4 py-3 text-left">Note</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-blue-600/20">
-                    {submissions.map((sub) => (
-                      <tr key={sub._id} className="hover:bg-blue-800/20 transition-colors">
-                        <td className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">
-                          {formatSalesShiftDate(sub.createdAt || sub.saleDate)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-white">
-                          {sub.customer?.firstName} {sub.customer?.lastName}
-                          <div className="text-xs text-gray-400">{sub.customer?.phone}</div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-300">
-                          {sub.dids}
-                          {getDidCategories(sub.dids) && (
-                            <div className="text-xs text-blue-300">{getDidCategories(sub.dids)}</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-300">{sub.closer}</td>
-                        <td className="px-4 py-3 text-center">
-                          {sub.status === 'approved' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-900/40 text-green-300 border border-green-600/40">
-                              <CheckCircle size={11} /> Approved
-                            </span>
-                          )}
-                          {sub.status === 'pending' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-900/40 text-amber-300 border border-amber-600/40">
-                              <Clock size={11} /> Pending
-                            </span>
-                          )}
-                          {sub.status === 'disapproved' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-900/40 text-red-300 border border-red-600/40">
-                              <XCircle size={11} /> Rejected
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {sub.status === 'approved' && (
-                            <span className="text-green-400 text-xs">
-                              RS 1,000 earned
-                            </span>
-                          )}
-                          {sub.status === 'disapproved' && sub.rejectionReason && (
-                            <span className="text-red-300 text-xs italic">{sub.rejectionReason}</span>
-                          )}
-                          {sub.status === 'pending' && (
-                            <span className="text-gray-400 text-xs">Awaiting review</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-12 flex flex-col items-center gap-3 text-gray-400">
-                <ClipboardList className="w-10 h-10 opacity-40" />
-                <p className="font-medium">No submissions found</p>
-                <p className="text-sm text-gray-500">
-                  {submissionStatusFilter !== 'all'
-                    ? `No ${submissionStatusFilter} submissions in this period`
-                    : submissionPeriod !== 'all'
-                      ? 'No submissions in this period'
-                      : 'Submit a sale to see it here'}
-                </p>
-                <button
-                  onClick={() => setActiveTab('submit')}
-                  className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all"
-                >
-                  Submit a Sale
-                </button>
-              </div>
-            )}
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Segmented label="Period" items={PERIODS} value={submissionPeriod} onChange={setSubmissionPeriod} />
+            <Segmented label="Status" items={STATUSES} value={submissionStatusFilter} onChange={setSubmissionStatusFilter} />
+            <Button variant="ghost" size="sm" icon={RefreshCw} onClick={loadSubmissions} disabled={submissionsLoading} className="ml-auto">
+              Refresh
+            </Button>
           </div>
+
+          {submissionCounts && (
+            <p className="text-sm text-muted">
+              <span className="text-late font-medium tabular-nums">{submissionCounts.pending}</span> pending,{' '}
+              <span className="text-present font-medium tabular-nums">{submissionCounts.approved}</span> approved,{' '}
+              <span className="text-absent font-medium tabular-nums">{submissionCounts.disapproved}</span> rejected
+              {submissionTotal > submissions.length && `. Showing the latest ${submissions.length} of ${submissionTotal}.`}
+            </p>
+          )}
+
+          <DataTable
+            loading={submissionsLoading}
+            empty={emptySubmissions}
+            rows={submissions}
+            columns={[
+              { key: 'date', header: 'Date', render: (s) => formatSalesShiftDate(s.createdAt || s.saleDate) },
+              {
+                key: 'customer',
+                header: 'Customer',
+                render: (s) => (
+                  <>
+                    {s.customer?.firstName} {s.customer?.lastName}
+                    <span className="block text-xs text-muted">{s.customer?.phone}</span>
+                  </>
+                ),
+              },
+              {
+                key: 'dids',
+                header: 'DIDs',
+                render: (s) => (
+                  <>
+                    {s.dids}
+                    {getDidCategories(s.dids) && <span className="block text-xs text-muted">{getDidCategories(s.dids)}</span>}
+                  </>
+                ),
+              },
+              { key: 'closer', header: 'Closer', render: (s) => s.closer || '—' },
+              { key: 'status', header: 'Status', render: (s) => submissionBadge[s.status] || <Badge>{s.status}</Badge> },
+              {
+                key: 'note',
+                header: 'Note',
+                render: (s) =>
+                  s.status === 'approved' ? (
+                    <span className="text-present">{formatPKR(1000)} earned</span>
+                  ) : s.status === 'disapproved' && s.rejectionReason ? (
+                    <span className="block max-w-[260px] truncate text-absent" title={s.rejectionReason}>{s.rejectionReason}</span>
+                  ) : s.status === 'pending' ? (
+                    <span className="text-muted">Awaiting QA review</span>
+                  ) : (
+                    '—'
+                  ),
+              },
+            ]}
+          />
         </div>
       ) : (
-      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">
-        <div className="space-y-6">
-          {/* Month/Year Selector */}
-          <div className="flex items-center gap-4 bg-gradient-to-r from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-lg p-4">
-        <Calendar className="w-5 h-5 text-blue-400 flex-shrink-0" />
-        <div className="flex items-center gap-2">
-          <select
-            value={activeMonth}
-            onChange={(e) => setActiveMonth(parseInt(e.target.value))}
-            className="bg-blue-800/50 border border-blue-600/50 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          >
-            {Array.from({ length: 12 }, (_, i) => (
-              <option key={i + 1} value={i + 1}>
-                {new Date(2026, i).toLocaleDateString('default', { month: 'long' })}
-              </option>
-            ))}
-          </select>
-          <select
-            value={activeYear}
-            onChange={(e) => setActiveYear(parseInt(e.target.value))}
-            className="bg-blue-800/50 border border-blue-600/50 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          >
-            {[2024, 2025, 2026, 2027].map(year => (
-              <option key={year} value={year}>{year}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+        <div className="space-y-8">
+          {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
-      {error && (
-        <div className="flex items-center gap-2 bg-red-900/20 border border-red-600/30 rounded-lg p-4">
-          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-          <span className="text-sm text-red-200">{error}</span>
+          {loadingMonth && !monthlyData ? (
+            <p className="text-sm text-muted">Loading {monthLabel}…</p>
+          ) : monthlyData ? (
+            <>
+              <Panel className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6 lg:gap-10">
+                <div>
+                  <p className="text-sm text-muted">Earned in {monthLabel}</p>
+                  <p className="mt-1 text-[40px] leading-none font-semibold text-ink tabular-nums">
+                    {formatPKR(monthlyData.totalEarnings)}
+                  </p>
+                  <dl className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Figure
+                      label="Base salary"
+                      value={formatPKR(monthlyData.totalBaseSalary)}
+                      hint={`${monthlyData.totalDays} ${monthlyData.totalDays === 1 ? 'day' : 'days'} worked`}
+                    />
+                    <Figure label="Tier bonus" value={formatPKR(monthlyData.totalTierBonus)} hint="Daily performance bonus" />
+                    <Figure
+                      label="Weekly bonus"
+                      value={formatPKR(monthlyData.totalWeeklyBonus || 0)}
+                      hint="PKR 5,000 for 35 approved sales in a week"
+                    />
+                  </dl>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-8 gap-y-4 content-start lg:border-l lg:border-line lg:pl-10">
+                  <Figure label="Approved" value={monthlyData.totalSales ?? 0} tone="text-present" />
+                  <Figure label="Pending" value={monthlyData.totalPendingSales ?? 0} tone="text-late" />
+                  <Figure label="Rejected" value={monthlyData.totalDisapprovedSales ?? 0} tone="text-absent" />
+                  <Figure label="Submitted" value={monthlyData.totalSubmittedSales ?? 0} />
+                </dl>
+              </Panel>
+
+              <Section title="Days at each tier">
+                <Panel className="overflow-hidden">
+                  <ul className="divide-y divide-line">
+                    {TIERS.map((tier) => {
+                      const days = monthlyData.daysPerTier?.[tier.key] || 0;
+                      return (
+                        <li key={tier.key} className="grid grid-cols-[1fr_auto] sm:grid-cols-[180px_1fr_72px] items-center gap-x-4 gap-y-2 px-5 py-3">
+                          <div>
+                            <p className="text-sm font-medium text-ink">{tier.label}</p>
+                            <p className="text-xs text-muted">
+                              {tier.sales}, {formatPKR(tier.bonus)} a day
+                            </p>
+                          </div>
+                          <div className="order-last col-span-2 sm:order-none sm:col-span-1 h-2 rounded-full bg-paper overflow-hidden">
+                            <div className="h-full rounded-full bg-ink" style={{ width: `${(days / maxTierDays) * 100}%` }} />
+                          </div>
+                          <p className="text-sm text-ink tabular-nums text-right">
+                            {days} {days === 1 ? 'day' : 'days'}
+                          </p>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {monthlyData.bestDay && (
+                    <p className="px-5 py-3 border-t border-line bg-paper text-sm text-muted">
+                      Best day:{' '}
+                      <span className="text-ink font-medium">
+                        {new Date(monthlyData.bestDay.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </span>{' '}
+                      with {monthlyData.bestDay.sales} sales, earning{' '}
+                      <span className="text-ink font-medium tabular-nums">{formatPKR(monthlyData.bestDay.earning)}</span>
+                    </p>
+                  )}
+                </Panel>
+              </Section>
+
+              <Section title="Daily breakdown">
+                <DataTable
+                  empty={`No sales recorded in ${monthLabel}.`}
+                  rows={dailyRecords}
+                  rowKey={(r, i) => `${r.date}-${i}`}
+                  columns={[
+                    { key: 'date', header: 'Date', render: (r) => formatDay(r.date) },
+                    { key: 'sales', header: 'Sales', align: 'right', render: (r) => r.sales },
+                    { key: 'base', header: 'Base', align: 'right', render: (r) => formatPKR(r.baseSalary) },
+                    {
+                      key: 'bonus',
+                      header: 'Tier bonus',
+                      align: 'right',
+                      render: (r) => (r.tierBonus > 0 ? <span className="text-present">+ {formatPKR(r.tierBonus)}</span> : <span className="text-muted">—</span>),
+                    },
+                    { key: 'total', header: 'Total', align: 'right', render: (r) => <span className="font-medium">{formatPKR(r.totalEarning)}</span> },
+                    {
+                      key: 'tier',
+                      header: 'Tier',
+                      render: (r) => <Badge tone={r.tier?.startsWith('No Tier') ? 'neutral' : 'shift'}>{r.tier?.split(' (')[0] || '—'}</Badge>,
+                    },
+                  ]}
+                />
+              </Section>
+            </>
+          ) : null}
         </div>
       )}
-
-      {monthlyData && (
-        <>
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
-            <StatsCard
-              icon={<ClipboardList className="w-5 h-5" />}
-              title="Sales Submitted"
-              value={monthlyData.totalSubmittedSales ?? 0}
-              subtitle={`${monthlyData.totalPendingSales} pending · ${monthlyData.totalDisapprovedSales} rejected`}
-              trend="stable"
-            />
-            <StatsCard
-              icon={<TrendingUp className="w-5 h-5" />}
-              title="Total Sales"
-              value={monthlyData.totalSales}
-              subtitle="Approved this month"
-              trend={monthlyData.totalSales > 30 ? 'up' : 'stable'}
-            />
-            <StatsCard
-              icon={<DollarSign className="w-5 h-5" />}
-              title="Base Salary"
-              value={`RS ${(monthlyData.totalBaseSalary / 1000).toFixed(1)}K`}
-              subtitle={`${monthlyData.totalDays} days worked`}
-              trend="up"
-            />
-            <StatsCard
-              icon={<Award className="w-5 h-5" />}
-              title="Tier Bonus"
-              value={`RS ${(monthlyData.totalTierBonus / 1000).toFixed(1)}K`}
-              subtitle="Daily performance bonus"
-              trend={monthlyData.totalTierBonus > 0 ? 'up' : 'stable'}
-            />
-            <StatsCard
-              icon={<Target className="w-5 h-5" />}
-              title="Weekly Bonus"
-              value={`RS ${((monthlyData.totalWeeklyBonus || 0) / 1000).toFixed(1)}K`}
-              subtitle="RS 5,000 at 35 approved CPL sales/week"
-              trend={monthlyData.totalWeeklyBonus > 0 ? 'up' : 'stable'}
-            />
-            <StatsCard
-              icon={<Target className="w-5 h-5" />}
-              title="Total Earnings"
-              value={`RS ${(monthlyData.totalEarnings / 1000).toFixed(1)}K`}
-              subtitle="Base + Bonus"
-              trend="up"
-            />
-          </div>
-
-          {/* Tier Breakdown */}
-          <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Award className="w-5 h-5 text-amber-400" />
-              Tier Performance
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-              {[
-                { tier: 'tier1', sales: '3-4', bonus: 500, card: 'bg-blue-900/20 border-blue-600/30', title: 'text-blue-200', count: 'text-blue-400' },
-                { tier: 'tier2', sales: '5-7', bonus: 1000, card: 'bg-green-900/20 border-green-600/30', title: 'text-green-200', count: 'text-green-400' },
-                { tier: 'tier3', sales: '8-9', bonus: 2000, card: 'bg-purple-900/20 border-purple-600/30', title: 'text-purple-200', count: 'text-purple-400' },
-                { tier: 'tier4', sales: '10-14', bonus: 3000, card: 'bg-orange-900/20 border-orange-600/30', title: 'text-orange-200', count: 'text-orange-400' },
-                { tier: 'tier5', sales: '15+', bonus: 5000, card: 'bg-amber-900/20 border-amber-600/30', title: 'text-amber-200', count: 'text-amber-400' }
-              ].map(({ tier, sales, bonus, card, title, count }, index) => (
-                <div key={tier} className={`${card} rounded-lg p-4 border`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h4 className={`${title} font-medium`}>Tier {index + 1}</h4>
-                      <p className="text-xs text-gray-400">{sales} sales (RS {bonus.toLocaleString()} bonus)</p>
-                    </div>
-                    <span className={`text-2xl font-bold ${count}`}>
-                      {monthlyData.daysPerTier[tier] || 0}
-                    </span>
-                  </div>
-                  <TierProgressBar tier={tier} minSales={Number(sales.match(/\d+/)[0])} />
-                </div>
-              ))}
-            </div>
-
-            {/* Best Day */}
-            {monthlyData.bestDay && (
-              <div className="mt-4 pt-4 border-t border-blue-600/30">
-                <p className="text-xs text-gray-400 mb-2">Best Day</p>
-                <div className="flex items-center justify-between bg-green-900/30 rounded p-3 border border-green-600/40">
-                  <span className="text-green-200">{new Date(monthlyData.bestDay.date).toLocaleDateString('en-GB')}</span>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-green-400">{monthlyData.bestDay.sales} sales</p>
-                    <p className="text-xs text-green-300">RS {monthlyData.bestDay.earning.toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Daily Records */}
-          <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 backdrop-blur-md border border-blue-600/30 rounded-xl overflow-hidden">
-            <div className="p-6 border-b border-blue-600/30">
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-blue-400" />
-                Daily Breakdown
-              </h3>
-            </div>
-
-            {dailyRecords.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-blue-600/30 text-xs font-semibold text-gray-300 uppercase tracking-wider bg-black/20">
-                      <th className="px-6 py-3 text-left">Date</th>
-                      <th className="px-6 py-3 text-center">Sales</th>
-                      <th className="px-6 py-3 text-right">Base</th>
-                      <th className="px-6 py-3 text-right">Bonus</th>
-                      <th className="px-6 py-3 text-right">Total</th>
-                      <th className="px-6 py-3 text-center">Tier</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-blue-600/20">
-                    {dailyRecords.map((record, idx) => (
-                      <tr key={idx} className="hover:bg-blue-800/20 transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-300">
-                          {new Date(`${String(record.date).slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC' })}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-center font-semibold text-amber-400">
-                          {record.sales}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right text-gray-300">
-                          RS {record.baseSalary.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right">
-                          {record.tierBonus > 0 ? (
-                            <span className="text-green-400 font-medium">+ RS {record.tierBonus.toLocaleString()}</span>
-                          ) : (
-                            <span className="text-gray-500">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right font-semibold text-green-400">
-                          RS {record.totalEarning.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-center">
-                          <span className={`inline-block px-2 py-1 rounded text-xs font-medium border ${getTierColor(record.tier)}`}>
-                            {record.tier}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-6 text-center text-gray-400">
-                <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>No sales records yet for this period</p>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-        </div>
-      </div>
-            )}
-
-
-      {/* Floating Message Button */}
-      <button
-        onClick={() => setShowMessageCenter(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-40 group"
-        title="Contact Admins"
-      >
-        <MessageCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
-        <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
-      </button>
-
-      {/* Message Center Modal */}
-      <MessageCenter 
-        isOpen={showMessageCenter}
-        onClose={() => setShowMessageCenter(false)}
-      />
-    </div>
+    </EmployeeShell>
   );
 };
 

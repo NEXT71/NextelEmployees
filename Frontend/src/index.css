@@ -4,28 +4,28 @@
 
 :root {
   color-scheme: light;
-  --color-page: #f4f7f6;
-  --color-surface: #ffffff;
-  --color-surface-muted: #edf2ef;
-  --color-text: #1d2b27;
-  --color-text-muted: #66736e;
-  --color-brand: #087f6e;
-  --color-brand-hover: #066657;
-  --color-brand-soft: #e5f2ee;
-  --color-border: #dce5e1;
-  --color-success: #167345;
-  --color-success-soft: #e8f5ed;
-  --color-warning: #8a5b00;
-  --color-warning-soft: #fff4d6;
-  --color-danger: #b42318;
-  --color-danger-soft: #fcebea;
+  /* Legacy variables, pointed at the design tokens in tailwind.config.js.
+     Pages not yet rebuilt render through the overrides below. */
+  --color-page: #F4F5F7;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #EEF0F3;
+  --color-text: #141821;
+  --color-text-muted: #646B78;
+  --color-brand: #141821;
+  --color-brand-hover: #3A404C;
+  --color-brand-soft: #E8EEFB;
+  --color-border: #E3E5EA;
+  --color-success: #1E8E5A;
+  --color-success-soft: #E6F4EC;
+  --color-warning: #B7791F;
+  --color-warning-soft: #FBF1DF;
+  --color-danger: #C2412D;
+  --color-danger-soft: #FAE7E3;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--color-page);
@@ -93,9 +93,9 @@ code {
 .animate-skeleton {
   background: linear-gradient(
     90deg,
-    #edf2ef 25%,
-    #dce5e1 50%,
-    #edf2ef 75%
+    #EEF0F3 25%,
+    #E3E5EA 50%,
+    #EEF0F3 75%
   );
   background-size: 200% 100%;
   animation: skeleton-loading 1.5s ease-in-out infinite;
@@ -181,12 +181,12 @@ code {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c5d2cc;
+  background: #CDD1D9;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9eafa7;
+  background: #A3A9B4;
 }
 
 /* Map legacy dark utility classes onto the shared light theme. */
@@ -449,7 +449,7 @@ code {
 [class*="border-violet-"],
 [class*="border-pink-"],
 [class*="border-teal-"] {
-  border-color: #b8d9d0 !important;
+  border-color: #C9D5F0 !important;
 }
 
 [class*="focus:ring-blue-"],
@@ -482,6 +482,6 @@ select option {
 }
 
 ::selection {
-  background: #cce7df;
+  background: #E8EEFB;
   color: var(--color-text);
 }

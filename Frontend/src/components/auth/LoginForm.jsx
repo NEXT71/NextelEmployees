@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { User, Lock, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import { Field, Input } from '../ui/Field';
+import Button from '../ui/Button';
 
-const LoginForm = ({ onSubmit, isLoading, error }) => {
+const LoginForm = ({ onSubmit, isLoading }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [credentials, setCredentials] = useState({
     email: '',
@@ -14,66 +16,44 @@ const LoginForm = ({ onSubmit, isLoading, error }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-      <div>
-        <label className="block text-sm font-medium text-[#1d2b27] mb-2">
-          Username or Email
-        </label>
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[#66736e]" />
-          <input
-            type="text"
-            value={credentials.email}
-            onChange={(e) => setCredentials({...credentials, email: e.target.value})}
-            className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 bg-white border border-[#dce5e1] rounded-lg text-[#1d2b27] placeholder-[#87948e] focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-teal-700 text-sm sm:text-base transition-all"
-            placeholder="Enter your username or email"
-            required
-          />
-        </div>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <Field label="Email or username" htmlFor="login-email">
+        <Input
+          id="login-email"
+          type="text"
+          autoComplete="username"
+          autoFocus
+          value={credentials.email}
+          onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+          required
+        />
+      </Field>
 
-      <div>
-        <label className="block text-sm font-medium text-[#1d2b27] mb-2">
-          Password
-        </label>
+      <Field label="Password" htmlFor="login-password">
         <div className="relative">
-          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[#66736e]" />
-          <input
+          <Input
+            id="login-password"
             type={showPassword ? 'text' : 'password'}
+            autoComplete="current-password"
             value={credentials.password}
-            onChange={(e) => setCredentials({...credentials, password: e.target.value})}
-            className="w-full pl-10 sm:pl-12 pr-10 sm:pr-12 py-2.5 sm:py-3 bg-white border border-[#dce5e1] rounded-lg text-[#1d2b27] placeholder-[#87948e] focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-teal-700 text-sm sm:text-base transition-all"
-            placeholder="Enter your password"
+            onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+            className="pr-10"
             required
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#66736e] hover:text-[#087f6e] transition-colors"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            className="absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-md text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shift"
           >
-            {showPassword ? <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Eye className="w-4 h-4 sm:w-5 sm:h-5" />}
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
-      </div>
+      </Field>
 
-      {error && (
-        <div className="text-red-700 text-xs sm:text-sm bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3">{error}</div>
-      )}
-
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="w-full bg-teal-700 hover:bg-teal-800 text-white py-2.5 sm:py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm sm:text-base"
-      >
-        {isLoading ? (
-          <div className="flex items-center justify-center space-x-2">
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            <span>Authenticating...</span>
-          </div>
-        ) : (
-          'Access System'
-        )}
-      </button>
+      <Button type="submit" disabled={isLoading} className="w-full justify-center">
+        {isLoading ? 'Signing in…' : 'Sign in'}
+      </Button>
     </form>
   );
 };

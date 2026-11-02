@@ -1,6 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { API_BASE_URL } from '../../utils/constants';
-import { RefreshCw, X, KeyRound, LogOut, UserPlus, RotateCcw } from 'lucide-react';
+import { RefreshCw, KeyRound, LogOut, UserPlus, RotateCcw, ShieldCheck } from 'lucide-react';
+import Panel from '../../components/ui/Panel';
+import DataTable from '../../components/ui/DataTable';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Alert from '../../components/ui/Alert';
+import Dialog from '../../components/ui/Dialog';
+import { Field, Input, Select } from '../../components/ui/Field';
 
 const headers = () => ({
   'Content-Type': 'application/json',
@@ -19,35 +26,28 @@ const call = async (path, method = 'GET', body) => {
   return json;
 };
 
-const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) : '—');
+const fmtDateTime = (d) =>
+  d ? new Date(d).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—';
 
-const inputCls =
-  'w-full bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500';
-const btnCls = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50';
-
-const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-    <div className="bg-slate-900 border border-white/20 rounded-2xl w-full max-w-md p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white font-bold text-lg">{title}</h3>
-        <button onClick={onClose} className="text-white/50 hover:text-white"><X size={18} /></button>
-      </div>
-      {children}
-    </div>
-  </div>
+// Password field every sensitive action asks for
+const ConfirmPassword = ({ id, value, onChange }) => (
+  <Field label="Your password" htmlFor={id} hint="Required to confirm this change.">
+    <Input id={id} type="password" autoComplete="current-password" value={value} onChange={onChange} />
+  </Field>
 );
 
 // Shows a temporary password once, after create or reset.
 const TempPassword = ({ value, onDone }) => (
-  <Modal title="Temporary password" onClose={onDone}>
-    <p className="text-white/70 text-sm mb-3">Share this with the user now. It will not be shown again.</p>
-    <div className="bg-black/40 border border-yellow-500/40 rounded-lg p-3 text-yellow-200 font-mono text-center select-all break-all">
-      {value}
-    </div>
-    <button onClick={onDone} className="mt-4 w-full px-4 py-2 bg-purple-500/30 hover:bg-purple-500/40 text-purple-100 rounded-lg text-sm">
-      I have copied it
-    </button>
-  </Modal>
+  <Dialog
+    open
+    onClose={onDone}
+    size="max-w-md"
+    title="Temporary password"
+    description="Share this with the user now. It won't be shown again."
+    footer={<Button onClick={onDone}>I've copied it</Button>}
+  >
+    <p className="rounded-lg border border-line bg-paper px-4 py-3 text-center font-mono text-lg text-ink select-all break-all">{value}</p>
+  </Dialog>
 );
 
 // ─── Accounts: create, role, password, sessions, devices ───────────────────
@@ -95,119 +95,153 @@ export const AccountsPanel = () => {
   };
 
   const d = dialog;
+  const setField = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-white text-2xl font-bold">Accounts & Sessions</h2>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted">Logins, roles, passwords and live sessions.</p>
         <div className="flex gap-2">
-          <button onClick={() => open('create', null, { role: 'admin' })} className={`${btnCls} bg-purple-500/30 text-purple-100 hover:bg-purple-500/40`}>
-            <UserPlus size={14} /> Create account
-          </button>
-          <button onClick={load} className={`${btnCls} bg-white/10 text-white/70 hover:text-white`}>
-            <RefreshCw size={14} /> Refresh
-          </button>
+          <Button variant="ghost" size="icon" icon={RefreshCw} onClick={load} aria-label="Refresh" />
+          <Button icon={UserPlus} onClick={() => open('create', null, { role: 'admin' })}>Create account</Button>
         </div>
       </div>
 
-      {notice && <div className="mb-3 p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-300 text-sm">{notice}</div>}
-      {error && !d && <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">{error}</div>}
+      {notice && <Alert tone="success" onDismiss={() => setNotice('')}>{notice}</Alert>}
+      {error && !d && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
-      <div className="bg-white/5 rounded-2xl border border-white/10 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-white/50 border-b border-white/10">
-              <th className="text-left py-3 px-4">User</th>
-              <th className="text-center py-3 px-4">Role</th>
-              <th className="text-center py-3 px-4">Session</th>
-              <th className="text-left py-3 px-4">Last login</th>
-              <th className="text-center py-3 px-4">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((u) => (
-              <tr key={u._id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="py-3 px-4">
-                  <div className="text-white font-medium">{u.username}</div>
-                  <div className="text-white/50 text-xs">{u.email}{u.isActive === false ? ' · inactive' : ''}</div>
-                </td>
-                <td className="py-3 px-4 text-center text-white/80">{u.role}</td>
-                <td className="py-3 px-4 text-center">
-                  <span className={u.sessionLive ? 'text-green-300' : 'text-white/40'}>{u.sessionLive ? 'Logged in' : 'Offline'}</span>
-                </td>
-                <td className="py-3 px-4 text-white/60">{fmtDateTime(u.lastLogin)}</td>
-                <td className="py-3 px-4">
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {u.role !== 'superadmin' && (
-                      <button onClick={() => open('role', u, { role: u.role === 'admin' ? 'qa' : 'admin' })} className={`${btnCls} bg-blue-500/20 text-blue-200 hover:bg-blue-500/30`}>
-                        Role
-                      </button>
-                    )}
-                    <button onClick={() => open('reset', u)} className={`${btnCls} bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/30`} disabled={u.role === 'superadmin'}>
-                      <KeyRound size={12} /> Password
-                    </button>
-                    <button onClick={() => direct(`/users/${u._id}/force-logout`, 'Force logout', u)} className={`${btnCls} bg-red-500/20 text-red-200 hover:bg-red-500/30`}>
-                      <LogOut size={12} /> Logout
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={5}className="py-10 text-center text-white/40">No users found.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        empty="No users found."
+        rows={rows}
+        columns={[
+          {
+            key: 'user',
+            header: 'User',
+            render: (u) => (
+              <>
+                <span className="font-medium">{u.username}</span>
+                <span className="block text-xs text-muted">{u.email}{u.isActive === false ? ', inactive' : ''}</span>
+              </>
+            ),
+          },
+          { key: 'role', header: 'Role', render: (u) => <Badge tone={u.role === 'superadmin' || u.role === 'admin' ? 'shift' : 'neutral'}>{u.role}</Badge> },
+          {
+            key: 'session',
+            header: 'Session',
+            render: (u) => <Badge tone={u.sessionLive ? 'present' : 'neutral'} dot={u.sessionLive}>{u.sessionLive ? 'Signed in' : 'Offline'}</Badge>,
+          },
+          { key: 'last', header: 'Last sign-in', render: (u) => <span className="text-muted">{fmtDateTime(u.lastLogin)}</span> },
+          {
+            key: 'actions',
+            header: <span className="sr-only">Actions</span>,
+            align: 'right',
+            render: (u) => (
+              <div className="flex flex-wrap items-center justify-end gap-1">
+                {u.role !== 'superadmin' && (
+                  <Button variant="secondary" size="sm" icon={ShieldCheck} onClick={() => open('role', u, { role: u.role === 'admin' ? 'qa' : 'admin' })}>Role</Button>
+                )}
+                <Button variant="secondary" size="sm" icon={KeyRound} onClick={() => open('reset', u)} disabled={u.role === 'superadmin'}>Password</Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={LogOut}
+                  onClick={() => direct(`/users/${u._id}/force-logout`, 'Force sign-out', u)}
+                  className="hover:text-absent"
+                >
+                  Sign out
+                </Button>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {d?.type === 'create' && (
-        <Modal title="Create account" onClose={close}>
-          <div className="space-y-3">
-            <input className={inputCls} placeholder="Username" value={form.username || ''} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-            <input className={inputCls} placeholder="Email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            <select className={inputCls} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-              <option value="admin">admin</option>
-              <option value="qa">qa</option>
-              <option value="hr">hr</option>
-            </select>
-            <input type="password" className={inputCls} placeholder="Your password to confirm" value={form.confirmPassword || ''} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} />
-            {error && <p className="text-red-300 text-sm">{error}</p>}
-            <button disabled={busy} onClick={() => run(() => call('/users', 'POST', form))} className="w-full px-4 py-2 bg-purple-500/30 hover:bg-purple-500/40 text-purple-100 rounded-lg text-sm disabled:opacity-50">
-              {busy ? 'Creating…' : 'Create'}
-            </button>
+        <Dialog
+          open
+          onClose={close}
+          size="max-w-md"
+          title="Create account"
+          description="A temporary password is shown once the account is created."
+          footer={
+            <>
+              <Button variant="secondary" onClick={close}>Cancel</Button>
+              <Button disabled={busy} onClick={() => run(() => call('/users', 'POST', form))}>{busy ? 'Creating…' : 'Create account'}</Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            {error && <Alert>{error}</Alert>}
+            <Field label="Username" htmlFor="acc-username">
+              <Input id="acc-username" value={form.username || ''} onChange={setField('username')} />
+            </Field>
+            <Field label="Email" htmlFor="acc-email">
+              <Input id="acc-email" type="email" value={form.email || ''} onChange={setField('email')} />
+            </Field>
+            <Field label="Role" htmlFor="acc-role">
+              <Select id="acc-role" value={form.role} onChange={setField('role')}>
+                <option value="admin">Admin</option>
+                <option value="qa">QA</option>
+                <option value="hr">HR</option>
+              </Select>
+            </Field>
+            <ConfirmPassword id="acc-confirm" value={form.confirmPassword || ''} onChange={setField('confirmPassword')} />
           </div>
-        </Modal>
+        </Dialog>
       )}
 
       {d?.type === 'role' && (
-        <Modal title={`Change role: ${d.user.username}`} onClose={close}>
-          <div className="space-y-3">
-            <p className="text-white/60 text-sm">Currently {d.user.role}. The user is logged out and signs in again under the new role.</p>
-            <select className={inputCls} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-              {['employee', 'qa', 'hr', 'admin', 'superadmin'].filter((r) => r !== d.user.role).map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
+        <Dialog
+          open
+          onClose={close}
+          size="max-w-md"
+          title={`Change role for ${d.user.username}`}
+          description={`Currently ${d.user.role}. They're signed out and sign in again under the new role.`}
+          footer={
+            <>
+              <Button variant="secondary" onClick={close}>Cancel</Button>
+              <Button disabled={busy} onClick={() => run(() => call(`/users/${d.user._id}/role`, 'PATCH', form))}>{busy ? 'Saving…' : 'Change role'}</Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            {error && <Alert>{error}</Alert>}
+            <Field label="New role" htmlFor="role-new">
+              <Select id="role-new" value={form.role} onChange={setField('role')}>
+                {['employee', 'qa', 'hr', 'admin', 'superadmin'].filter((r) => r !== d.user.role).map((r) => <option key={r} value={r}>{r}</option>)}
+              </Select>
+            </Field>
             {form.role === 'superadmin' && (
-              <input className={inputCls} placeholder="Type SUPERADMIN to confirm" value={form.confirmText || ''} onChange={(e) => setForm({ ...form, confirmText: e.target.value })} />
+              <Field label="Type SUPERADMIN to confirm" htmlFor="role-confirm-text" hint="Super admins can delete and restore everything.">
+                <Input id="role-confirm-text" value={form.confirmText || ''} onChange={setField('confirmText')} />
+              </Field>
             )}
-            <input type="password" className={inputCls} placeholder="Your password to confirm" value={form.confirmPassword || ''} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} />
-            {error && <p className="text-red-300 text-sm">{error}</p>}
-            <button disabled={busy} onClick={() => run(() => call(`/users/${d.user._id}/role`, 'PATCH', form))} className="w-full px-4 py-2 bg-blue-500/30 hover:bg-blue-500/40 text-blue-100 rounded-lg text-sm disabled:opacity-50">
-              {busy ? 'Saving…' : 'Change role'}
-            </button>
+            <ConfirmPassword id="role-confirm" value={form.confirmPassword || ''} onChange={setField('confirmPassword')} />
           </div>
-        </Modal>
+        </Dialog>
       )}
 
       {d?.type === 'reset' && (
-        <Modal title={`Reset password: ${d.user.username}`} onClose={close}>
-          <div className="space-y-3">
-            <p className="text-white/60 text-sm">A new temporary password is generated and the user is logged out everywhere.</p>
-            <input type="password" className={inputCls} placeholder="Your password to confirm" value={form.confirmPassword || ''} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} />
-            {error && <p className="text-red-300 text-sm">{error}</p>}
-            <button disabled={busy} onClick={() => run(() => call(`/users/${d.user._id}/reset-password`, 'POST', form))} className="w-full px-4 py-2 bg-yellow-500/30 hover:bg-yellow-500/40 text-yellow-100 rounded-lg text-sm disabled:opacity-50">
-              {busy ? 'Resetting…' : 'Reset password'}
-            </button>
+        <Dialog
+          open
+          onClose={close}
+          size="max-w-md"
+          title={`Reset password for ${d.user.username}`}
+          description="A new temporary password is generated and they're signed out everywhere."
+          footer={
+            <>
+              <Button variant="secondary" onClick={close}>Cancel</Button>
+              <Button variant="danger" disabled={busy} onClick={() => run(() => call(`/users/${d.user._id}/reset-password`, 'POST', form))}>
+                {busy ? 'Resetting…' : 'Reset password'}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            {error && <Alert>{error}</Alert>}
+            <ConfirmPassword id="reset-confirm" value={form.confirmPassword || ''} onChange={setField('confirmPassword')} />
           </div>
-        </Modal>
+        </Dialog>
       )}
 
       {temp && <TempPassword value={temp} onDone={() => setTemp('')} />}
@@ -258,7 +292,7 @@ export const AuditPanel = () => {
     setError('');
     try {
       const json = await call(`/audit-logs/${restore.log._id}/restore`, 'POST', { confirmPassword: password });
-      const summary = (json.data || []).map((r) => `${r.type}: ${r.restored} restored, ${r.skipped} already existed${r.errors.length ? `, ${r.errors.length} failed` : ''}`).join(' | ');
+      const summary = (json.data || []).map((r) => `${r.type}: ${r.restored} restored, ${r.skipped} already existed${r.errors.length ? `, ${r.errors.length} failed` : ''}`).join('; ');
       setNotice(summary);
       setRestore(null);
       await load();
@@ -270,73 +304,85 @@ export const AuditPanel = () => {
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <h2 className="text-white text-2xl font-bold">Audit Log</h2>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted">Every change made in the portal. Deletions can be restored.</p>
         <div className="flex gap-2">
-          <input className={`${inputCls} w-56`} placeholder="Filter by action, e.g. sale.delete" value={filter} onChange={(e) => { setPage(1); setFilter(e.target.value.trim()); }} />
-          <button onClick={load} className={`${btnCls} bg-white/10 text-white/70 hover:text-white`}><RefreshCw size={14} /> Refresh</button>
+          <Input
+            aria-label="Filter by action"
+            className="w-60"
+            placeholder="Filter by action, e.g. sale.delete"
+            value={filter}
+            onChange={(e) => { setPage(1); setFilter(e.target.value.trim()); }}
+          />
+          <Button variant="ghost" size="icon" icon={RefreshCw} onClick={load} aria-label="Refresh" />
         </div>
       </div>
 
-      {notice && <div className="mb-3 p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-300 text-sm">{notice}</div>}
-      {error && !restore && <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">{error}</div>}
+      {notice && <Alert tone="success" onDismiss={() => setNotice('')}>{notice}</Alert>}
+      {error && !restore && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
-      <div className="bg-white/5 rounded-2xl border border-white/10 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-white/50 border-b border-white/10">
-              <th className="text-left py-3 px-4">When (PKT)</th>
-              <th className="text-left py-3 px-4">Who</th>
-              <th className="text-left py-3 px-4">Action</th>
-              <th className="text-left py-3 px-4">Summary</th>
-              <th className="text-center py-3 px-4"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((l) => (
-              <tr key={l._id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="py-2.5 px-4 text-white/60 whitespace-nowrap">{fmtDateTime(l.createdAt)}</td>
-                <td className="py-2.5 px-4 text-white/80">{l.actorName || '—'} <span className="text-white/40 text-xs">{l.actorRole}</span></td>
-                <td className="py-2.5 px-4 text-white font-mono text-xs">{l.action}</td>
-                <td className="py-2.5 px-4 text-white/70">{l.summary}</td>
-                <td className="py-2.5 px-4 text-center">
-                  {canRestore(l) && (
-                    <button onClick={() => openRestore(l)} className={`${btnCls} bg-green-500/20 text-green-200 hover:bg-green-500/30`}>
-                      <RotateCcw size={12} /> Restore
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {logs.length === 0 && <tr><td colSpan={5} className="py-10 text-center text-white/40">No entries.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        empty="No audit entries match."
+        rows={logs}
+        columns={[
+          { key: 'when', header: 'When (PKT)', render: (l) => <span className="text-muted">{fmtDateTime(l.createdAt)}</span> },
+          {
+            key: 'who',
+            header: 'Who',
+            render: (l) => (
+              <>
+                {l.actorName || '—'}
+                {l.actorRole && <span className="block text-xs text-muted">{l.actorRole}</span>}
+              </>
+            ),
+          },
+          { key: 'action', header: 'Action', render: (l) => <code className="rounded bg-paper px-1.5 py-0.5 text-xs text-ink">{l.action}</code> },
+          { key: 'summary', header: 'Summary', render: (l) => <span className="block max-w-md whitespace-normal">{l.summary}</span> },
+          {
+            key: 'restore',
+            header: <span className="sr-only">Restore</span>,
+            align: 'right',
+            render: (l) => canRestore(l) && <Button variant="secondary" size="sm" icon={RotateCcw} onClick={() => openRestore(l)}>Restore</Button>,
+          },
+        ]}
+      />
 
-      <div className="flex items-center justify-center gap-3 mt-4 text-sm text-white/60">
-        <button disabled={page <= 1} onClick={() => setPage(page - 1)} className={`${btnCls} bg-white/10`}>Previous</button>
-        <span>Page {page} of {pages}</span>
-        <button disabled={page >= pages} onClick={() => setPage(page + 1)} className={`${btnCls} bg-white/10`}>Next</button>
+      <div className="flex items-center justify-between gap-3 text-sm text-muted">
+        <span className="tabular-nums">Page {page} of {pages}</span>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+          <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
+        </div>
       </div>
 
       {restore && (
-        <Modal title="Restore deleted data" onClose={() => setRestore(null)}>
-          <div className="space-y-3">
-            <p className="text-white/70 text-sm">{restore.preview.summary}</p>
-            <ul className="text-white/80 text-sm list-disc pl-5">
+        <Dialog
+          open
+          onClose={() => setRestore(null)}
+          size="max-w-md"
+          title="Restore deleted data"
+          description={restore.preview.summary}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setRestore(null)}>Cancel</Button>
+              <Button icon={RotateCcw} disabled={busy || !password} onClick={doRestore}>{busy ? 'Restoring…' : 'Restore'}</Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <ul className="text-sm text-ink list-disc pl-5 space-y-1">
               {restore.preview.willRestore.map((w) => (
-                <li key={w.type}>{w.type}: {w.restore} to restore{w.alreadyExist ? `, ${w.alreadyExist} already exist (left as is)` : ''}</li>
+                <li key={w.type}>
+                  {w.type}: {w.restore} to restore{w.alreadyExist ? `, ${w.alreadyExist} already exist and stay as they are` : ''}
+                </li>
               ))}
             </ul>
-            {restore.preview.note && <p className="text-yellow-200 text-sm">{restore.preview.note}</p>}
-            <input type="password" className={inputCls} placeholder="Your password to confirm" value={password} onChange={(e) => setPassword(e.target.value)} />
-            {error && <p className="text-red-300 text-sm">{error}</p>}
-            <button disabled={busy || !password} onClick={doRestore} className="w-full px-4 py-2 bg-green-500/30 hover:bg-green-500/40 text-green-100 rounded-lg text-sm disabled:opacity-50">
-              {busy ? 'Restoring…' : 'Restore'}
-            </button>
+            {restore.preview.note && <Alert tone="warning">{restore.preview.note}</Alert>}
+            {error && <Alert>{error}</Alert>}
+            <ConfirmPassword id="restore-confirm" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
-        </Modal>
+        </Dialog>
       )}
     </div>
   );
@@ -378,42 +424,56 @@ export const SettingsPanel = () => {
     }
   };
 
-  if (!data) return <p className="text-white/50">{error || 'Loading…'}</p>;
+  if (!data) return error ? <Alert>{error}</Alert> : <p className="text-sm text-muted">Loading…</p>;
 
   const changed = Object.keys(amounts).filter((k) => Number(amounts[k]) !== data.fineAmounts[k]);
 
   return (
-    <div className="max-w-xl">
-      <h2 className="text-white text-2xl font-bold mb-2">Settings</h2>
-      <div className="mb-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-200 text-sm">
-        Fine amounts apply to new fines only. Fines already created, and salaries already generated, keep their amounts.
-        Sales pay rates and tiers are not editable here; they are set in the code.
-      </div>
-      {notice && <div className="mb-3 p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-300 text-sm">{notice}</div>}
-      {error && <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">{error}</div>}
+    <div className="max-w-xl space-y-4">
+      <Alert tone="warning">
+        Fine amounts apply to new fines only. Existing fines and generated salaries keep their amounts.
+        Sales pay rates and tiers are set in code, not here.
+      </Alert>
+      {notice && <Alert tone="success" onDismiss={() => setNotice('')}>{notice}</Alert>}
+      {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
-      <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-2">
-        {Object.keys(data.defaults).map((type) => (
-          <div key={type} className="flex items-center justify-between gap-3">
-            <label className="text-white/80 text-sm flex-1">{type}</label>
-            <span className="text-white/40 text-xs">default {data.defaults[type]}</span>
-            <input type="number" min="0" step="1" className={`${inputCls} w-28`} value={amounts[type] ?? ''} onChange={(e) => setAmounts({ ...amounts, [type]: e.target.value })} />
-          </div>
-        ))}
-        <p className="text-white/40 text-xs pt-2">
-          Version {data.version || 'default'}{data.updatedByName ? ` · last changed by ${data.updatedByName}` : ''}{data.updatedAt ? ` · ${fmtDateTime(data.updatedAt)}` : ''}
+      <div>
+        <h2 className="text-xl font-semibold text-ink mb-3">Fine amounts</h2>
+        <Panel className="overflow-hidden">
+          <ul className="divide-y divide-line">
+            {Object.keys(data.defaults).map((type) => (
+              <li key={type} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <label htmlFor={`fine-amt-${type}`} className="flex-1 text-sm text-ink">{type}</label>
+                <span className="text-xs text-muted tabular-nums">default {data.defaults[type]}</span>
+                <Input
+                  id={`fine-amt-${type}`}
+                  type="number"
+                  min="0"
+                  step="1"
+                  className="w-28 text-right tabular-nums"
+                  value={amounts[type] ?? ''}
+                  onChange={(e) => setAmounts({ ...amounts, [type]: e.target.value })}
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="px-4 py-2.5 border-t border-line bg-paper text-xs text-muted">
+            Version {data.version || 'default'}
+            {data.updatedByName ? `, last changed by ${data.updatedByName}` : ''}
+            {data.updatedAt ? ` on ${fmtDateTime(data.updatedAt)}` : ''}
+          </p>
+        </Panel>
+      </div>
+
+      {changed.length > 0 && (
+        <p className="text-sm text-ink">
+          Changing {changed.map((k) => `${k} from ${data.fineAmounts[k]} to ${amounts[k]}`).join(', ')}.
         </p>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        {changed.length > 0 && (
-          <p className="text-white/70 text-sm">Changing: {changed.map((k) => `${k} ${data.fineAmounts[k]} → ${amounts[k]}`).join(', ')}</p>
-        )}
-        <input type="password" className={inputCls} placeholder="Your password to confirm" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <button disabled={busy || !password || changed.length === 0} onClick={save} className="w-full px-4 py-2 bg-purple-500/30 hover:bg-purple-500/40 text-purple-100 rounded-lg text-sm disabled:opacity-50">
-          {busy ? 'Saving…' : 'Save fine amounts'}
-        </button>
-      </div>
+      )}
+      <ConfirmPassword id="settings-confirm" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <Button disabled={busy || !password || changed.length === 0} onClick={save}>
+        {busy ? 'Saving…' : 'Save fine amounts'}
+      </Button>
     </div>
   );
 };

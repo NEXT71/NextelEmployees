@@ -1,8 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import AdminHeader from '../../components/common/AdminHeader';
-import StatsCard from '../../components/common/StatsCard';
-import AdminMessageCenter from '../../components/admin/AdminMessageCenter';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import AdminShell, { ADMIN_TABS } from '../../components/admin/AdminShell';
 import BulkFineModal from '../../components/admin/BulkFineModal';
 import GenerateSalaryModal from '../../components/admin/GenerateSalaryModal';
 import BonusModal from '../../components/admin/BonusModal';
@@ -11,30 +9,69 @@ import SalesRecordingModal from '../../components/admin/SalesRecordingModal';
 import SalesAnalytics from '../../components/admin/SalesAnalytics';
 import PendingSalesReview from '../../components/admin/PendingSalesReview';
 import EmployeeDocumentsModal from '../../components/admin/EmployeeDocumentsModal';
+import { formatPKR } from '../../components/employees/MonthLedger';
+import Panel from '../../components/ui/Panel';
+import StatGroup from '../../components/ui/StatGroup';
+import DataTable from '../../components/ui/DataTable';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Alert from '../../components/ui/Alert';
+import Dialog from '../../components/ui/Dialog';
+import { Tabs } from '../../components/ui/Tabs';
+import { Field, Input, Select, Textarea } from '../../components/ui/Field';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
 import { employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  Users, CheckCircle, AlertTriangle, 
-  X, Edit, Trash2, AlertCircle, Paperclip,
-  Filter, Search, DollarSign, Calendar,
-  User as UserIcon, Home, Phone, Mail, MessageSquare,
-  RefreshCw, Download, UserCheck, TrendingUp, Gift
+import {
+  Pencil, UserX, Paperclip, ReceiptText, Search, Check, Trash2,
+  RefreshCw, Download, Wallet, Gift, TrendingUp, Users
 } from 'lucide-react';
-import { authAPI } from '../../utils/api';
+
+const TAB_TITLES = {
+  employees: 'Employees',
+  fines: 'Fines',
+  bonuses: 'Bonuses',
+  salaries: 'Salaries',
+  sales: 'Sales',
+};
+
+const employeeStatusTone = (status) => {
+  const s = String(status || 'active').toLowerCase();
+  if (s === 'active') return 'present';
+  if (s === 'on leave') return 'late';
+  return 'absent';
+};
+
+const fmtDate = (value) =>
+  value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+const fmtMonth = (value) =>
+  value ? new Date(value).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—';
+
+const netOf = (salary) => (salary.baseSalary || 0) + (salary.bonuses || 0) - (salary.deductions || 0);
+
+// Read-only label/value pair used in the employee details dialog
+const Detail = ({ label, children }) => (
+  <div className="min-w-0">
+    <dt className="text-xs text-muted">{label}</dt>
+    <dd className="text-sm text-ink break-words">{children}</dd>
+  </div>
+);
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab = ADMIN_TABS.includes(tabParam) ? tabParam : 'employees';
+
   const [employees, setEmployees] = useState([]);
   const [fines, setFines] = useState([]);
   const [salaries, setSalaries] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('employees');
   const [salesSubTab, setSalesSubTab] = useState('pending');
-  
+
   // Modals
   const [showFineModal, setShowFineModal] = useState(false);
   const [showBulkFineModal, setShowBulkFineModal] = useState(false);
@@ -51,8 +88,7 @@ const AdminDashboard = () => {
   const [employeeToEdit, setEmployeeToEdit] = useState(null);
   const [showDocumentsModal, setShowDocumentsModal] = useState(false);
   const [employeeForDocuments, setEmployeeForDocuments] = useState(null);
-  const [showMessageCenter, setShowMessageCenter] = useState(false);
-  
+
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -64,7 +100,7 @@ const AdminDashboard = () => {
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [fineSearchTerm, setFineSearchTerm] = useState('');
   const [salarySearchTerm, setSalarySearchTerm] = useState('');
-  
+
   // Applied filters (for fines tab)
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
   const [appliedMonthFilter, setAppliedMonthFilter] = useState('');
@@ -232,16 +268,6 @@ const AdminDashboard = () => {
       fetchData();
     }
   }, [activeTab, user, navigate, calculateSummary]);
-
-  const handleLogout = async () => {
-    try {
-      await authAPI.logout();
-      localStorage.removeItem('token');
-      navigate('/');
-    } catch (err) {
-      console.error('Logout failed:', err);
-    }
-  };
 
   // View Employee Details
   const viewEmployeeDetails = async (employee) => {
@@ -636,1228 +662,536 @@ const AdminDashboard = () => {
     });
   }, [salaries, salarySearchTerm, matchesEmployeeStatus]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        </div>
-        
-        <div className="text-center relative z-10">
-          <div className="w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-blue-200">Loading admin dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+
+  const refreshSalaries = async () => {
+    try {
+      const salariesResponse = await salaryAPI.getAllSalaries();
+      setSalaries(salariesResponse.data || []);
+    } catch (err) {
+      console.error('Error refreshing salaries:', err);
+    }
+  };
+
+  const applyFineFilters = () => {
+    setAppliedSearchTerm(fineSearchTerm);
+    setAppliedMonthFilter(monthFilter);
+    setAppliedDateFilter(dateFilter);
+    setAppliedEmployeeFilter(employeeFilter);
+    setAppliedFineFilter(fineFilter);
+  };
+
+  const payrollTotal = filteredSalaries.reduce((sum, s) => sum + (s.baseSalary || 0), 0);
+  const bonusTotal = filteredSalaries.reduce((sum, s) => sum + (s.bonuses || 0), 0);
+
+  // Page actions next to the title, per section
+  const headerActions = {
+    employees: (
+      <>
+        <Button variant="secondary" icon={ReceiptText} onClick={() => setShowBulkFineModal(true)}>Fine several</Button>
+        <Button variant="secondary" icon={Download} onClick={handleDownloadEmployeeReport}>Report</Button>
+      </>
+    ),
+    fines: <Button variant="secondary" icon={Download} onClick={handleDownloadFineReport}>Report</Button>,
+    salaries: (
+      <>
+        <Button variant="secondary" icon={Download} onClick={handleDownloadSalaryReport}>Report</Button>
+        <Button icon={Wallet} onClick={() => setShowGenerateSalaryModal(true)}>Generate salaries</Button>
+      </>
+    ),
+    sales: salesSubTab === 'analytics' && (
+      <Button icon={TrendingUp} onClick={() => setShowSalesRecordingModal(true)}>Record sales</Button>
+    ),
+    bonuses: null,
+  }[activeTab];
+
+  const statusSelect = (
+    <Select aria-label="Employee status" value={employeeStatusFilter} onChange={(e) => setEmployeeStatusFilter(e.target.value)} className="sm:w-48">
+      <option value="active">Active employees</option>
+      <option value="inactive">Inactive employees</option>
+      <option value="all">All employees</option>
+    </Select>
+  );
+
+  const searchBox = (value, onChange, placeholder) => (
+    <div className="relative flex-1 min-w-[220px]">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" aria-hidden="true" />
+      <Input type="text" aria-label="Search" placeholder={placeholder} value={value} onChange={onChange} className="pl-9" />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 relative overflow-hidden">
-      {/* Background elements - responsive */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-64 sm:h-64 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-48 h-48 sm:w-96 sm:h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+    <AdminShell>
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+        <h1 className="text-[28px] leading-tight font-semibold text-ink">{TAB_TITLES[activeTab]}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          {headerActions}
+          {['employees', 'fines'].includes(activeTab) && (
+            <Button variant="ghost" size="icon" icon={RefreshCw} onClick={refreshDashboard} disabled={loading} aria-label="Refresh" title="Refresh" />
+          )}
+        </div>
       </div>
-      
-      <AdminHeader
-        userName={user?.username}
-        onLogout={handleLogout}
-      />
 
-      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 relative z-10">
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-red-300 text-sm flex justify-between items-center">
-            <span>{error}</span>
-            <button onClick={() => setError('')} className="text-red-300 hover:text-white">
-              <X className="w-4 h-4" />
-            </button>
+      <div className="space-y-6">
+        {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
+
+        {['employees', 'fines'].includes(activeTab) && (
+          <StatGroup
+            items={[
+              { label: 'Employees', value: summary.totalEmployees || employees.length || 0 },
+              { label: 'Active', value: summary.activeEmployees || employees.filter(emp => emp.status === 'Active').length || 0, tone: 'present' },
+              { label: 'Fines issued', value: summary.totalFinesCount || 0 },
+              { label: 'Fines total', value: formatPKR(summary.totalFineAmount || 0), tone: 'absent' },
+            ]}
+          />
+        )}
+
+        {/* ── Employees ── */}
+        {activeTab === 'employees' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-3">
+              {searchBox(searchTerm, (e) => setSearchTerm(e.target.value), 'Search name, email or employee ID')}
+              {statusSelect}
+              <Select aria-label="Department" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} className="sm:w-48">
+                <option value="">All departments</option>
+                {DEPARTMENTS.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </Select>
+            </div>
+
+            <DataTable
+              loading={loading}
+              empty={
+                employeeStatusFilter === 'active' && employees.some(e => String(e.status || '').toLowerCase() === 'inactive')
+                  ? 'No active employees match. Switch the status filter to see inactive ones.'
+                  : 'No employees match your search and filters.'
+              }
+              rows={filteredEmployees}
+              columns={[
+                {
+                  key: 'name',
+                  header: 'Employee',
+                  render: (employee) => (
+                    <button
+                      type="button"
+                      onClick={() => viewEmployeeDetails(employee)}
+                      className="text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shift"
+                    >
+                      <span className="font-medium text-ink hover:underline underline-offset-2">{employee.firstName} {employee.lastName}</span>
+                      <span className="block text-xs text-muted">{employee.email || 'No email'}</span>
+                    </button>
+                  ),
+                },
+                { key: 'id', header: 'ID', render: (employee) => employee.employeeId || '—' },
+                { key: 'dept', header: 'Department', render: (employee) => employee.department || 'Not assigned' },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (employee) => <Badge tone={employeeStatusTone(employee.status)}>{employee.status || 'Active'}</Badge>,
+                },
+                { key: 'seen', header: 'Last seen', render: (employee) => employee.lastSeen || 'Never' },
+                {
+                  key: 'actions',
+                  header: <span className="sr-only">Actions</span>,
+                  align: 'right',
+                  render: (employee) => (
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon" icon={Pencil} onClick={() => openEditModal(employee)} aria-label="Edit employee" title="Edit employee" />
+                      <Button variant="ghost" size="icon" icon={ReceiptText} onClick={() => openFineModal(employee)} aria-label="Add fine" title="Add fine" />
+                      <Button variant="ghost" size="icon" icon={Paperclip} onClick={() => openDocumentsModal(employee)} aria-label="Documents" title="Documents" />
+                      {employee.status === 'Inactive' ? (
+                        <Button variant="ghost" size="sm" onClick={() => handleToggleEmployeeActive(employee)} className="text-present hover:text-present">
+                          Reactivate
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          icon={UserX}
+                          onClick={() => handleToggleEmployeeActive(employee)}
+                          aria-label="Deactivate employee"
+                          title="Deactivate employee"
+                          className="hover:text-absent"
+                        />
+                      )}
+                    </div>
+                  ),
+                },
+              ]}
+            />
+            {!loading && (
+              <p className="text-sm text-muted">Showing {filteredEmployees.length} of {employees.length} employees</p>
+            )}
           </div>
         )}
 
-        {/* Stats Overview Header with Refresh Button */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
-            Dashboard Overview
-          </h2>
-          <button
-            onClick={refreshDashboard}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Refresh Dashboard Data"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
-        </div>
-
-        {/* Stats Overview - Responsive Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          <StatsCard
-            title="Total Employees"
-            value={summary.totalEmployees || employees.length || 0}
-            icon={<Users className="w-6 h-6 sm:w-8 sm:h-8" />}
-            color="blue"
-          />
-          <StatsCard
-            title="Active Employees"
-            value={summary.activeEmployees || employees.filter(emp => emp.status === 'Active').length || 0}
-            icon={<CheckCircle className="w-6 h-6 sm:w-8 sm:h-8" />}
-            color="green"
-          />
-          <StatsCard
-            title="Total Fines"
-            value={summary.totalFinesCount || 0}
-            icon={<AlertTriangle className="w-8 h-8" />}
-            color="orange"
-          />
-          <StatsCard
-            title="Fines Amount"
-            value={`RS${summary.totalFineAmount?.toLocaleString() || '0'}`}
-            icon={<DollarSign className="w-8 h-8" />}
-            color="red"
-          />
-        </div>
-
-        {/* Tabs - Mobile Friendly */}
-        <div className="flex flex-wrap gap-2 border-b border-white/10">
-          <button
-            onClick={() => setActiveTab('employees')}
-            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'employees' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
-          >
-            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Employees</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('fines')}
-            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'fines' ? 'text-orange-300 border-b-2 border-orange-400' : 'text-blue-200/70 hover:text-orange-300'}`}
-          >
-            <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Fines</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('bonuses')}
-            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'bonuses' ? 'text-yellow-300 border-b-2 border-yellow-400' : 'text-blue-200/70 hover:text-yellow-300'}`}
-          >
-            <Gift className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Bonuses</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('salaries')}
-            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'salaries' ? 'text-green-300 border-b-2 border-green-400' : 'text-blue-200/70 hover:text-green-300'}`}
-          >
-            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Salaries</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('sales')}
-            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'sales' ? 'text-purple-300 border-b-2 border-purple-400' : 'text-blue-200/70 hover:text-purple-300'}`}
-          >
-            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Sales</span>
-          </button>
-
-        </div>
-
-        {/* Search and Filters - Responsive (Bonuses tab has its own filters) */}
-        <div className={`flex flex-col sm:flex-row gap-3 sm:gap-4 ${activeTab === 'bonuses' ? 'hidden' : ''}`}>
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-blue-200/70" />
-            </div>
-            <input
-              type="text"
-              placeholder={`Search ${activeTab === 'employees' ? 'employees' : activeTab === 'fines' ? 'fines' : activeTab === 'salaries' ? 'salaries' : 'sales'}...`}
-              value={activeTab === 'employees' ? searchTerm : activeTab === 'fines' ? fineSearchTerm : salarySearchTerm}
-              onChange={(e) => activeTab === 'employees' ? setSearchTerm(e.target.value) : activeTab === 'fines' ? setFineSearchTerm(e.target.value) : setSalarySearchTerm(e.target.value)}
-              className="pl-9 sm:pl-10 w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 sm:px-4 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm sm:text-base"
-            />
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            {/* Shared by Employees, Fines and Salaries: active employees by default */}
-            {['employees', 'fines', 'salaries'].includes(activeTab) && (
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <UserCheck className="h-5 w-5 text-blue-200/70" />
-                </div>
-                <select
-                  value={employeeStatusFilter}
-                  onChange={(e) => setEmployeeStatusFilter(e.target.value)}
-                  className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                >
-                  <option value="active">Active employees</option>
-                  <option value="inactive">Inactive employees</option>
-                  <option value="all">All employees</option>
-                </select>
-              </div>
-            )}
-            {activeTab === 'employees' ? (
-              <>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Filter className="h-5 w-5 text-blue-200/70" />
-                  </div>
-                  <select
-                    value={departmentFilter}
-                    onChange={(e) => setDepartmentFilter(e.target.value)}
-                    className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                  >
-                    <option value="">All Departments</option>
-                    {DEPARTMENTS.map(dept => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            ) : activeTab === 'fines' ? (
-              <>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Calendar className="h-5 w-5 text-blue-200/70" />
-                  </div>
-                  <input
-                    type="month"
-                    value={monthFilter}
-                    onChange={(e) => setMonthFilter(e.target.value)}
-                    className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                  />
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Calendar className="h-5 w-5 text-blue-200/70" />
-                  </div>
-                  <input
-                    type="date"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                    className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                  />
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Users className="h-5 w-5 text-blue-200/70" />
-                  </div>
-                  <select
-                    value={employeeFilter}
-                    onChange={(e) => setEmployeeFilter(e.target.value)}
-                    className="admin-dashboard-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                  >
-                    <option value="">All Employees</option>
+        {/* ── Fines ── */}
+        {activeTab === 'fines' && (
+          <div className="space-y-4">
+            <Panel className="p-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <Field label="Search" htmlFor="fine-search" className="sm:col-span-2 lg:col-span-1">
+                  <Input id="fine-search" type="text" placeholder="Employee, type or description" value={fineSearchTerm} onChange={(e) => setFineSearchTerm(e.target.value)} />
+                </Field>
+                <Field label="Employee status" htmlFor="fine-status">
+                  <Select id="fine-status" value={employeeStatusFilter} onChange={(e) => setEmployeeStatusFilter(e.target.value)}>
+                    <option value="active">Active employees</option>
+                    <option value="inactive">Inactive employees</option>
+                    <option value="all">All employees</option>
+                  </Select>
+                </Field>
+                <Field label="Employee" htmlFor="fine-employee">
+                  <Select id="fine-employee" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}>
+                    <option value="">All employees</option>
                     {employees.filter(employee => matchesEmployeeStatus(employee._id)).map(employee => (
                       <option key={employee._id} value={employee._id}>
                         {employee.firstName} {employee.lastName} ({employee.employeeId})
                       </option>
                     ))}
-                  </select>
-                </div>
-                <select
-                  value={fineFilter}
-                  onChange={(e) => setFineFilter(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                >
-                  <option value="">All Fine Types</option>
-                  {FINE_TYPES.map(type => (
-                    <option key={type.name} value={type.name}>{type.name}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => {
-                    setAppliedSearchTerm(fineSearchTerm);
-                    setAppliedMonthFilter(monthFilter);
-                    setAppliedDateFilter(dateFilter);
-                    setAppliedEmployeeFilter(employeeFilter);
-                    setAppliedFineFilter(fineFilter);
-                  }}
-                  className="px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
-                >
-                  <Search className="w-4 h-4" />
-                  Apply Filters
-                </button>
-                <button
-                  onClick={clearFinesFilters}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
-                >
-                  <X className="w-4 h-4" />
-                  Clear Filters
-                </button>
-              </>
-            ) : null}
-          </div>
-        </div>
+                  </Select>
+                </Field>
+                <Field label="Month" htmlFor="fine-month">
+                  <Input id="fine-month" type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} />
+                </Field>
+                <Field label="Day" htmlFor="fine-date">
+                  <Input id="fine-date" type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+                </Field>
+                <Field label="Fine type" htmlFor="fine-type">
+                  <Select id="fine-type" value={fineFilter} onChange={(e) => setFineFilter(e.target.value)}>
+                    <option value="">All fine types</option>
+                    {FINE_TYPES.map(type => (
+                      <option key={type.name} value={type.name}>{type.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <Button variant="secondary" size="sm" onClick={clearFinesFilters}>Clear</Button>
+                <Button size="sm" icon={Search} onClick={applyFineFilters}>Apply filters</Button>
+              </div>
+            </Panel>
 
-        {/* Action Buttons - Bulk Operations & Reports */}
-        {activeTab === 'employees' && (
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setShowBulkFineModal(true)}
-              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-purple-500/50"
-            >
-              <UserCheck className="w-5 h-5" />
-              Bulk Apply Fine
-            </button>
-            <button
-              onClick={handleDownloadEmployeeReport}
-              className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-green-500/50"
-            >
-              <Download className="w-5 h-5" />
-              Download Employee Report
-            </button>
-          </div>
-        )}
+            <p className="text-sm text-muted">
+              {filteredFines.length} {filteredFines.length === 1 ? 'fine' : 'fines'} across {Object.keys(groupedFines).length} {Object.keys(groupedFines).length === 1 ? 'employee' : 'employees'}
+            </p>
 
-        {activeTab === 'fines' && (
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleDownloadFineReport}
-              className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-green-500/50"
-            >
-              <Download className="w-5 h-5" />
-              Download Fine Report
-            </button>
-          </div>
-        )}
+            {loading ? (
+              <Panel><p className="px-5 py-8 text-sm text-muted">Loading fines…</p></Panel>
+            ) : Object.keys(groupedFines).length === 0 ? (
+              <Panel><p className="px-5 py-8 text-sm text-muted">No fines match these filters.</p></Panel>
+            ) : (
+              Object.entries(groupedFines).map(([employeeId, finesForEmployee]) => {
+                const employee = finesForEmployee[0].employee;
+                const totalAmount = finesForEmployee.reduce((sum, fine) => sum + (fine.amount || 0), 0);
+                const approvedCount = finesForEmployee.filter(fine => fine.approved).length;
+                const pendingCount = finesForEmployee.length - approvedCount;
 
-        {activeTab === 'salaries' && (
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setShowGenerateSalaryModal(true)}
-              className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-green-500/50"
-            >
-              <DollarSign className="w-5 h-5" />
-              Generate Monthly Salary
-            </button>
-            <button
-              onClick={handleDownloadSalaryReport}
-              className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-blue-500/50"
-            >
-              <Download className="w-5 h-5" />
-              Download Salary Report
-            </button>
-          </div>
-        )}
-
-        {activeTab === 'sales' && (
-          <div className="space-y-4">
-            {/* Sales Sub-Tabs */}
-            <div className="flex gap-2 border-b border-white/10 pb-0">
-              <button
-                onClick={() => setSalesSubTab('pending')}
-                className={`px-4 py-3 font-medium flex items-center space-x-2 text-sm ${salesSubTab === 'pending' ? 'text-purple-300 border-b-2 border-purple-400' : 'text-blue-200/70 hover:text-purple-300'}`}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                <span>Pending Review</span>
-              </button>
-              <button
-                onClick={() => setSalesSubTab('analytics')}
-                className={`px-4 py-3 font-medium flex items-center space-x-2 text-sm ${salesSubTab === 'analytics' ? 'text-purple-300 border-b-2 border-purple-400' : 'text-blue-200/70 hover:text-purple-300'}`}
-              >
-                <TrendingUp className="w-4 h-4" />
-                <span>Analytics</span>
-              </button>
-            </div>
-            
-            {/* Sales Sub-Tab Actions */}
-            <div className="flex flex-wrap gap-3">
-              {salesSubTab === 'analytics' && (
-                <button
-                  onClick={() => setShowSalesRecordingModal(true)}
-                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-purple-500/50"
-                >
-                  <TrendingUp className="w-5 h-5" />
-                  Record Sales
-                </button>
-              )}
-            </div>
+                return (
+                  <Panel key={employeeId} className="overflow-hidden">
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-line bg-paper">
+                      <div>
+                        <p className="text-sm font-semibold text-ink">{employee.firstName} {employee.lastName}</p>
+                        <p className="text-xs text-muted">
+                          {employee.employeeId || 'No ID'}, {employee.department || 'no department'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-absent tabular-nums">{formatPKR(totalAmount)}</p>
+                        <p className="text-xs text-muted">{approvedCount} approved, {pendingCount} pending</p>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm tabular-nums whitespace-nowrap">
+                        <thead>
+                          <tr className="border-b border-line text-left">
+                            {['Date', 'Type', 'Amount', 'Status', 'Description', ''].map((h, i) => (
+                              <th key={h || 'actions'} scope="col" className={`${i === 0 ? 'pl-5' : ''} px-3 py-2.5 text-xs font-medium text-muted ${i === 2 ? 'text-right' : ''}`}>
+                                {h || <span className="sr-only">Actions</span>}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-line">
+                          {finesForEmployee.map((fine) => (
+                            <tr key={fine._id}>
+                              <td className="pl-5 px-3 py-2.5 text-ink">{fmtDate(fine.date)}</td>
+                              <td className="px-3 py-2.5 text-ink">{fine.type}</td>
+                              <td className="px-3 py-2.5 text-ink text-right">{formatPKR(fine.amount)}</td>
+                              <td className="px-3 py-2.5">
+                                <Badge tone={fine.approved ? 'absent' : 'late'}>{fine.approved ? 'Approved' : 'Pending'}</Badge>
+                              </td>
+                              <td className="px-3 py-2.5 text-muted max-w-xs truncate" title={fine.description || ''}>
+                                {fine.description || 'No description'}
+                              </td>
+                              <td className="px-3 py-2.5 pr-5">
+                                <div className="flex items-center justify-end gap-1">
+                                  {!fine.approved && (
+                                    <Button variant="secondary" size="sm" icon={Check} onClick={() => approveFine(fine._id)}>Approve</Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    icon={Trash2}
+                                    onClick={() => deleteFine(fine._id)}
+                                    aria-label="Delete fine"
+                                    title="Delete fine"
+                                    className="hover:text-absent"
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Panel>
+                );
+              })
+            )}
           </div>
         )}
 
+        {/* ── Bonuses ── */}
         {activeTab === 'bonuses' && <BonusesTab />}
 
-        {/* Employees Table */}
-        {activeTab === 'employees' && (
-          <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/5 to-purple-500/5 blur-sm"></div>
-            
-            <div className="relative z-10">
-              <div className="p-6 border-b border-white/10">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
-                    Employee Management
-                  </h3>
-                  <div className="text-sm text-blue-200/70">
-                    Showing {filteredEmployees.length} of {employees.length} employees
-                  </div>
-                </div>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-white/5">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Employee</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Department</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Last Seen</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {filteredEmployees.length > 0 ? (
-                      filteredEmployees.map((employee) => (
-                        <tr key={employee._id} className="hover:bg-white/5 transition-colors">
-                          <td className="px-6 py-4">
-                            <div 
-                              className="flex items-center space-x-3 cursor-pointer"
-                              onClick={() => viewEmployeeDetails(employee)}
-                            >
-                              <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                                <span className="text-white text-sm font-medium">
-                                  {employee.firstName?.charAt(0) || 'U'}
-                                </span>
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium text-white">
-                                  {employee.firstName} {employee.lastName}
-                                </div>
-                                <div className="text-xs text-blue-200/70">{employee.email || 'No email'}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-blue-100 font-mono">
-                            {employee.employeeId || 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-blue-100">
-                            {employee.department || 'Not assigned'}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`
-                              inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm
-                              ${String(employee.status || 'active').toLowerCase() === 'active'
-                                ? 'bg-green-500/20 text-green-300 border border-green-500/30'
-                                : String(employee.status).toLowerCase() === 'on leave'
-                                  ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
-                                  : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                              }
-                            `}>
-                              {employee.status || 'Active'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-blue-100 font-mono">
-                            {employee.lastSeen || 'Never'}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => openEditModal(employee)}
-                                className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg transition-colors"
-                                title="Edit Employee"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => openFineModal(employee)}
-                                className="p-2 text-orange-300 hover:text-white hover:bg-orange-500/20 rounded-lg transition-colors"
-                                title="Add Fine"
-                              >
-                                <AlertCircle className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => openDocumentsModal(employee)}
-                                className="p-2 text-cyan-300 hover:text-white hover:bg-cyan-500/20 rounded-lg transition-colors"
-                                title="Manage Documents"
-                              >
-                                <Paperclip className="w-4 h-4" />
-                              </button>
-                              {employee.status === 'Inactive' ? (
-                                <button
-                                  onClick={() => handleToggleEmployeeActive(employee)}
-                                  className="px-2 py-1 text-xs font-medium text-green-300 hover:text-white hover:bg-green-500/20 rounded-lg transition-colors"
-                                  title="Reactivate Employee"
-                                >
-                                  Reactivate
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleToggleEmployeeActive(employee)}
-                                  className="p-2 text-red-300 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors"
-                                  title="Deactivate Employee"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="6" className="px-6 py-4 text-center text-blue-200/70">
-                          {employeeStatusFilter === 'active' && employees.some(e => String(e.status || '').toLowerCase() === 'inactive')
-                            ? 'No active employees match your criteria. Switch the status filter to see inactive employees.'
-                            : 'No employees found matching your criteria'}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+        {/* ── Salaries ── */}
+        {activeTab === 'salaries' && (
+          <div className="space-y-4">
+            <StatGroup
+              items={[
+                { label: 'Base payroll', value: formatPKR(payrollTotal) },
+                { label: 'Average base salary', value: formatPKR(filteredSalaries.length > 0 ? Math.round(payrollTotal / filteredSalaries.length) : 0) },
+                { label: 'Bonuses paid', value: formatPKR(bonusTotal), tone: 'present' },
+                { label: 'Salary records', value: filteredSalaries.length },
+              ]}
+            />
+            <div className="flex flex-wrap gap-3">
+              {searchBox(salarySearchTerm, (e) => setSalarySearchTerm(e.target.value), 'Search name, email or employee ID')}
+              {statusSelect}
             </div>
+            <DataTable
+              loading={loading}
+              empty="No salary records yet. Use Generate salaries to create this month's."
+              rows={filteredSalaries}
+              columns={[
+                {
+                  key: 'employee',
+                  header: 'Employee',
+                  render: (salary) => (
+                    <>
+                      <span className="font-medium">{salary.employee?.firstName} {salary.employee?.lastName}</span>
+                      <span className="block text-xs text-muted">{salary.employee?.employeeId || 'No ID'}</span>
+                    </>
+                  ),
+                },
+                { key: 'month', header: 'Month', render: (salary) => fmtMonth(salary.month) },
+                { key: 'base', header: 'Base', align: 'right', render: (salary) => formatPKR(salary.baseSalary) },
+                { key: 'bonus', header: 'Bonuses', align: 'right', render: (salary) => <span className={salary.bonuses ? 'text-present' : ''}>{formatPKR(salary.bonuses)}</span> },
+                { key: 'deduct', header: 'Deductions', align: 'right', render: (salary) => <span className={salary.deductions ? 'text-absent' : ''}>{formatPKR(salary.deductions)}</span> },
+                { key: 'net', header: 'Net', align: 'right', render: (salary) => <span className="font-semibold">{formatPKR(netOf(salary))}</span> },
+                {
+                  key: 'actions',
+                  header: <span className="sr-only">Actions</span>,
+                  align: 'right',
+                  render: (salary) => (
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        icon={Gift}
+                        onClick={() => {
+                          setSelectedSalary(salary);
+                          setShowBonusModal(true);
+                        }}
+                        aria-label="Add bonus"
+                        title="Add bonus"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        icon={Users}
+                        onClick={() => salary.employee && viewEmployeeDetails(salary.employee)}
+                        aria-label="Employee details"
+                        title="Employee details"
+                      />
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </div>
+        )}
+
+        {/* ── Sales ── */}
+        {activeTab === 'sales' && (
+          <div className="space-y-6">
+            <Tabs
+              value={salesSubTab}
+              onChange={setSalesSubTab}
+              items={[
+                { key: 'pending', label: 'Pending review' },
+                { key: 'analytics', label: 'Analytics' },
+              ]}
+            />
+            {salesSubTab === 'analytics' ? <SalesAnalytics /> : <PendingSalesReview />}
           </div>
         )}
       </div>
 
-      {/* Fines Table */}
-      {activeTab === 'fines' && (
-        <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-orange-500/5 to-red-500/5 blur-sm"></div>
-          
-          <div className="relative z-10">
-            <div className="p-6 border-b border-white/10">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold bg-gradient-to-r from-orange-100 to-red-100 bg-clip-text text-transparent">
-                  Fine Management
-                </h3>
-                <div className="text-sm text-blue-200/70">
-                  Showing {filteredFines.length} fines for {Object.keys(groupedFines).length} employees
-                </div>
+      {/* Employee Details */}
+      <Dialog
+        open={showEmployeeDetails && !!selectedEmployee}
+        onClose={closeEmployeeDetails}
+        size="max-w-4xl"
+        title={selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : ''}
+        description={selectedEmployee?.department || 'No department'}
+        footer={<Button variant="secondary" onClick={closeEmployeeDetails}>Close</Button>}
+      >
+        {selectedEmployee && (
+          <div className="space-y-6">
+            <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
+              <Detail label="Employee ID">{selectedEmployee.employeeId || '—'}</Detail>
+              <Detail label="Email">{selectedEmployee.email || 'Not provided'}</Detail>
+              <Detail label="Phone">{selectedEmployee.contact?.phone || 'Not provided'}</Detail>
+              <Detail label="Status">
+                <Badge tone={employeeStatusTone(selectedEmployee.status)}>{selectedEmployee.status || 'Active'}</Badge>
+              </Detail>
+              <Detail label="Department">{selectedEmployee.department || 'Not assigned'}</Detail>
+              <Detail label="Hired">{fmtDate(selectedEmployee.hireDate)}</Detail>
+              <div className="col-span-2">
+                <Detail label="Address">{selectedEmployee.contact?.address || 'Not provided'}</Detail>
               </div>
+            </dl>
+
+            <div>
+              <h3 className="text-base font-semibold text-ink mb-2">Salary history</h3>
+              <DataTable
+                empty="No salary records yet."
+                rows={employeeSalaries}
+                columns={[
+                  { key: 'month', header: 'Month', render: (s) => fmtMonth(s.month) },
+                  { key: 'base', header: 'Base', align: 'right', render: (s) => formatPKR(s.baseSalary) },
+                  { key: 'bonus', header: 'Bonuses', align: 'right', render: (s) => formatPKR(s.bonuses) },
+                  { key: 'deduct', header: 'Deductions', align: 'right', render: (s) => formatPKR(s.deductions) },
+                  { key: 'net', header: 'Net', align: 'right', render: (s) => <span className="font-semibold">{formatPKR(netOf(s))}</span> },
+                ]}
+              />
             </div>
-            
-            <div className="overflow-x-auto">
-              {Object.keys(groupedFines).length > 0 ? (
-                Object.entries(groupedFines).map(([employeeId, employeeFines]) => {
-                  const employee = employeeFines[0].employee;
-                  const totalAmount = employeeFines.reduce((sum, fine) => sum + (fine.amount || 0), 0);
-                  const approvedCount = employeeFines.filter(fine => fine.approved).length;
-                  const pendingCount = employeeFines.length - approvedCount;
-                  
-                  return (
-                    <div key={employeeId} className="border-b border-white/10 last:border-b-0">
-                      {/* Employee Header */}
-                      <div className="bg-white/5 px-6 py-4 border-b border-white/10">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center">
-                              <span className="text-white text-sm font-medium">
-                                {employee.firstName?.charAt(0) || 'U'}
-                              </span>
-                            </div>
-                            <div>
-                              <div className="text-sm font-medium text-white">
-                                {employee.firstName} {employee.lastName}
-                              </div>
-                              <div className="text-xs text-blue-200/70">
-                                ID: {employee.employeeId || 'N/A'} • Department: {employee.department || 'Not assigned'}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-medium text-red-300">
-                              Total: RS{totalAmount.toLocaleString()}
-                            </div>
-                            <div className="text-xs text-blue-200/70">
-                              {approvedCount} approved • {pendingCount} pending
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Employee Fines Table */}
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-white/5">
-                            <tr>
-                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Date</th>
-                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Type</th>
-                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Amount</th>
-                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Status</th>
-                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Description</th>
-                              <th className="px-6 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/10">
-                            {employeeFines.map((fine) => (
-                              <tr key={fine._id} className="hover:bg-white/5 transition-colors">
-                                <td className="px-6 py-3 text-sm text-blue-100">
-                                  {new Date(fine.date).toLocaleDateString()}
-                                </td>
-                                <td className="px-6 py-3 text-sm text-blue-100">
-                                  {fine.type}
-                                </td>
-                                <td className="px-6 py-3 text-sm text-red-300 font-medium">
-                                  RS{fine.amount?.toLocaleString() || '0'}
-                                </td>
-                                <td className="px-6 py-3">
-                                  <span className={`
-                                    inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                    ${fine.approved 
-                                      ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
-                                      : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
-                                    }
-                                  `}>
-                                    {fine.approved ? 'Approved' : 'Pending'}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-3 text-sm text-blue-200/80 max-w-xs truncate">
-                                  {fine.description || 'No description'}
-                                </td>
-                                <td className="px-6 py-3">
-                                  <div className="flex items-center space-x-2">
-                                    {!fine.approved && (
-                                      <button
-                                        onClick={() => approveFine(fine._id)}
-                                        className="p-2 text-green-300 hover:text-white hover:bg-green-500/20 rounded-lg transition-colors"
-                                        title="Approve Fine"
-                                      >
-                                        <CheckCircle className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => deleteFine(fine._id)}
-                                      className="p-2 text-red-300 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors"
-                                      title="Delete Fine"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="px-6 py-8 text-center text-blue-200/70">
-                  No fines found matching your criteria
-                </div>
-              )}
+
+            <div>
+              <h3 className="text-base font-semibold text-ink mb-2">Fines</h3>
+              <DataTable
+                empty="No fines on record."
+                rows={employeeFines}
+                columns={[
+                  { key: 'date', header: 'Date', render: (f) => fmtDate(f.date) },
+                  { key: 'type', header: 'Type', render: (f) => f.type },
+                  { key: 'amount', header: 'Amount', align: 'right', render: (f) => formatPKR(f.amount) },
+                  { key: 'status', header: 'Status', render: (f) => <Badge tone={f.approved ? 'absent' : 'late'}>{f.approved ? 'Approved' : 'Pending'}</Badge> },
+                  { key: 'desc', header: 'Description', render: (f) => <span className="text-muted">{f.description || 'No description'}</span> },
+                ]}
+              />
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Dialog>
 
-      {/* Salaries Table */}
-      {activeTab === 'salaries' && (
-        <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-green-500/5 to-emerald-500/5 blur-sm"></div>
-          
-          <div className="relative z-10">
-            <div className="p-6 border-b border-white/10">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold bg-gradient-to-r from-green-100 to-emerald-100 bg-clip-text text-transparent">
-                  Salary Management
-                </h3>
-                <div className="text-sm text-blue-200/70">
-                  Total Records: {filteredSalaries.length}
-                </div>
-              </div>
-            </div>
-            
-            {/* Salary Statistics Cards */}
-            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-white/10">
-              <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg p-4">
-                <div className="text-sm text-green-200/70 mb-1">Total Monthly Payroll</div>
-                <div className="text-2xl font-bold text-green-300">
-                  RS{filteredSalaries.reduce((sum, s) => sum + (s.baseSalary || 0), 0).toLocaleString()}
-                </div>
-              </div>
-              <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg p-4">
-                <div className="text-sm text-green-200/70 mb-1">Average Salary</div>
-                <div className="text-2xl font-bold text-green-300">
-                  RS{filteredSalaries.length > 0 ? Math.round(filteredSalaries.reduce((sum, s) => sum + (s.baseSalary || 0), 0) / filteredSalaries.length).toLocaleString() : '0'}
-                </div>
-              </div>
-              <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg p-4">
-                <div className="text-sm text-green-200/70 mb-1">Bonus Payouts</div>
-                <div className="text-2xl font-bold text-green-300">
-                  RS{filteredSalaries.reduce((sum, s) => sum + (s.bonuses || 0), 0).toLocaleString()}
-                </div>
-              </div>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-white/5">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Employee</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Base Salary</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Bonuses</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Deductions</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Net Salary</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Month</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-green-200/80 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {filteredSalaries.length > 0 ? (
-                    filteredSalaries.map((salary) => {
-                      const netSalary = (salary.baseSalary || 0) + (salary.bonuses || 0) - (salary.deductions || 0);
-                      return (
-                        <tr key={salary._id} className="hover:bg-white/5 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
-                                <span className="text-white text-sm font-medium">
-                                  {salary.employee?.firstName?.charAt(0) || 'U'}
-                                </span>
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium text-white">
-                                  {salary.employee?.firstName} {salary.employee?.lastName}
-                                </div>
-                                <div className="text-xs text-blue-200/70">
-                                  {salary.employee?.employeeId || 'N/A'}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-green-100 font-medium">
-                            RS{(salary.baseSalary || 0).toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-green-300">
-                            RS{(salary.bonuses || 0).toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-red-300">
-                            RS{(salary.deductions || 0).toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4 text-sm font-bold text-green-300">
-                            RS{netSalary.toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-blue-100">
-                            {salary.month ? new Date(salary.month).toLocaleDateString('default', { month: 'short', year: 'numeric' }) : 'N/A'}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedSalary(salary);
-                                  setShowBonusModal(true);
-                                }}
-                                className="p-2 text-yellow-300 hover:text-white hover:bg-yellow-500/20 rounded-lg transition-colors"
-                                title="Add Bonus"
-                              >
-                                <DollarSign className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setEmployeeToEdit(salary.employee);
-                                  setShowEmployeeDetails(true);
-                                }}
-                                className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg transition-colors"
-                                title="View Details"
-                              >
-                                <UserIcon className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="7" className="px-6 py-8 text-center text-blue-200/70">
-                        No salary records found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+      {/* Edit Employee */}
+      <Dialog
+        open={showEditModal && !!employeeToEdit}
+        onClose={closeEditModal}
+        size="max-w-lg"
+        title="Edit employee"
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeEditModal}>Cancel</Button>
+            <Button icon={Check} onClick={handleEditEmployee}>Save changes</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {error && <Alert>{error}</Alert>}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="First name" htmlFor="edit-first">
+              <Input id="edit-first" type="text" value={employeeForm.firstName} onChange={(e) => setEmployeeForm({ ...employeeForm, firstName: e.target.value })} required />
+            </Field>
+            <Field label="Last name" htmlFor="edit-last">
+              <Input id="edit-last" type="text" value={employeeForm.lastName} onChange={(e) => setEmployeeForm({ ...employeeForm, lastName: e.target.value })} required />
+            </Field>
           </div>
-        </div>
-      )}
-
-      {/* Sales Analytics */}
-      {activeTab === 'sales' && salesSubTab === 'analytics' && (
-        <SalesAnalytics />
-      )}
-
-      {activeTab === 'sales' && salesSubTab === 'pending' && (
-        <PendingSalesReview />
-      )}
-
-      {/* Employee Details Modal */}
-      {showEmployeeDetails && selectedEmployee && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl w-full max-w-4xl mx-auto max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-white/20 sticky top-0 bg-blue-900/50 backdrop-blur-sm z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                  <span className="text-white text-lg font-medium">
-                    {selectedEmployee.firstName?.charAt(0) || 'U'}
-                  </span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-white">
-                    {selectedEmployee.firstName} {selectedEmployee.lastName}
-                  </h2>
-                  <p className="text-sm text-blue-200/80">{selectedEmployee.department}</p>
-                </div>
-              </div>
-              <button
-                onClick={closeEmployeeDetails}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-300" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Basic Information */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl p-4">
-                  <h3 className="text-sm font-medium text-blue-200/80 mb-3">Personal Information</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-3">
-                      <UserIcon className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Full Name</p>
-                        <p className="text-sm text-white">
-                          {selectedEmployee.firstName} {selectedEmployee.lastName}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <Mail className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Email</p>
-                        <p className="text-sm text-white">{selectedEmployee.email || 'Not provided'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <UserIcon className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Employee ID</p>
-                        <p className="text-sm text-white">{selectedEmployee.employeeId || 'N/A'}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl p-4">
-                  <h3 className="text-sm font-medium text-blue-200/80 mb-3">Contact Information</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-3">
-                      <Phone className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Phone</p>
-                        <p className="text-sm text-white">
-                          {selectedEmployee.contact?.phone || 'Not provided'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <Home className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Address</p>
-                        <p className="text-sm text-white">
-                          {selectedEmployee.contact?.address || 'Not provided'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl p-4">
-                  <h3 className="text-sm font-medium text-blue-200/80 mb-3">Employment Details</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-3">
-                      <UserIcon className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Department</p>
-                        <p className="text-sm text-white">
-                          {selectedEmployee.department || 'Not assigned'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <Calendar className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Hire Date</p>
-                        <p className="text-sm text-white">
-                          {selectedEmployee.hireDate ? new Date(selectedEmployee.hireDate).toLocaleDateString() : 'Not provided'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <CheckCircle className="w-4 h-4 text-blue-300/80" />
-                      <div>
-                        <p className="text-xs text-blue-200/70">Status</p>
-                        <p className="text-sm text-white">
-                          {selectedEmployee.status || 'active'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Salary History */}
-              <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-                <div className="p-4 border-b border-white/10">
-                  <h3 className="text-sm font-medium text-blue-200/80">Salary History</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-white/5">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Month</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Base Salary</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Bonuses</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Deductions</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Net Salary</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {employeeSalaries.length > 0 ? (
-                        employeeSalaries.map((salary) => (
-                          <tr key={salary._id} className="hover:bg-white/5 transition-colors">
-                            <td className="px-4 py-3 text-sm text-blue-100">
-                              {new Date(salary.month).toLocaleDateString('default', { month: 'long', year: 'numeric' })}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-blue-100">
-                              RS{salary.baseSalary?.toLocaleString() || '0'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-green-300">
-                              RS{salary.bonuses?.toLocaleString() || '0'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-red-300">
-                              RS{salary.deductions?.toLocaleString() || '0'}
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium text-white">
-                              RS{(salary.baseSalary + (salary.bonuses || 0) - (salary.deductions || 0)).toLocaleString()}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="5" className="px-4 py-3 text-center text-blue-200/70">
-                            No salary records found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Fine History */}
-              <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-                <div className="p-4 border-b border-white/10">
-                  <h3 className="text-sm font-medium text-blue-200/80">Fine History</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-white/5">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Description</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {employeeFines.length > 0 ? (
-                        employeeFines.map((fine) => (
-                          <tr key={fine._id} className="hover:bg-white/5 transition-colors">
-                            <td className="px-4 py-3 text-sm text-blue-100">
-                              {new Date(fine.date).toLocaleDateString()}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-blue-100">
-                              {fine.type}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-red-300 font-medium">
-                              RS{fine.amount}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`
-                                inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                ${fine.approved 
-                                  ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
-                                  : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
-                                }
-                              `}>
-                                {fine.approved ? 'Approved' : 'Pending'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-blue-200/80">
-                              {fine.description || 'No description'}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="5" className="px-4 py-3 text-center text-blue-200/70">
-                            No fine records found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-4">
-                <button
-                  onClick={closeEmployeeDetails}
-                  className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
+          <Field label="Email" htmlFor="edit-email">
+            <Input id="edit-email" type="email" value={employeeForm.email} onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })} required />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Department" htmlFor="edit-dept">
+              <Select id="edit-dept" value={employeeForm.department} onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })} required>
+                {DEPARTMENTS.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Employee ID" htmlFor="edit-id">
+              <Input id="edit-id" type="text" value={employeeForm.employeeId} onChange={(e) => setEmployeeForm({ ...employeeForm, employeeId: e.target.value })} />
+            </Field>
           </div>
+          <Field label="Phone" htmlFor="edit-phone">
+            <Input
+              id="edit-phone"
+              type="text"
+              value={employeeForm.contact.phone}
+              onChange={(e) => setEmployeeForm({ ...employeeForm, contact: { ...employeeForm.contact, phone: e.target.value } })}
+            />
+          </Field>
+          <Field label="Address" htmlFor="edit-address">
+            <Textarea
+              id="edit-address"
+              rows={2}
+              value={employeeForm.contact.address}
+              onChange={(e) => setEmployeeForm({ ...employeeForm, contact: { ...employeeForm.contact, address: e.target.value } })}
+            />
+          </Field>
+          <Field label="Status" htmlFor="edit-status">
+            <Select id="edit-status" value={employeeForm.status} onChange={(e) => setEmployeeForm({ ...employeeForm, status: e.target.value })}>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+              <option value="On Leave">On leave</option>
+            </Select>
+          </Field>
         </div>
-      )}
+      </Dialog>
 
-      {/* Edit Employee Modal */}
-      {showEditModal && employeeToEdit && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-white/20 sticky top-0 bg-blue-900/50 backdrop-blur-sm z-10">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/20 rounded-lg">
-                  <Edit className="w-5 h-5 text-blue-400" />
-                </div>
-                <h2 className="text-xl font-semibold text-white">Edit Employee</h2>
-              </div>
-              <button
-                onClick={closeEditModal}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-300" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">First Name</label>
-                  <input
-                    type="text"
-                    value={employeeForm.firstName}
-                    onChange={(e) => setEmployeeForm({...employeeForm, firstName: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
-                  <input
-                    type="text"
-                    value={employeeForm.lastName}
-                    onChange={(e) => setEmployeeForm({...employeeForm, lastName: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-                <input
-                  type="email"
-                  value={employeeForm.email}
-                  onChange={(e) => setEmployeeForm({...employeeForm, email: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Department</label>
-                <select
-                  value={employeeForm.department}
-                  onChange={(e) => setEmployeeForm({...employeeForm, department: e.target.value})}
-                  className="admin-dashboard-select w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                  required
-                >
-                  {DEPARTMENTS.map(dept => (
-                    <option key={dept} value={dept} className="bg-gray-800">{dept}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Employee ID</label>
-                <input
-                  type="text"
-                  value={employeeForm.employeeId}
-                  onChange={(e) => setEmployeeForm({...employeeForm, employeeId: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                />
-              </div>
-             
-              {/* Contact Information Section */}
-              <div className="border-t border-white/10 pt-4">
-                <h3 className="text-lg font-medium text-white mb-4">Contact Information</h3>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
-                  <input
-                    type="text"
-                    value={employeeForm.contact.phone}
-                    onChange={(e) => setEmployeeForm({
-                      ...employeeForm,
-                      contact: {
-                        ...employeeForm.contact,
-                        phone: e.target.value
-                      }
-                    })}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                  />
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Address</label>
-                  <textarea
-                    value={employeeForm.contact.address}
-                    onChange={(e) => setEmployeeForm({
-                      ...employeeForm,
-                      contact: {
-                        ...employeeForm.contact,
-                        address: e.target.value
-                      }
-                    })}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                    rows="3"
-                  />
-                </div>
-              </div>
-
-              {/* Status */}
-              <div className="border-t border-white/10 pt-4">
-                <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                <select
-                  value={employeeForm.status}
-                  onChange={(e) => setEmployeeForm({...employeeForm, status: e.target.value})}
-                  className="admin-dashboard-select w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                  <option value="On Leave">On Leave</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-6 border-t border-white/10">
-              <button
-                type="button"
-                onClick={closeEditModal}
-                className="flex-1 px-4 py-3 bg-transparent border border-gray-500 hover:border-gray-400 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2"
-              >
-                <X className="w-5 h-5" />
-                <span>Cancel</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleEditEmployee}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-blue-500/20 flex items-center justify-center gap-2"
-              >
-                <CheckCircle className="w-5 h-5" />
-                <span>Update Employee</span>
-              </button>
-            </div>
-            </div>
-          </div>
+      {/* Add Fine */}
+      <Dialog
+        open={showFineModal && !!selectedEmployee}
+        onClose={closeFineModal}
+        size="max-w-md"
+        title="Add fine"
+        description={selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName} (${selectedEmployee.employeeId})` : ''}
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeFineModal}>Cancel</Button>
+            <Button variant="danger" icon={ReceiptText} onClick={applyFine}>Add fine</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="Fine type" htmlFor="fine-modal-type">
+            <Select id="fine-modal-type" value={fineForm.type} onChange={handleFineTypeChange}>
+              {FINE_TYPES.map((type) => (
+                <option key={type.name} value={type.name}>
+                  {type.name} ({formatPKR(type.amount)})
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Amount (PKR)" htmlFor="fine-modal-amount">
+            <Input id="fine-modal-amount" type="number" value={fineForm.amount} onChange={(e) => setFineForm({ ...fineForm, amount: e.target.value })} required />
+          </Field>
+          <Field label="Description" htmlFor="fine-modal-desc" hint="The employee sees this next to the fine.">
+            <Textarea id="fine-modal-desc" rows={3} value={fineForm.description} onChange={(e) => setFineForm({ ...fineForm, description: e.target.value })} />
+          </Field>
         </div>
-      )}
-
-      {/* Fine Employee Modal */}
-      {/* Fine Employee Modal */}
-      {showFineModal && selectedEmployee && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl w-full max-w-md mx-auto">
-            <div className="flex items-center justify-between p-6 border-b border-white/20">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-500/20 rounded-lg">
-                  <AlertTriangle className="w-5 h-5 text-orange-400" />
-                </div>
-                <h2 className="text-xl font-semibold text-white">Apply Fine</h2>
-              </div>
-              <button
-                onClick={closeFineModal}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-300" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Employee</label>
-                <input
-                  type="text"
-                  value={`${selectedEmployee.firstName} ${selectedEmployee.lastName} (${selectedEmployee.employeeId})`}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                  disabled
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Fine Type</label>
-                <select
-                  value={fineForm.type}
-                  onChange={handleFineTypeChange}
-                  className="admin-dashboard-select w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                >
-                  {FINE_TYPES.map((type) => (
-                    <option key={type.name} value={type.name} className="bg-gray-800">
-                      {type.name} (RS{type.amount})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Amount (RS)</label>
-                <input
-                  type="number"
-                  value={fineForm.amount}
-                  onChange={(e) => setFineForm({...fineForm, amount: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                <textarea
-                  value={fineForm.description}
-                  onChange={(e) => setFineForm({...fineForm, description: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                  rows="3"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={closeFineModal}
-                  className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-all duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={applyFine}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-lg font-medium transition-all duration-200"
-                >
-                  Apply Fine
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </Dialog>
 
       {/* Bulk Fine Modal */}
       <BulkFineModal
@@ -1887,38 +1221,11 @@ const AdminDashboard = () => {
         }}
       />
 
-      {/* Floating Message Button */}
-      <button
-        onClick={() => setShowMessageCenter(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-40 group"
-        title="Employee Messages"
-      >
-        <MessageSquare className="w-6 h-6 group-hover:scale-110 transition-transform" />
-        <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
-      </button>
-
-      {/* Admin Message Center Modal */}
-      <AdminMessageCenter 
-        isOpen={showMessageCenter}
-        onClose={() => setShowMessageCenter(false)}
-      />
-
       {/* Generate Salary Modal */}
       <GenerateSalaryModal
         isOpen={showGenerateSalaryModal}
         onClose={() => setShowGenerateSalaryModal(false)}
-        onSuccess={() => {
-          // Refresh salary list
-          const fetchData = async () => {
-            try {
-              const salariesResponse = await salaryAPI.getAllSalaries();
-              setSalaries(salariesResponse.data || []);
-            } catch (err) {
-              console.error('Error refreshing salaries:', err);
-            }
-          };
-          fetchData();
-        }}
+        onSuccess={refreshSalaries}
         employees={activeEmployees}
       />
 
@@ -1929,21 +1236,10 @@ const AdminDashboard = () => {
           setShowBonusModal(false);
           setSelectedSalary(null);
         }}
-        onSuccess={() => {
-          // Refresh salary list
-          const fetchData = async () => {
-            try {
-              const salariesResponse = await salaryAPI.getAllSalaries();
-              setSalaries(salariesResponse.data || []);
-            } catch (err) {
-              console.error('Error refreshing salaries:', err);
-            }
-          };
-          fetchData();
-        }}
+        onSuccess={refreshSalaries}
         salary={selectedSalary}
       />
-    </div>
+    </AdminShell>
   );
 };
 

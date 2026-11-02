@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import AdminHeader from '../../components/common/AdminHeader';
-import StatsCard from '../../components/common/StatsCard';
-import { 
-  Users, CheckCircle, XCircle, Clock, Calendar,
-  X, Filter, Search, List, Download, RefreshCw
-} from 'lucide-react';
+import { Search, Download, RefreshCw, Pencil } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import AdminShell from '../../components/admin/AdminShell';
+import Panel from '../../components/ui/Panel';
+import StatGroup from '../../components/ui/StatGroup';
+import Button from '../../components/ui/Button';
+import Alert from '../../components/ui/Alert';
+import Dialog from '../../components/ui/Dialog';
+import { Tabs } from '../../components/ui/Tabs';
+import { Field, Input, Select } from '../../components/ui/Field';
+import { API_BASE_URL } from '../../utils/constants';
 
 const DEPARTMENTS = [
   'Sales',
@@ -17,14 +20,83 @@ const DEPARTMENTS = [
 ];
 
 const STATUS_OPTIONS = [
-  { value: 'Present', label: 'Present', color: 'bg-green-500' },
-  { value: 'Absent', label: 'Absent', color: 'bg-red-500' },
-  { value: 'Late', label: 'Late', color: 'bg-yellow-500' },
-  { value: 'Half-day', label: 'Half Day', color: 'bg-blue-500' }
+  { value: 'Present', label: 'Present' },
+  { value: 'Absent', label: 'Absent' },
+  { value: 'Late', label: 'Late' },
+  { value: 'Half-day', label: 'Half day' }
 ];
 
+const STATUS_TEXT = {
+  Present: 'text-present',
+  Absent: 'text-absent',
+  Late: 'text-late',
+  'Half-day': 'text-late',
+};
+
+const emptySummary = {
+  Present: 0,
+  Absent: 0,
+  Late: 0,
+  'Half-day': 0,
+  totalEmployees: 0
+};
+
+// DatePicker renders its own <input>; give it the same look as Field inputs
+const datePickerClass = `h-10 w-full sm:w-40 rounded-lg border border-line bg-surface px-3 text-sm text-ink
+  focus:outline-none focus:border-shift focus:ring-2 focus:ring-shift/20`;
+
+const fmtTime = (value) =>
+  value ? new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
+
+const fmtDate = (value) =>
+  new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+// Edits clock-in or clock-out time for one record; sends the same update as before
+const EditTimeDialog = ({ target, onSave, onClose }) => {
+  const { record, field } = target;
+  const current = record[field] ? new Date(record[field]) : null;
+  const [time, setTime] = useState(
+    current
+      ? `${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`
+      : ''
+  );
+  const label = field === 'clockIn' ? 'clock-in' : 'clock-out';
+  const name = `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}`.trim() || 'this employee';
+
+  const save = (e) => {
+    e.preventDefault();
+    if (!time) return;
+    const [hours, minutes] = time.split(':');
+    const newDate = new Date(record.date);
+    newDate.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+    onSave(record._id, { [field]: newDate });
+    onClose();
+  };
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      size="max-w-sm"
+      title={`Edit ${label} time`}
+      description={`${name}, ${fmtDate(record.date)}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="edit-time-form" disabled={!time}>Save time</Button>
+        </>
+      }
+    >
+      <form id="edit-time-form" onSubmit={save}>
+        <Field label={`New ${label} time`} htmlFor="edit-time">
+          <Input id="edit-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} autoFocus required />
+        </Field>
+      </form>
+    </Dialog>
+  );
+};
+
 const AdminAttendance = () => {
-  const [user, setUser] = useState(null);
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,51 +107,19 @@ const AdminAttendance = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
-  const [selectedRecords, setSelectedRecords] = useState([]);
-  const isBulkEditing = false; // Remains false as it's not being modified
   const [isDateRange, setIsDateRange] = useState(false);
-  const [summary, setSummary] = useState({
-    Present: 0,
-    Absent: 0,
-    Late: 0,
-    'Half-day': 0,
-    totalEmployees: 0
-  });
-  const [monthlyPayrollCycle, setMonthlyPayrollCycle] = useState('');
-
-  const navigate = useNavigate();
-
-  // Generate monthly payroll cycle options (10th to 10th)
-  const getPayrollCycles = () => {
-    const cycles = [];
-    const currentDate = new Date();
-    
-    // Generate last 12 months of payroll cycles
-    for (let i = 0; i < 12; i++) {
-      const cycleEndDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 10);
-      const cycleStartDate = new Date(cycleEndDate);
-      cycleStartDate.setMonth(cycleStartDate.getMonth() - 1);
-      cycleStartDate.setDate(10);
-      
-      const label = `${cycleStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${cycleEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-      const value = `${cycleStartDate.toISOString().split('T')[0]}_${cycleEndDate.toISOString().split('T')[0]}`;
-      
-      cycles.push({ label, value, startDate: cycleStartDate, endDate: cycleEndDate });
-    }
-    
-    return cycles;
-  };
+  const [summary, setSummary] = useState(emptySummary);
+  const [monthlyPayrollCycle] = useState('');
+  const [editTarget, setEditTarget] = useState(null); // { record, field: 'clockIn' | 'clockOut' }
 
   // Core fetch attendance function
   const fetchAttendanceData = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
-      // First, fetch the attendance data
-      let url = 'https://nextelemployees-1.onrender.com/api/attendance/admin';
+
       const params = new URLSearchParams();
-      
+
       if (activeTab === 'daily') {
         params.append('date', selectedDate.toISOString().split('T')[0]);
       } else if (activeTab === 'monthly') {
@@ -93,17 +133,17 @@ const AdminAttendance = () => {
         params.append('startDate', startDate.toISOString().split('T')[0]);
         params.append('endDate', endDate.toISOString().split('T')[0]);
       }
-      
+
       if (departmentFilter) params.append('department', departmentFilter);
       if (statusFilter) params.append('status', statusFilter);
-      
-      const attendanceRes = await axios.get(`${url}?${params.toString()}`, { 
-        headers: { Authorization: `Bearer ${token}` } 
+
+      const attendanceRes = await axios.get(`${API_BASE_URL}/attendance/admin?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       setAttendance(attendanceRes.data.data || []); // Ensure we always have an array
       setIsDateRange(attendanceRes.data.isDateRange || false);
-      
+
       // Then fetch the summary data
       const summaryParams = new URLSearchParams();
       if (activeTab === 'daily') {
@@ -119,124 +159,82 @@ const AdminAttendance = () => {
         summaryParams.append('endDate', endDate.toISOString().split('T')[0]);
       }
       if (departmentFilter) summaryParams.append('department', departmentFilter);
-      
-      const summaryRes = await axios.get('https://nextelemployees-1.onrender.com/api/attendance/admin/summary', { 
+
+      const summaryRes = await axios.get(`${API_BASE_URL}/attendance/admin/summary`, {
         headers: { Authorization: `Bearer ${token}` },
         params: summaryParams
       });
-      
-      setSummary(summaryRes.data.data || {
-        Present: 0,
-        Absent: 0,
-        Late: 0,
-        'Half-day': 0,
-        totalEmployees: 0
-      });
-      
+
+      setSummary(summaryRes.data.data || emptySummary);
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError(err.response?.data?.message || 'Failed to load data');
+      setError(err.response?.data?.message || 'Could not load attendance. Refresh to try again.');
       setAttendance([]); // Reset to empty array on error
-      setSummary({
-        Present: 0,
-        Absent: 0,
-        Late: 0,
-        'Half-day': 0,
-        totalEmployees: 0
-      });
+      setSummary(emptySummary);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch current user
-  const fetchUser = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('https://nextelemployees-1.onrender.com/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUser(response.data.data);
-    } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.removeItem('token');
-        navigate('/');
-      }
-    }
-  };
-
   useEffect(() => {
-    fetchUser();
     fetchAttendanceData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedDate, startDate, endDate, departmentFilter, statusFilter, monthlyPayrollCycle]);
-
-  const handleLogout = async () => {
-    try {
-      await axios.post('https://nextelemployees-1.onrender.com/api/auth/logout', {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      localStorage.removeItem('token');
-      navigate('/');
-    } catch (err) {
-      console.error('Logout failed:', err);
-    }
-  };
 
   // Update single attendance record
   const updateAttendanceRecord = async (id, updates) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        `https://nextelemployees-1.onrender.com/api/attendance/admin/${id}`,
+        `${API_BASE_URL}/attendance/admin/${id}`,
         updates,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       if (response.data.success) {
         // Update local state
-        setAttendance(prev => prev.map(record => 
+        setAttendance(prev => prev.map(record =>
           record._id === id ? { ...record, ...updates } : record
         ));
         // Refresh data
         fetchAttendanceData();
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update record');
+      setError(err.response?.data?.message || 'Could not update the record. Try again.');
     }
   };
 
-  // Toggle record selection for bulk edit
-  const toggleRecordSelection = (id) => {
-    setSelectedRecords(prev => 
-      prev.includes(id) 
-        ? prev.filter(recordId => recordId !== id)
-        : [...prev, id]
-    );
+  // Filtered attendance - handle both flat array and grouped data
+  const getAllRecords = () => {
+    if (isDateRange && Array.isArray(attendance)) {
+      return attendance.flatMap(group => group.records || []);
+    }
+    return attendance;
   };
 
-  // Select all records
-  const selectAllRecords = () => {
-    const allRecords = getAllRecords();
-    if (selectedRecords.length === allRecords.length) {
-      setSelectedRecords([]);
-    } else {
-      setSelectedRecords(allRecords.map(record => record._id));
-    }
+  const matchesSearch = (record) => {
+    const employeeName = record.employee
+      ? `${record.employee.firstName || ''} ${record.employee.lastName || ''}`.toLowerCase()
+      : '';
+    const employeeId = record.employee?.employeeId?.toLowerCase() || '';
+    return employeeName.includes(searchTerm.toLowerCase()) || employeeId.includes(searchTerm.toLowerCase());
   };
+
+  const filteredAttendance = getAllRecords().filter(matchesSearch);
+  const totalRecords = getAllRecords().length;
 
   // Export to CSV
   const exportToCSV = () => {
     const allRecords = getAllRecords();
     if (allRecords.length === 0) {
-      setError('No data to export');
+      setError('There are no records to export for these filters.');
       return;
     }
 
     const headers = [
       'Date', 'Employee ID', 'Name', 'Department', 'Status', 'Clock In', 'Clock Out'
     ];
-    
+
     const data = [
       headers.join(','),
       ...allRecords.map(record => [
@@ -249,12 +247,12 @@ const AdminAttendance = () => {
         record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : ''
       ].map(field => `"${field?.toString().replace(/"/g, '""')}"`).join(','))
     ].join('\n');
-    
+
     const blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    
+
     let filename;
     if (activeTab === 'daily') {
       filename = `attendance_${selectedDate.toISOString().split('T')[0]}.csv`;
@@ -264,170 +262,104 @@ const AdminAttendance = () => {
     } else {
       filename = `attendance_${startDate.toISOString().split('T')[0]}_to_${endDate.toISOString().split('T')[0]}.csv`;
     }
-    
+
     link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Filtered attendance - handle both flat array and grouped data
-  const getAllRecords = () => {
-    if (isDateRange && Array.isArray(attendance)) {
-      return attendance.flatMap(group => group.records || []);
-    }
-    return attendance;
-  };
+  const renderRow = (record) => (
+    <tr key={record._id}>
+      <td className="px-5 py-3 text-ink">{fmtDate(record.date)}</td>
+      <td className="px-3 py-3">
+        <span className="font-medium text-ink">{record.employee?.firstName} {record.employee?.lastName}</span>
+        <span className="block text-xs text-muted">{record.employee?.employeeId || 'No ID'}</span>
+      </td>
+      <td className="px-3 py-3 text-ink">{record.employee?.department || 'Not assigned'}</td>
+      <td className="px-3 py-3">
+        <select
+          value={record.status}
+          onChange={(e) => updateAttendanceRecord(record._id, { status: e.target.value })}
+          aria-label={`Status for ${record.employee?.firstName || 'employee'}`}
+          className={`h-8 rounded-md border border-line bg-surface pl-2 pr-7 text-xs font-medium focus:outline-none focus:border-shift focus:ring-2 focus:ring-shift/20 ${STATUS_TEXT[record.status] || 'text-ink'}`}
+        >
+          {STATUS_OPTIONS.map(status => (
+            <option key={status.value} value={status.value}>{status.label}</option>
+          ))}
+        </select>
+      </td>
+      {['clockIn', 'clockOut'].map((field) => (
+        <td key={field} className="px-3 py-3">
+          <button
+            type="button"
+            onClick={() => setEditTarget({ record, field })}
+            className="group inline-flex items-center gap-1.5 rounded-md px-1.5 -mx-1.5 py-0.5 text-ink hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shift"
+            title={`Edit ${field === 'clockIn' ? 'clock-in' : 'clock-out'} time`}
+          >
+            {fmtTime(record[field])}
+            <Pencil className="w-3.5 h-3.5 text-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden="true" />
+          </button>
+        </td>
+      ))}
+    </tr>
+  );
 
-  const filteredAttendance = getAllRecords().filter(record => {
-    // Safely handle cases where employee data might be missing
-    const employeeName = record.employee 
-      ? `${record.employee.firstName || ''} ${record.employee.lastName || ''}`.toLowerCase()
-      : '';
-    const employeeId = record.employee?.employeeId?.toLowerCase() || '';
-    
-    const matchesSearch = 
-      employeeName.includes(searchTerm.toLowerCase()) ||
-      employeeId.includes(searchTerm.toLowerCase());
-    
-    return matchesSearch;
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-blue-200">Loading attendance data...</p>
-        </div>
-      </div>
-    );
-  }
+  const heading =
+    activeTab === 'daily'
+      ? `Attendance on ${fmtDate(selectedDate)}`
+      : `Attendance from ${fmtDate(startDate)} to ${fmtDate(endDate)}`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
-      <style dangerouslySetInnerHTML={{__html: `
-        .admin-attendance-select option {
-          background-color: #ffffff !important;
-          color: #1d2b27 !important;
-          padding: 8px !important;
-        }
-        .admin-attendance-select option:hover {
-          background-color: #e5f2ee !important;
-        }
-      `}} />
-      <AdminHeader
-        userName={user?.username}
-        onLogout={handleLogout}
-      />
-
-      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
-        {error && (
-          <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-red-300 text-sm flex justify-between items-center">
-            <span>{error}</span>
-            <button onClick={() => setError('')} className="text-red-300 hover:text-white">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Stats Overview - Responsive Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          <StatsCard
-            title="Total Employees"
-            value={summary.totalEmployees || 0}
-            icon={<Users className="w-6 h-6 sm:w-8 sm:h-8" />}
-            color="blue"
-          />
-          <StatsCard
-            title="Present"
-            value={summary.Present || 0}
-            icon={<CheckCircle className="w-6 h-6 sm:w-8 sm:h-8" />}
-            color="green"
-          />
-          <StatsCard
-            title="Absent"
-            value={summary.Absent || 0}
-            icon={<XCircle className="w-6 h-6 sm:w-8 sm:h-8" />}
-            color="red"
-          />
-          <StatsCard
-            title="Late"
-            value={summary.Late || 0}
-            icon={<Clock className="w-8 h-8" />}
-            color="yellow"
-          />
+    <AdminShell>
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+        <h1 className="text-[28px] leading-tight font-semibold text-ink">Attendance</h1>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" icon={Download} onClick={exportToCSV}>Export CSV</Button>
+          <Button variant="ghost" size="icon" icon={RefreshCw} onClick={fetchAttendanceData} disabled={loading} aria-label="Refresh" />
         </div>
+      </div>
 
-        {/* Tabs - Mobile Friendly */}
-        <div className="flex flex-wrap gap-2 border-b border-white/10">
-          <button
-            onClick={() => setActiveTab('daily')}
-            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'daily' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
-          >
-            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Daily View</span>
-          </button>
-          <button
-            disabled
-            className="px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base text-blue-200/30 cursor-not-allowed opacity-50"
-            title="Under Development"
-          >
-            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Monthly Payroll</span>
-            <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded">Coming Soon</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('range')}
-            className={`px-3 sm:px-4 py-2 font-medium flex items-center space-x-2 text-sm sm:text-base ${activeTab === 'range' ? 'text-blue-300 border-b-2 border-blue-400' : 'text-blue-200/70 hover:text-blue-300'}`}
-          >
-            <List className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Date Range</span>
-          </button>
-        </div>
+      <div className="space-y-6">
+        {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
-        {/* Date Selection - Responsive */}
-        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
+        <StatGroup
+          items={[
+            { label: 'Employees', value: summary.totalEmployees || 0 },
+            { label: 'Present', value: summary.Present || 0, tone: 'present' },
+            { label: 'Late', value: summary.Late || 0, tone: 'late' },
+            { label: 'Half day', value: summary['Half-day'] || 0, tone: 'late' },
+            { label: 'Absent', value: summary.Absent || 0, tone: 'absent' },
+          ]}
+        />
+
+        <Tabs
+          value={activeTab}
+          onChange={setActiveTab}
+          items={[
+            { key: 'daily', label: 'One day' },
+            { key: 'range', label: 'Date range' },
+          ]}
+        />
+
+        <div className="flex flex-wrap items-end gap-3">
           {activeTab === 'daily' ? (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
-              <label className="text-sm text-blue-200/80 whitespace-nowrap">Select Date:</label>
-              <DatePicker
-                selected={selectedDate}
-                onChange={(date) => setSelectedDate(date)}
-                className="bg-white/5 border border-white/10 rounded-lg py-2 px-3 sm:px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 text-sm sm:text-base w-full sm:w-auto"
-              />
-            </div>
-          ) : activeTab === 'monthly' ? (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
-              <label className="text-sm text-blue-200/80 whitespace-nowrap">Payroll Cycle (10th to 10th):</label>
-              <select
-                value={monthlyPayrollCycle}
-                onChange={(e) => setMonthlyPayrollCycle(e.target.value)}
-                className="admin-attendance-select bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 w-full sm:w-auto min-w-[280px]"
-              >
-                <option value="">Select a payroll cycle...</option>
-                {getPayrollCycles().map((cycle) => (
-                  <option key={cycle.value} value={cycle.value}>
-                    {cycle.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Field label="Date">
+              <DatePicker selected={selectedDate} onChange={(date) => setSelectedDate(date)} className={datePickerClass} />
+            </Field>
           ) : (
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full lg:w-auto">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
-                <label className="text-sm text-blue-200/80 whitespace-nowrap">From:</label>
+            <>
+              <Field label="From">
                 <DatePicker
                   selected={startDate}
                   onChange={(date) => setStartDate(date)}
                   selectsStart
                   startDate={startDate}
                   endDate={endDate}
-                  className="bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                  className={datePickerClass}
                 />
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-blue-200/80">To:</label>
+              </Field>
+              <Field label="To">
                 <DatePicker
                   selected={endDate}
                   onChange={(date) => setEndDate(date)}
@@ -435,363 +367,103 @@ const AdminAttendance = () => {
                   startDate={startDate}
                   endDate={endDate}
                   minDate={startDate}
-                  className="bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                  className={datePickerClass}
                 />
-              </div>
-            </div>
+              </Field>
+            </>
           )}
-          
-          <div className="flex-1"></div>
-          
-          <div className="flex gap-2">
-            <button
-              onClick={fetchAttendanceData}
-              className="px-4 py-2 bg-blue-600/50 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Refresh</span>
-            </button>
-            <button
-              onClick={exportToCSV}
-              className="px-4 py-2 bg-green-600/50 hover:bg-green-600 text-white rounded-lg flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-blue-200/70" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search employees..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-full bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-            />
-          </div>
-          
-          <div className="flex gap-2">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Filter className="h-5 w-5 text-blue-200/70" />
-              </div>
-              <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="admin-attendance-select pl-10 bg-white/5 border border-white/10 rounded-lg py-2 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-              >
-                <option value="">All Departments</option>
-                {DEPARTMENTS.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="admin-attendance-select bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-            >
-              <option value="">All Status</option>
+          <Field label="Department" htmlFor="att-dept">
+            <Select id="att-dept" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} className="sm:w-44">
+              <option value="">All departments</option>
+              {DEPARTMENTS.map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Status" htmlFor="att-status">
+            <Select id="att-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="sm:w-36">
+              <option value="">All statuses</option>
               {STATUS_OPTIONS.map(status => (
                 <option key={status.value} value={status.value}>{status.label}</option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
+          <Field label="Search" htmlFor="att-search" className="flex-1 min-w-[200px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" aria-hidden="true" />
+              <Input
+                id="att-search"
+                type="text"
+                placeholder="Name or employee ID"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </Field>
         </div>
 
-       
-        {/* Attendance Table */}
-        <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-          <div className="p-6 border-b border-white/10">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">
-                {activeTab === 'daily' 
-                  ? `Attendance for ${selectedDate.toLocaleDateString()}`
-                  : `Attendance from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`}
-              </h3>
-              <div className="text-sm text-blue-200/70">
-                Showing {filteredAttendance.length} of {isDateRange ? attendance.reduce((total, group) => total + group.records.length, 0) : attendance.length} records
+        <div>
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 className="text-xl font-semibold text-ink">{heading}</h2>
+            {!loading && (
+              <p className="text-sm text-muted tabular-nums">
+                Showing {filteredAttendance.length} of {totalRecords} records
+              </p>
+            )}
+          </div>
+
+          <Panel className="overflow-hidden">
+            {loading ? (
+              <p className="px-5 py-8 text-sm text-muted">Loading attendance…</p>
+            ) : filteredAttendance.length === 0 ? (
+              <p className="px-5 py-8 text-sm text-muted">
+                {totalRecords === 0
+                  ? 'No attendance records for these dates and filters.'
+                  : 'No records match your search.'}
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm tabular-nums whitespace-nowrap">
+                  <thead>
+                    <tr className="border-b border-line text-left">
+                      {['Date', 'Employee', 'Department', 'Status', 'Clock in', 'Clock out'].map((h, i) => (
+                        <th key={h} scope="col" className={`${i === 0 ? 'px-5' : 'px-3'} py-3 text-xs font-medium text-muted`}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {isDateRange
+                      ? attendance.map((dateGroup) => {
+                          const rows = (dateGroup.records || []).filter(matchesSearch);
+                          if (rows.length === 0) return null;
+                          return (
+                            <React.Fragment key={dateGroup.date}>
+                              <tr className="bg-paper">
+                                <th colSpan={6} scope="colgroup" className="px-5 py-2 text-left text-sm font-medium text-ink">
+                                  {new Date(dateGroup.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                  <span className="ml-2 font-normal text-muted">{dateGroup.records.length} records</span>
+                                </th>
+                              </tr>
+                              {rows.map(renderRow)}
+                            </React.Fragment>
+                          );
+                        })
+                      : filteredAttendance.map(renderRow)}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-white/5">
-                <tr>
-                  {isBulkEditing && (
-                    <th className="px-6 py-4 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedRecords.length === getAllRecords().length && getAllRecords().length > 0}
-                        onChange={selectAllRecords}
-                        className="rounded bg-white/10 border-white/20"
-                      />
-                    </th>
-                  )}
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Employee ID</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Employee Name</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Clock In</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Clock Out</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200/80 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {isDateRange ? (
-                  // Date range view - group by date
-                  attendance.length > 0 ? (
-                    attendance.map((dateGroup) => (
-                      <React.Fragment key={dateGroup.date}>
-                        {/* Date header row */}
-                        <tr className="bg-blue-500/10">
-                          <td colSpan={isBulkEditing ? 9 : 8} className="px-6 py-3">
-                            <div className="flex items-center space-x-2">
-                              <Calendar className="w-4 h-4 text-blue-300" />
-                              <span className="text-sm font-medium text-blue-200">
-                                {new Date(dateGroup.date).toLocaleDateString('en-US', { 
-                                  weekday: 'long', 
-                                  year: 'numeric', 
-                                  month: 'long', 
-                                  day: 'numeric' 
-                                })}
-                              </span>
-                              <span className="text-xs text-blue-300/70 bg-blue-500/20 px-2 py-1 rounded">
-                                {dateGroup.records.length} records
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                        {/* Records for this date */}
-                        {dateGroup.records
-                          .filter(record => {
-                            // Apply search filter to individual records
-                            const employeeName = record.employee 
-                              ? `${record.employee.firstName || ''} ${record.employee.lastName || ''}`.toLowerCase()
-                              : '';
-                            const employeeId = record.employee?.employeeId?.toLowerCase() || '';
-                            
-                            return employeeName.includes(searchTerm.toLowerCase()) ||
-                                   employeeId.includes(searchTerm.toLowerCase());
-                          })
-                          .map((record) => (
-                            <tr key={record._id} className="hover:bg-white/5">
-                              {isBulkEditing && (
-                                <td className="px-6 py-4 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedRecords.includes(record._id)}
-                                    onChange={() => toggleRecordSelection(record._id)}
-                                    className="rounded bg-white/10 border-white/20"
-                                  />
-                                </td>
-                              )}
-                              <td className="px-6 py-4 text-sm text-blue-100 font-medium">
-                                {new Date(record.date).toLocaleDateString('en-US', { 
-                                  month: 'short', 
-                                  day: 'numeric', 
-                                  year: 'numeric' 
-                                })}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-blue-100">
-                                {record.employee?.employeeId || 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-white">
-                                {record.employee?.firstName} {record.employee?.lastName}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-blue-100">
-                                {record.employee?.department || 'Not assigned'}
-                              </td>
-                              <td className="px-6 py-4">
-                                <select
-                                  value={record.status}
-                                  onChange={(e) => updateAttendanceRecord(record._id, { status: e.target.value })}
-                                  className={`admin-attendance-select bg-transparent border rounded px-2 py-1 text-xs ${getStatusColor(record.status)}`}
-                                >
-                                  {STATUS_OPTIONS.map(status => (
-                                    <option key={status.value} value={status.value}>
-                                      {status.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className="px-6 py-4 text-sm text-blue-100">
-                                {record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : '--:--'}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-blue-100">
-                                {record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : '--:--'}
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center space-x-2">
-                                  <button
-                                    onClick={() => {
-                                      const newClockIn = prompt('Enter new clock-in time (HH:MM)', 
-                                        record.clockIn ? new Date(record.clockIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '09:00');
-                                      if (newClockIn) {
-                                        const [hours, minutes] = newClockIn.split(':');
-                                        const newDate = new Date(record.date);
-                                        newDate.setHours(parseInt(hours), parseInt(minutes));
-                                        updateAttendanceRecord(record._id, { clockIn: newDate });
-                                      }
-                                    }}
-                                    className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
-                                    title="Edit Clock In"
-                                  >
-                                    <Clock className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      const newClockOut = prompt('Enter new clock-out time (HH:MM)', 
-                                        record.clockOut ? new Date(record.clockOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '17:00');
-                                      if (newClockOut) {
-                                        const [hours, minutes] = newClockOut.split(':');
-                                        const newDate = new Date(record.date);
-                                        newDate.setHours(parseInt(hours), parseInt(minutes));
-                                        updateAttendanceRecord(record._id, { clockOut: newDate });
-                                      }
-                                    }}
-                                    className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
-                                    title="Edit Clock Out"
-                                  >
-                                    <Clock className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                      </React.Fragment>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={isBulkEditing ? 9 : 8} className="px-6 py-4 text-center text-blue-200/70">
-                        No attendance records found
-                      </td>
-                    </tr>
-                  )
-                ) : (
-                  // Single date view - flat list
-                  filteredAttendance.length > 0 ? (
-                    filteredAttendance.map((record) => (
-                      <tr key={record._id} className="hover:bg-white/5">
-                        {isBulkEditing && (
-                          <td className="px-6 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedRecords.includes(record._id)}
-                              onChange={() => toggleRecordSelection(record._id)}
-                              className="rounded bg-white/10 border-white/20"
-                            />
-                          </td>
-                        )}
-                        <td className="px-6 py-4 text-sm text-blue-100 font-medium">
-                          {new Date(record.date).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric', 
-                            year: 'numeric' 
-                          })}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-blue-100">
-                          {record.employee?.employeeId || 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-white">
-                          {record.employee?.firstName} {record.employee?.lastName}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-blue-100">
-                          {record.employee?.department || 'Not assigned'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <select
-                            value={record.status}
-                            onChange={(e) => updateAttendanceRecord(record._id, { status: e.target.value })}
-                            className={`admin-attendance-select bg-transparent border rounded px-2 py-1 text-xs ${getStatusColor(record.status)}`}
-                          >
-                            {STATUS_OPTIONS.map(status => (
-                              <option key={status.value} value={status.value}>
-                                {status.label}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-blue-100">
-                          {record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : '--:--'}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-blue-100">
-                          {record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : '--:--'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => {
-                                const newClockIn = prompt('Enter new clock-in time (HH:MM)', 
-                                  record.clockIn ? new Date(record.clockIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '09:00');
-                                if (newClockIn) {
-                                  const [hours, minutes] = newClockIn.split(':');
-                                  const newDate = new Date(record.date);
-                                  newDate.setHours(parseInt(hours), parseInt(minutes));
-                                  updateAttendanceRecord(record._id, { clockIn: newDate });
-                                }
-                              }}
-                              className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
-                              title="Edit Clock In"
-                            >
-                              <Clock className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                const newClockOut = prompt('Enter new clock-out time (HH:MM)', 
-                                  record.clockOut ? new Date(record.clockOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '17:00');
-                                if (newClockOut) {
-                                  const [hours, minutes] = newClockOut.split(':');
-                                  const newDate = new Date(record.date);
-                                  newDate.setHours(parseInt(hours), parseInt(minutes));
-                                  updateAttendanceRecord(record._id, { clockOut: newDate });
-                                }
-                              }}
-                              className="p-2 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg"
-                              title="Edit Clock Out"
-                            >
-                              <Clock className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={isBulkEditing ? 9 : 8} className="px-6 py-4 text-center text-blue-200/70">
-                        {attendance.length === 0 ? 'No attendance records found' : 'No records match your filters'}
-                      </td>
-                    </tr>
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
+            )}
+          </Panel>
+          <p className="mt-3 text-xs text-muted">Change a status from its dropdown. Click a time to edit it.</p>
         </div>
       </div>
-    </div>
+
+      {editTarget && (
+        <EditTimeDialog target={editTarget} onSave={updateAttendanceRecord} onClose={() => setEditTarget(null)} />
+      )}
+    </AdminShell>
   );
 };
-
-function getStatusColor(status) {
-  const statusObj = STATUS_OPTIONS.find(s => s.value === status);
-  if (!statusObj) return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-  
-  switch(statusObj.value) {
-    case 'Present': return 'bg-green-500/20 text-green-300 border-green-500/30';
-    case 'Absent': return 'bg-red-500/20 text-red-300 border-red-500/30';
-    case 'Late': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-    case 'Half-day': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-    default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-  }
-}
 
 export default AdminAttendance;

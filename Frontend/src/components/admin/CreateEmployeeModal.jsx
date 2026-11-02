@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
-import { X, Eye, EyeOff } from 'lucide-react';
+import { useState } from 'react';
+import { Eye, EyeOff, UserPlus } from 'lucide-react';
 import { authAPI } from '../../utils/api';
+import Dialog from '../ui/Dialog';
+import Button from '../ui/Button';
+import Alert from '../ui/Alert';
+import { Field, Input, Select, Textarea } from '../ui/Field';
 
 const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
   const [employeeForm, setEmployeeForm] = useState({
@@ -35,9 +39,9 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
 
     score = Object.values(checks).filter(Boolean).length;
 
-    if (score < 3) return { score, label: 'Weak', color: 'text-red-400' };
-    if (score < 4) return { score, label: 'Medium', color: 'text-yellow-400' };
-    return { score, label: 'Strong', color: 'text-green-400' };
+    if (score < 3) return { score, label: 'Weak', color: 'text-absent', bar: 'bg-absent' };
+    if (score < 4) return { score, label: 'Medium', color: 'text-late', bar: 'bg-late' };
+    return { score, label: 'Strong', color: 'text-present', bar: 'bg-present' };
   };
 
   const passwordStrength = getPasswordStrength(employeeForm.password);
@@ -141,174 +145,124 @@ const CreateEmployeeModal = ({ isOpen, onClose, onEmployeeAdded }) => {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-slate-700/50 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm p-6 border-b border-slate-700/50 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-white">Add New Employee</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-slate-400" />
-          </button>
-        </div>
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      title="Add employee"
+      description="Only name and role are required. Anything left blank is generated for you."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="create-employee-form" icon={UserPlus} disabled={loading}>
+            {loading ? 'Creating account…' : 'Create account'}
+          </Button>
+        </>
+      }
+    >
+      <form id="create-employee-form" onSubmit={handleRegisterEmployee} className="space-y-5">
+        {error && <Alert>{error}</Alert>}
 
-        <form onSubmit={handleRegisterEmployee} className="p-6 space-y-6">
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-red-300 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Full Name <span className="text-cyan-400">*</span></label>
-            <input
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Full name" htmlFor="emp-name">
+            <Input
+              id="emp-name"
               type="text"
               name="name"
               value={employeeForm.name}
               onChange={handleEmployeeFormChange}
-              placeholder="Enter full name"
-              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
               required
             />
-          </div>
+          </Field>
+          <Field label="Role" htmlFor="emp-role" hint="Sets the account type, department and default password.">
+            <Select id="emp-role" name="role" value={employeeForm.role} onChange={handleEmployeeFormChange} required>
+              <option value="CSR">CSR</option>
+              <option value="Closer/TL">Closer/TL</option>
+              <option value="QA Manager">QA Manager</option>
+              <option value="HR">HR</option>
+            </Select>
+          </Field>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Role <span className="text-cyan-400">*</span></label>
-            <select
-              name="role"
-              value={employeeForm.role}
-              onChange={handleEmployeeFormChange}
-              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-              required
-            >
-              <option value="CSR" className="bg-slate-800">CSR</option>
-              <option value="Closer/TL" className="bg-slate-800">Closer/TL</option>
-              <option value="QA Manager" className="bg-slate-800">QA Manager</option>
-              <option value="HR" className="bg-slate-800">HR</option>
-            </select>
-            <p className="text-xs text-slate-400 mt-2">This determines the account type, department, and default password if you leave it blank.</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Email <span className="text-slate-500">(optional)</span></label>
-            <input
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Email (optional)" htmlFor="emp-email">
+            <Input
+              id="emp-email"
               type="email"
               name="email"
               value={employeeForm.email}
               onChange={handleEmployeeFormChange}
-              placeholder="Leave blank to auto-generate"
-              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
+              placeholder="Generated if blank"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Password
-              <span className="text-slate-500 ml-1">(optional)</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                value={employeeForm.password}
-                onChange={handleEmployeeFormChange}
-                placeholder="Leave blank to auto-generate from role"
-                className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 pr-12 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-            <p className="text-xs text-slate-400 mt-2">If you leave this empty, the backend will generate the role-based default password.</p>
-            {employeeForm.password && (
-              <div className="mt-2">
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs text-slate-400">Strength:</span>
-                  <span className={`text-xs font-medium ${passwordStrength.color}`}>
-                    {passwordStrength.label}
-                  </span>
-                </div>
-                <div className="w-full bg-slate-700 rounded-full h-1.5 mt-1">
-                  <div
-                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                      passwordStrength.score < 3 
-                        ? 'bg-red-500' 
-                        : passwordStrength.score < 4 
-                        ? 'bg-yellow-500' 
-                        : 'bg-green-500'
-                    }`}
-                    style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Employee ID <span className="text-slate-500">(optional)</span></label>
-            <input
+          </Field>
+          <Field label="Employee ID (optional)" htmlFor="emp-id">
+            <Input
+              id="emp-id"
               type="text"
               name="employeeId"
               value={employeeForm.employeeId}
               onChange={handleEmployeeFormChange}
-              placeholder="Leave blank to auto-generate"
-              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
+              placeholder="Generated if blank"
             />
-          </div>
+          </Field>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Phone <span className="text-slate-500">(optional)</span></label>
-            <input
-              type="tel"
-              name="contact.phone"
-              value={employeeForm.contact.phone}
+        <Field
+          label="Password (optional)"
+          htmlFor="emp-password"
+          hint="Leave blank to use the role's default password. Otherwise: 6+ characters with an uppercase letter, a lowercase letter and a number."
+        >
+          <div className="relative">
+            <Input
+              id="emp-password"
+              type={showPassword ? 'text' : 'password'}
+              name="password"
+              autoComplete="new-password"
+              value={employeeForm.password}
               onChange={handleEmployeeFormChange}
-              placeholder="Optional contact number"
-              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
+              className="pr-10"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Address <span className="text-slate-500">(optional)</span></label>
-            <textarea
-              name="contact.address"
-              value={employeeForm.contact.address}
-              onChange={handleEmployeeFormChange}
-              placeholder="Optional address"
-              rows={3}
-              className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors resize-none"
-            />
-          </div>
-
-          {/* Buttons */}
-          <div className="flex gap-3 pt-4">
             <button
               type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-slate-700/50 hover:bg-slate-700 text-white rounded-lg font-medium transition-all duration-200"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-md text-muted hover:text-ink"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-all duration-200"
-            >
-              {loading ? 'Creating...' : 'Register Employee'}
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+          {employeeForm.password && (
+            <div className="mt-2 flex items-center gap-3">
+              <div className="flex-1 h-1.5 rounded-full bg-paper overflow-hidden">
+                <div className={`h-full rounded-full ${passwordStrength.bar}`} style={{ width: `${(passwordStrength.score / 5) * 100}%` }} />
+              </div>
+              <span className={`text-xs font-medium ${passwordStrength.color}`}>{passwordStrength.label}</span>
+            </div>
+          )}
+        </Field>
+
+        <Field label="Phone (optional)" htmlFor="emp-phone">
+          <Input
+            id="emp-phone"
+            type="tel"
+            name="contact.phone"
+            value={employeeForm.contact.phone}
+            onChange={handleEmployeeFormChange}
+          />
+        </Field>
+
+        <Field label="Address (optional)" htmlFor="emp-address">
+          <Textarea
+            id="emp-address"
+            name="contact.address"
+            value={employeeForm.contact.address}
+            onChange={handleEmployeeFormChange}
+            rows={2}
+            className="resize-none"
+          />
+        </Field>
+      </form>
+    </Dialog>
   );
 };
 

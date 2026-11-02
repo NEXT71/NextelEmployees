@@ -1,5 +1,12 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+
+const types = {
+  success: { icon: CheckCircle, edge: 'border-l-present', icon_: 'text-present' },
+  error: { icon: AlertCircle, edge: 'border-l-absent', icon_: 'text-absent' },
+  warning: { icon: AlertTriangle, edge: 'border-l-late', icon_: 'text-late' },
+  info: { icon: Info, edge: 'border-l-shift', icon_: 'text-shift' },
+};
 
 const Toast = ({ message, type = 'info', duration = 4000, onClose }) => {
   useEffect(() => {
@@ -11,56 +18,26 @@ const Toast = ({ message, type = 'info', duration = 4000, onClose }) => {
     }
   }, [duration, onClose]);
 
-  const types = {
-    success: {
-      icon: CheckCircle,
-      bgColor: 'bg-green-500/90',
-      borderColor: 'border-green-400',
-      iconColor: 'text-green-100'
-    },
-    error: {
-      icon: AlertCircle,
-      bgColor: 'bg-red-500/90',
-      borderColor: 'border-red-400',
-      iconColor: 'text-red-100'
-    },
-    warning: {
-      icon: AlertTriangle,
-      bgColor: 'bg-orange-500/90',
-      borderColor: 'border-orange-400',
-      iconColor: 'text-orange-100'
-    },
-    info: {
-      icon: Info,
-      bgColor: 'bg-blue-500/90',
-      borderColor: 'border-blue-400',
-      iconColor: 'text-blue-100'
-    }
-  };
-
   const config = types[type] || types.info;
   const Icon = config.icon;
 
   return (
     <div
-      className={`${config.bgColor} ${config.borderColor} backdrop-blur-md border-l-4 rounded-lg shadow-2xl p-4 pr-12 min-w-[320px] max-w-md animate-toast-in relative overflow-hidden`}
+      role={type === 'error' ? 'alert' : 'status'}
+      className={`bg-surface border border-line border-l-4 ${config.edge} rounded-lg shadow-float p-4 pr-10 min-w-[300px] max-w-md animate-toast-in relative`}
     >
-      {/* Animated progress bar */}
-      <div 
-        className="absolute bottom-0 left-0 h-1 bg-white/30 animate-toast-progress"
-        style={{ animationDuration: `${duration}ms` }}
-      />
-      
       <div className="flex items-start gap-3">
-        <Icon className={`w-5 h-5 ${config.iconColor} flex-shrink-0 mt-0.5`} />
-        <p className="text-white text-sm font-medium flex-1 leading-relaxed">{message}</p>
-        <button
-          onClick={onClose}
-          className="text-white/70 hover:text-white transition-colors flex-shrink-0"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <Icon className={`w-5 h-5 ${config.icon_} flex-shrink-0`} aria-hidden="true" />
+        <p className="text-sm text-ink flex-1 leading-relaxed">{message}</p>
       </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Dismiss"
+        className="absolute top-3 right-3 p-1 rounded text-muted hover:text-ink"
+      >
+        <X className="w-4 h-4" />
+      </button>
     </div>
   );
 };

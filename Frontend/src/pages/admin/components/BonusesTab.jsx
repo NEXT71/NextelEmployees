@@ -1,11 +1,17 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { Search, Gift, Trash2, X, Download, Plus, Loader } from 'lucide-react';
+import { Search, Gift, Trash2, Download, Plus } from 'lucide-react';
 import { bonusAPI, employeeAPI } from '../../../utils/api';
 import { BONUS_TYPES } from '../../../utils/constants';
+import { formatPKR } from '../../../components/employees/MonthLedger';
+import Panel from '../../../components/ui/Panel';
+import Button from '../../../components/ui/Button';
+import Alert from '../../../components/ui/Alert';
+import Dialog from '../../../components/ui/Dialog';
+import { Field, Input, Select, Textarea } from '../../../components/ui/Field';
 
 const todayInput = () => new Date().toISOString().slice(0, 10);
 
-const formatMoney = (n) => `RS ${(n || 0).toLocaleString()}`;
+const formatMoney = (n) => formatPKR(n);
 
 // ─── Give Bonus modal ────────────────────────────────────────────────────────
 const GiveBonusModal = ({ employees, onClose, onCreated }) => {
@@ -25,9 +31,9 @@ const GiveBonusModal = ({ employees, onClose, onCreated }) => {
     e.preventDefault();
     setError('');
 
-    if (!form.employeeId) return setError('Please choose an employee');
+    if (!form.employeeId) return setError('Choose an employee.');
     const amount = Number(form.amount);
-    if (!Number.isFinite(amount) || amount <= 0) return setError('Enter an amount greater than 0');
+    if (!Number.isFinite(amount) || amount <= 0) return setError('Enter an amount above 0.');
 
     setSaving(true);
     try {
@@ -41,111 +47,71 @@ const GiveBonusModal = ({ employees, onClose, onCreated }) => {
       if (res?.error) throw new Error(res.message || 'Failed to give bonus');
       onCreated(res.data);
     } catch (err) {
-      setError(err.message || 'Failed to give bonus');
+      setError(err.message || 'Could not save the bonus. Try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  const inputClass =
-    'w-full bg-blue-800/80 border border-blue-500/50 rounded-lg py-2 px-3 text-white placeholder-blue-300/70 focus:outline-none focus:ring-2 focus:ring-yellow-500/50';
-
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <form
-        onSubmit={submit}
-        className="bg-gradient-to-br from-blue-900/95 to-purple-900/95 border border-white/20 rounded-2xl shadow-2xl w-full max-w-lg"
-      >
-        <div className="flex items-center justify-between p-6 border-b border-white/20">
-          <div className="flex items-center gap-2">
-            <Gift className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-xl font-semibold text-white">Give Bonus</h2>
-          </div>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg">
-            <X className="w-5 h-5 text-gray-300" />
-          </button>
-        </div>
+    <Dialog
+      open
+      onClose={onClose}
+      size="max-w-lg"
+      title="Give bonus"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" form="give-bonus-form" icon={Gift} disabled={saving}>
+            {saving ? 'Saving…' : 'Give bonus'}
+          </Button>
+        </>
+      }
+    >
+      <form id="give-bonus-form" onSubmit={submit} className="space-y-4">
+        {error && <Alert>{error}</Alert>}
 
-        <div className="p-6 space-y-4">
-          {error && (
-            <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-sm text-red-200">{error}</div>
-          )}
+        <Field label="Employee" htmlFor="gb-employee">
+          <Select id="gb-employee" value={form.employeeId} onChange={update('employeeId')} required>
+            <option value="">Choose an employee</option>
+            {employees.map((emp) => (
+              <option key={emp._id} value={emp._id}>
+                {emp.firstName} {emp.lastName} ({emp.employeeId})
+              </option>
+            ))}
+          </Select>
+        </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-blue-100 mb-2">Employee</label>
-            <select value={form.employeeId} onChange={update('employeeId')} className={inputClass} required>
-              <option value="">Select employee...</option>
-              {employees.map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.firstName} {emp.lastName} ({emp.employeeId})
-                </option>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Bonus type" htmlFor="gb-type">
+            <Select id="gb-type" value={form.type} onChange={update('type')}>
+              {BONUS_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
               ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-blue-100 mb-2">Bonus type</label>
-              <select value={form.type} onChange={update('type')} className={inputClass}>
-                {BONUS_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-blue-100 mb-2">Amount (RS)</label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={form.amount}
-                onChange={update('amount')}
-                placeholder="e.g. 2000"
-                className={inputClass}
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-blue-100 mb-2">Date</label>
-            <input type="date" value={form.date} onChange={update('date')} className={inputClass} required />
-            <p className="text-xs text-blue-200/60 mt-1">The bonus is paid in the salary of the month of this date.</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-blue-100 mb-2">Reason (optional)</label>
-            <textarea
-              value={form.description}
-              onChange={update('description')}
-              rows="3"
-              maxLength={500}
-              placeholder="e.g. Top performer of the month"
-              className={`${inputClass} resize-none`}
-            />
-          </div>
+            </Select>
+          </Field>
+          <Field label="Amount (PKR)" htmlFor="gb-amount">
+            <Input id="gb-amount" type="number" min="1" step="1" value={form.amount} onChange={update('amount')} placeholder="e.g. 2000" required />
+          </Field>
         </div>
 
-        <div className="flex gap-3 justify-end p-6 border-t border-white/20">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-4 py-2 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 disabled:opacity-60 text-white rounded-lg font-medium flex items-center gap-2"
-          >
-            {saving ? <Loader className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
-            {saving ? 'Saving...' : 'Give Bonus'}
-          </button>
-        </div>
+        <Field label="Date" htmlFor="gb-date" hint="Paid with the salary for this date's month.">
+          <Input id="gb-date" type="date" value={form.date} onChange={update('date')} required />
+        </Field>
+
+        <Field label="Reason (optional)" htmlFor="gb-reason" hint="The employee sees this on their dashboard.">
+          <Textarea
+            id="gb-reason"
+            value={form.description}
+            onChange={update('description')}
+            rows={2}
+            maxLength={500}
+            placeholder="e.g. Top performer of the month"
+            className="resize-none"
+          />
+        </Field>
       </form>
-    </div>
+    </Dialog>
   );
 };
 
@@ -274,135 +240,104 @@ const BonusesTab = memo(({ onRefresh }) => {
     URL.revokeObjectURL(url);
   }, [filtered]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  const controlClass =
-    'bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50';
-
   return (
     <div className="space-y-4">
-      {error && (
-        <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-red-300 text-sm flex justify-between items-center">
-          <span>{error}</span>
-          <button onClick={() => setError('')} className="text-red-300 hover:text-white">✕</button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted">
+          {filtered.length} {filtered.length === 1 ? 'bonus' : 'bonuses'},{' '}
+          <span className="text-present font-semibold tabular-nums">{formatMoney(totalAmount)}</span> in total
+        </p>
+        <div className="flex gap-2">
+          <Button variant="secondary" icon={Download} onClick={handleDownload} disabled={filtered.length === 0}>Report</Button>
+          <Button icon={Plus} onClick={() => setShowModal(true)}>Give bonus</Button>
         </div>
-      )}
+      </div>
 
-      {/* Filters */}
+      {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
+
       <div className="flex flex-col sm:flex-row flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-blue-200/70" />
-          <input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" aria-hidden="true" />
+          <Input
             type="text"
-            placeholder="Search bonuses..."
+            aria-label="Search bonuses"
+            placeholder="Search employee, type or reason"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 w-full bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="pl-9"
           />
         </div>
-        <input type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className={controlClass} />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={controlClass}>
+        <Input type="month" aria-label="Month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className="sm:w-44" />
+        <Select aria-label="Employee status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="sm:w-44">
           <option value="active">Active employees</option>
           <option value="inactive">Inactive employees</option>
           <option value="all">All employees</option>
-        </select>
-        <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className={controlClass}>
-          <option value="">All Employees</option>
+        </Select>
+        <Select aria-label="Employee" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="sm:w-48">
+          <option value="">All employees</option>
           {employees.filter((emp) => matchesStatus(emp._id)).map((emp) => (
             <option key={emp._id} value={emp._id}>{emp.firstName} {emp.lastName}</option>
           ))}
-        </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={controlClass}>
-          <option value="">All Bonus Types</option>
+        </Select>
+        <Select aria-label="Bonus type" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="sm:w-44">
+          <option value="">All bonus types</option>
           {BONUS_TYPES.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
-        </select>
-        <button
-          onClick={clearFilters}
-          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium flex items-center gap-2"
-        >
-          <X className="w-4 h-4" />
-          Clear
-        </button>
+        </Select>
+        <Button variant="ghost" onClick={clearFilters}>Clear</Button>
       </div>
 
-      {/* Actions + total */}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2.5 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg"
-        >
-          <Plus className="w-5 h-5" />
-          Give Bonus
-        </button>
-        <button
-          onClick={handleDownload}
-          disabled={filtered.length === 0}
-          className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg"
-        >
-          <Download className="w-5 h-5" />
-          Download Bonus Report
-        </button>
-        <p className="text-sm text-blue-200/80 ml-auto">
-          {filtered.length} bonus{filtered.length === 1 ? '' : 'es'} · <span className="text-yellow-300 font-semibold">{formatMoney(totalAmount)}</span> total
-        </p>
-      </div>
-
-      {/* List */}
-      {Object.keys(grouped).length === 0 ? (
-        <div className="text-center py-12 text-blue-200/70">
-          <Gift className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p>No bonuses found</p>
-        </div>
+      {loading ? (
+        <Panel><p className="px-5 py-8 text-sm text-muted">Loading bonuses…</p></Panel>
+      ) : Object.keys(grouped).length === 0 ? (
+        <Panel>
+          <p className="px-5 py-8 text-sm text-muted">No bonuses match these filters. Use Give bonus to add one.</p>
+        </Panel>
       ) : (
         <div className="space-y-4">
           {Object.entries(grouped).map(([employeeId, list]) => {
             const employee = list[0].employee;
             const subtotal = list.reduce((sum, b) => sum + (b.amount || 0), 0);
             return (
-              <div key={employeeId} className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
-                <div className="px-6 py-4 bg-white/10 border-b border-white/10 flex justify-between items-center">
+              <Panel key={employeeId} className="overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-line bg-paper">
                   <div>
-                    <h4 className="text-white font-semibold">{employee.firstName} {employee.lastName}</h4>
-                    <p className="text-xs text-blue-200/70">{employee.employeeId}</p>
+                    <p className="text-sm font-semibold text-ink">{employee.firstName} {employee.lastName}</p>
+                    <p className="text-xs text-muted">{employee.employeeId}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-yellow-300 font-semibold">{formatMoney(subtotal)}</p>
-                    <p className="text-xs text-gray-400">{list.length} bonus{list.length === 1 ? '' : 'es'}</p>
+                    <p className="text-sm font-semibold text-present tabular-nums">{formatMoney(subtotal)}</p>
+                    <p className="text-xs text-muted">{list.length} {list.length === 1 ? 'bonus' : 'bonuses'}</p>
                   </div>
                 </div>
-                <div className="divide-y divide-white/10">
+                <ul className="divide-y divide-line">
                   {list.map((bonus) => (
-                    <div key={bonus._id} className="px-6 py-3 hover:bg-white/5 transition-colors flex justify-between items-start">
-                      <div className="flex-1">
-                        <p className="text-sm text-white font-medium">{bonus.type}</p>
-                        <p className="text-xs text-blue-200/70">
-                          {new Date(bonus.date).toLocaleDateString()}
-                          {bonus.createdBy?.username ? ` · by ${bonus.createdBy.username}` : ''}
+                    <li key={bonus._id} className="flex items-start justify-between gap-4 px-5 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-ink">{bonus.type}</p>
+                        <p className="text-xs text-muted">
+                          {new Date(bonus.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {bonus.createdBy?.username ? `, given by ${bonus.createdBy.username}` : ''}
                         </p>
-                        {bonus.description && <p className="text-xs text-gray-400 mt-1">{bonus.description}</p>}
+                        {bonus.description && <p className="text-sm text-ink-soft mt-1">{bonus.description}</p>}
                       </div>
-                      <div className="text-right flex items-center gap-3">
-                        <p className="text-sm font-semibold text-yellow-300">{formatMoney(bonus.amount)}</p>
-                        <button
+                      <div className="flex items-center gap-2 shrink-0">
+                        <p className="text-sm font-semibold text-ink tabular-nums">{formatMoney(bonus.amount)}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          icon={Trash2}
                           onClick={() => handleDelete(bonus._id)}
-                          className="text-red-400 hover:text-red-300"
+                          aria-label="Delete bonus"
                           title="Delete bonus"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          className="hover:text-absent"
+                        />
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
-              </div>
+                </ul>
+              </Panel>
             );
           })}
         </div>

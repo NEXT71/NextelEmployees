@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Upload, X, FileText, Download, Trash2, RefreshCw, Paperclip, Camera } from 'lucide-react';
+import Dialog from '../ui/Dialog';
+import Button from '../ui/Button';
+import Alert from '../ui/Alert';
 import { API_BASE_URL } from '../../utils/constants';
 import { documentAPI } from '../../utils/api';
 
@@ -160,198 +163,144 @@ const EmployeeDocumentsModal = ({ isOpen, employee, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-4xl rounded-2xl border border-white/15 bg-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-blue-300/60">Employee Documents</p>
-            <h2 className="mt-1 text-xl font-semibold text-white">
-              {employee.firstName} {employee.lastName}
-            </h2>
-            <p className="text-sm text-white/50">{employee.employeeId} · {employee.department || 'No department'}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+    <Dialog
+      open
+      onClose={onClose}
+      size="max-w-4xl"
+      title={`Documents for ${employee.firstName} ${employee.lastName}`}
+      description={`${employee.employeeId}, ${employee.department || 'no department'}`}
+    >
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-4">
+          <div
+            onDragEnter={() => setDragActive(true)}
+            onDragLeave={() => setDragActive(false)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={handleDrop}
+            className={`rounded-xl border-2 border-dashed p-6 text-center ${
+              dragActive ? 'border-shift bg-shift-soft' : 'border-line bg-paper'
+            }`}
           >
-            <X size={18} />
-          </button>
+            <Upload className="mx-auto mb-2 h-5 w-5 text-muted" aria-hidden="true" />
+            <p className="text-sm font-medium text-ink">Drop files here, or choose them</p>
+            <p className="mt-1 text-xs text-muted">PDF, PNG, JPEG and Word files, up to 5 MB each.</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,application/pdf,image/png,image/jpeg,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(event) => handleFileSelection(event.target.files || [])}
+              className="hidden"
+            />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => {
+                handleFileSelection(event.target.files || []);
+                event.target.value = '';
+              }}
+              className="hidden"
+            />
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button variant="secondary" size="sm" icon={Upload} onClick={() => fileInputRef.current?.click()}>Choose files</Button>
+              <Button variant="secondary" size="sm" icon={Camera} onClick={() => cameraInputRef.current?.click()}>Take photo</Button>
+            </div>
+          </div>
+
+          {selectedFiles.length > 0 && (
+            <div className="rounded-xl border border-line">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
+                <h3 className="text-sm font-semibold text-ink">Ready to upload ({selectedFiles.length})</h3>
+                <button type="button" onClick={() => setSelectedFiles([])} className="text-xs text-muted hover:text-ink">
+                  Clear all
+                </button>
+              </div>
+              <ul className="divide-y divide-line">
+                {selectedFiles.map((file, index) => (
+                  <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 px-4 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-ink">{file.name}</p>
+                      <p className="text-xs text-muted">{formatFileSize(file.size)}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" icon={X} onClick={() => removePendingFile(index)} aria-label={`Remove ${file.name}`} />
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-line">
+                <div className="flex-1">
+                  {uploading && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted tabular-nums">Uploading… {progress}%</p>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-paper">
+                        <div className="h-full rounded-full bg-ink" style={{ width: `${progress}%` }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <Button size="sm" icon={Paperclip} onClick={handleUpload} disabled={uploading}>
+                  {uploading ? 'Uploading…' : `Upload ${selectedFiles.length === 1 ? 'file' : 'files'}`}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {error && <Alert>{error}</Alert>}
         </div>
 
-        <div className="grid gap-6 px-6 py-5 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-4">
-            <div
-              onDragEnter={() => setDragActive(true)}
-              onDragLeave={() => setDragActive(false)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={handleDrop}
-              className={`rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
-                dragActive ? 'border-blue-400 bg-blue-500/10' : 'border-white/15 bg-white/5'
-              }`}
-            >
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/20">
-                <Upload className="h-5 w-5 text-blue-300" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">Upload multiple documents</h3>
-              <p className="mt-2 text-sm text-white/55">
-                Drag and drop files here or use the file picker. PDF, PNG, JPEG, and DOCX files up to 5MB each.
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,application/pdf,image/png,image/jpeg,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(event) => handleFileSelection(event.target.files || [])}
-                className="hidden"
-              />
-              <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(event) => {
-                  handleFileSelection(event.target.files || []);
-                  event.target.value = '';
-                }}
-                className="hidden"
-              />
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-500/25 px-4 py-2 text-sm font-medium text-blue-100 transition-colors hover:bg-blue-500/35"
-                >
-                  <Upload className="h-4 w-4" />
-                  Choose Files
-                </button>
-                <button
-                  type="button"
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-500/30"
-                >
-                  <Camera className="h-4 w-4" />
-                  Take Photo
-                </button>
-              </div>
-            </div>
-
-            {selectedFiles.length > 0 && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/55">Pending Uploads</h4>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedFiles([])}
-                    className="text-xs text-white/40 transition-colors hover:text-white"
-                  >
-                    Clear All
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {selectedFiles.map((file, index) => (
-                    <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2">
-                      <div>
-                        <p className="text-sm text-white">{file.name}</p>
-                        <p className="text-xs text-white/45">{formatFileSize(file.size)}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removePendingFile(index)}
-                        className="rounded-md p-1.5 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <div className="flex-1">
-                    {uploading ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs text-white/50">
-                          <span>Uploading...</span>
-                          <span>{progress}%</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                          <div className="h-full rounded-full bg-blue-400 transition-all" style={{ width: `${progress}%` }} />
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleUpload}
-                    disabled={uploading}
-                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/25 px-4 py-2 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-500/35 disabled:opacity-60"
-                  >
-                    {uploading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                    Upload Files
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-200">
-                {error}
-              </div>
-            )}
+        <div>
+          <div className="flex items-baseline justify-between mb-2">
+            <h3 className="text-sm font-semibold text-ink">Uploaded</h3>
+            <span className="text-xs text-muted tabular-nums">{documents.length} {documents.length === 1 ? 'file' : 'files'}</span>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <h4 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/55">Uploaded Files</h4>
-              <span className="text-xs text-white/40">{documents.length} total</span>
+          {loading ? (
+            <p className="py-8 text-sm text-muted">Loading documents…</p>
+          ) : documents.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-line px-4 py-10 text-center">
+              <FileText className="mx-auto mb-2 h-6 w-6 text-muted" aria-hidden="true" />
+              <p className="text-sm text-muted">No documents yet. Upload a CNIC, contract or anything else HR needs on file.</p>
             </div>
-
-            {loading ? (
-              <div className="flex h-56 items-center justify-center">
-                <RefreshCw className="h-5 w-5 animate-spin text-blue-300" />
-              </div>
-            ) : documents.length === 0 ? (
-              <div className="flex h-56 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 text-center text-white/40">
-                <FileText className="mb-2 h-8 w-8 text-white/25" />
-                No documents uploaded yet.
-              </div>
-            ) : (
-              <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
-                {documents.map((document) => (
-                  <div key={document._id} className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-white">{document.fileName}</p>
-                        <p className="text-xs text-white/45">Uploaded {formatDate(document.createdAt)}</p>
-                        <p className="text-xs text-white/45">{formatFileSize(document.fileSize)}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={resolveDocumentUrl(document.fileUrl)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs text-white/70 transition-colors hover:bg-white/15 hover:text-white"
-                        >
-                          <Download size={12} />
-                          Download
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(document._id)}
-                          disabled={deletingId === document._id}
-                          className="inline-flex items-center gap-1 rounded-lg bg-red-500/15 px-2.5 py-1.5 text-xs text-red-200 transition-colors hover:bg-red-500/25 disabled:opacity-60"
-                        >
-                          {deletingId === document._id ? <RefreshCw size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                          Delete
-                        </button>
-                      </div>
-                    </div>
+          ) : (
+            <ul className="max-h-[420px] overflow-y-auto rounded-xl border border-line divide-y divide-line">
+              {documents.map((document) => (
+                <li key={document._id} className="flex items-start justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">{document.fileName}</p>
+                    <p className="text-xs text-muted">
+                      {formatFileSize(document.fileSize)}, uploaded {formatDate(document.createdAt)}
+                    </p>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <div className="flex items-center gap-1">
+                    <a
+                      href={resolveDocumentUrl(document.fileUrl)}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Download ${document.fileName}`}
+                      title="Download"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:text-ink hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shift"
+                    >
+                      <Download className="h-4 w-4" />
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      icon={deletingId === document._id ? RefreshCw : Trash2}
+                      onClick={() => handleDelete(document._id)}
+                      disabled={deletingId === document._id}
+                      aria-label={`Delete ${document.fileName}`}
+                      title="Delete"
+                      className={`hover:text-absent ${deletingId === document._id ? '[&>svg]:animate-spin' : ''}`}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 };
 

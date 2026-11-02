@@ -1,33 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RefreshCw, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { salesTargetAPI } from '../../utils/api';
 import { formatSalesShiftDate, getCurrentSalesShiftDate } from '../../utils/salesShift';
-import {
-  CheckCircle,
-  DollarSign,
-  Trophy,
-  RefreshCw,
-  LogOut,
-  TrendingUp,
-  User,
-  Calendar
-} from 'lucide-react';
+import AppShell from '../../components/layout/AppShell';
+import { formatPKR } from '../../components/employees/MonthLedger';
+import { Section } from '../../components/ui/Panel';
+import StatGroup from '../../components/ui/StatGroup';
+import DataTable from '../../components/ui/DataTable';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Alert from '../../components/ui/Alert';
+import Pagination from '../../components/ui/Pagination';
+import { Input, Select } from '../../components/ui/Field';
 
-const fmtCurrency = (n) =>
-  typeof n === 'number' ? `RS ${n.toLocaleString()}` : '—';
+const COMMISSION = 200; // PKR per approved close
 
-const StatusBadge = ({ status }) => {
-  const map = {
-    approved: 'bg-green-500/20 text-green-300 border-green-500/30',
-    pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-    disapproved: 'bg-red-500/20 text-red-300 border-red-500/30'
-  };
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${map[status] || 'bg-white/10 text-white/60 border-white/20'}`}>
-      {status?.charAt(0).toUpperCase() + status?.slice(1)}
-    </span>
-  );
+const fmtCurrency = (n) => (typeof n === 'number' ? formatPKR(n) : '—');
+
+const statusBadge = {
+  approved: <Badge tone="present">Approved</Badge>,
+  pending: <Badge tone="late">Pending</Badge>,
+  disapproved: <Badge tone="absent">Rejected</Badge>,
 };
 
 const CloserDashboard = () => {
@@ -65,7 +60,7 @@ const CloserDashboard = () => {
         }
       }
     } catch (e) {
-      setError('Failed to load data: ' + (e.message || 'Unknown error'));
+      setError(`Could not load your closes: ${e.message || 'unknown error'}. Try refreshing.`);
     } finally {
       setLoading(false);
     }
@@ -84,222 +79,106 @@ const CloserDashboard = () => {
     setPage(1);
   }, [statusFilter, selectedDate]);
 
+  // /auth/me populates employeeId with the employee's name and ID
+  const profile = typeof user?.employeeId === 'object' ? user.employeeId : null;
+  const name = profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : user?.username;
+
+  const dayLabel = selectedDate
+    ? new Date(`${selectedDate}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' })
+    : 'Selected day';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950">
-      {/* Header */}
-      <header className="bg-white/5 border-b border-white/10 backdrop-blur-xl sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-cyan-500 rounded-xl flex items-center justify-center">
-              <User size={20} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-white font-bold text-lg leading-tight">
-                {user?.firstName || user?.username || 'Verifier'}
-              </h1>
-              <p className="text-teal-300 text-xs">Verifier Dashboard</p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 text-sm transition-colors"
-          >
-            <LogOut size={16} />
-            Logout
-          </button>
+    <AppShell
+      nav={[{ key: 'closes', label: 'My closes', icon: ClipboardCheck, active: true, onClick: () => {} }]}
+      user={{ name, detail: profile?.employeeId || 'Verifier' }}
+      onSignOut={handleLogout}
+    >
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-[28px] leading-tight font-semibold text-ink">My closes</h1>
+          <p className="mt-1 text-sm text-muted">You earn {formatPKR(COMMISSION)} for every close QA approves.</p>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Error */}
-        {error && (
-          <div className="bg-red-900/30 border border-red-600/50 rounded-xl p-4 text-red-300 text-sm">
-            {error}
-          </div>
-        )}
+      <div className="space-y-8">
+        {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
-        {/* Stats Cards */}
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-10 h-10 border-4 border-teal-400 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : (
-          <>
-            {/* Summary row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {/* This month closes */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 bg-teal-500/20 rounded-lg flex items-center justify-center">
-                    <CheckCircle size={18} className="text-teal-400" />
-                  </div>
-                  <span className="text-white/60 text-xs uppercase tracking-wider">This Month</span>
-                </div>
-                <p className="text-3xl font-bold text-white">{stats?.approvedThisMonth ?? '—'}</p>
-                <p className="text-white/40 text-xs mt-1">Approved This Month</p>
-              </div>
+        <StatGroup
+          items={[
+            { label: 'Earned this month', value: fmtCurrency(stats?.earningsThisMonth), tone: 'present' },
+            { label: 'Approved this month', value: stats?.approvedThisMonth ?? '—' },
+            {
+              label: 'Rank',
+              value: stats?.rank ? `#${stats.rank}` : '—',
+              hint: stats?.totalVerifiers ? `of ${stats.totalVerifiers} verifiers` : undefined,
+            },
+            {
+              label: `Approved on ${dayLabel}`,
+              value: stats?.approvedThisDay ?? '—',
+              hint: `${fmtCurrency(stats?.earningsThisDay)} earned`,
+            },
+          ]}
+        />
 
-              {/* This month earnings */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 bg-green-500/20 rounded-lg flex items-center justify-center">
-                    <DollarSign size={18} className="text-green-400" />
-                  </div>
-                  <span className="text-white/60 text-xs uppercase tracking-wider">Earned</span>
-                </div>
-                <p className="text-3xl font-bold text-white">{fmtCurrency(stats?.earningsThisMonth)}</p>
-                <p className="text-white/40 text-xs mt-1">This Month</p>
-              </div>
-
-              {/* Rank */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                    <Trophy size={18} className="text-yellow-400" />
-                  </div>
-                  <span className="text-white/60 text-xs uppercase tracking-wider">Rank</span>
-                </div>
-                <p className="text-3xl font-bold text-white">
-                  {stats?.rank ? `#${stats.rank}` : '—'}
-                </p>
-                <p className="text-white/40 text-xs mt-1">
-                  of {stats?.totalVerifiers || '—'} verifiers
-                </p>
-              </div>
-
-              {/* Selected day closes */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                    <TrendingUp size={18} className="text-purple-400" />
-                  </div>
-                  <span className="text-white/60 text-xs uppercase tracking-wider">Selected Day</span>
-                </div>
-                <p className="text-3xl font-bold text-white">{stats?.approvedThisDay ?? '—'}</p>
-                <p className="text-white/40 text-xs mt-1">{fmtCurrency(stats?.earningsThisDay)} earned</p>
-              </div>
-            </div>
-
-            {/* Pay info banner */}
-            <div className="bg-gradient-to-r from-teal-800/40 to-cyan-800/40 border border-teal-500/30 rounded-2xl p-5 flex items-center gap-4">
-              <div className="w-12 h-12 bg-teal-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <DollarSign size={24} className="text-teal-300" />
-              </div>
-              <div>
-                <p className="text-teal-200 font-semibold text-sm">Commission Rate</p>
-                <p className="text-white text-2xl font-bold">RS 200 <span className="text-white/50 text-sm font-normal">per approved close</span></p>
-              </div>
-              <div className="ml-auto text-right">
-                <p className="text-white/50 text-xs">This month's total</p>
-                <p className="text-2xl font-bold text-green-300">{fmtCurrency(stats?.earningsThisMonth)}</p>
-              </div>
-            </div>
-
-            {/* Closes table */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 flex-wrap gap-3">
-                <h2 className="text-white font-bold text-lg flex items-center gap-2">
-                  <Calendar size={18} className="text-teal-400" />
-                  My Closes
-                </h2>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="all" className="bg-slate-800">All</option>
-                    <option value="approved" className="bg-slate-800">Approved</option>
-                    <option value="pending" className="bg-slate-800">Pending</option>
-                    <option value="disapproved" className="bg-slate-800">Disapproved</option>
-                  </select>
-                  <button
-                    onClick={loadData}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors"
-                  >
-                    <RefreshCw size={14} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-white/50 border-b border-white/10">
-                      <th className="text-left py-3 px-4">Customer</th>
-                      <th className="text-left py-3 px-4">CSR Agent</th>
-                      <th className="text-left py-3 px-4">DIDs</th>
-                      <th className="text-center py-3 px-4">Status</th>
-                      <th className="text-right py-3 px-4">Your Pay</th>
-                      <th className="text-left py-3 px-4">Sale Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {closes.map((row) => (
-                      <tr key={row._id} className="border-b border-white/5 hover:bg-white/5">
-                        <td className="py-3 px-4 text-white font-medium">
-                          {row.customer?.firstName
-                            ? `${row.customer.firstName} ${row.customer.lastName}`
-                            : '—'}
-                        </td>
-                        <td className="py-3 px-4 text-white/60">{row.agentName || '—'}</td>
-                        <td className="py-3 px-4 text-white/60">{row.dids || '—'}</td>
-                        <td className="py-3 px-4 text-center">
-                          <StatusBadge status={row.status} />
-                        </td>
-                        <td className="py-3 px-4 text-right font-semibold">
-                          {row.status === 'approved'
-                            ? <span className="text-green-300">RS 200</span>
-                            : <span className="text-white/30">—</span>}
-                        </td>
-                        <td className="py-3 px-4 text-white/50">{formatSalesShiftDate(row.createdAt || row.saleDate)}</td>
-                      </tr>
-                    ))}
-                    {closes.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="py-12 text-center text-white/40">
-                          No closes found{statusFilter !== 'all' ? ` with status "${statusFilter}"` : ''}.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {pagination.total > pagination.limit && (
-                <div className="px-5 py-3 border-t border-white/10 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="text-sm text-white/50">
-                    Page {pagination.page} of {Math.max(1, Math.ceil(pagination.total / pagination.limit))} • {pagination.total} total closes
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                      disabled={page <= 1}
-                      className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white/70 disabled:opacity-40"
-                    >
-                      Prev
-                    </button>
-                    <button
-                      onClick={() => setPage((prev) => prev + 1)}
-                      disabled={page >= Math.ceil(pagination.total / pagination.limit)}
-                      className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white/70 disabled:opacity-40"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </main>
-    </div>
+        <Section
+          title="Closes"
+          actions={
+            <>
+              <Input
+                type="date"
+                aria-label="Sale date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-40"
+              />
+              <Select aria-label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-36">
+                <option value="all">All statuses</option>
+                <option value="approved">Approved</option>
+                <option value="pending">Pending</option>
+                <option value="disapproved">Rejected</option>
+              </Select>
+              <Button variant="ghost" size="icon" icon={RefreshCw} onClick={loadData} disabled={loading} aria-label="Refresh" />
+            </>
+          }
+        >
+          <DataTable
+            loading={loading}
+            empty={
+              statusFilter !== 'all'
+                ? `No ${statusFilter === 'disapproved' ? 'rejected' : statusFilter} closes on ${dayLabel}.`
+                : `No closes on ${dayLabel}. Pick another date to see earlier closes.`
+            }
+            rows={closes}
+            columns={[
+              {
+                key: 'customer',
+                header: 'Customer',
+                render: (row) => (row.customer?.firstName ? `${row.customer.firstName} ${row.customer.lastName}` : '—'),
+              },
+              { key: 'agent', header: 'CSR', render: (row) => row.agentName || '—' },
+              { key: 'dids', header: 'DIDs', render: (row) => row.dids || '—' },
+              { key: 'status', header: 'Status', render: (row) => statusBadge[row.status] || <Badge>{row.status}</Badge> },
+              {
+                key: 'pay',
+                header: 'Your pay',
+                align: 'right',
+                render: (row) =>
+                  row.status === 'approved' ? <span className="text-present">{formatPKR(COMMISSION)}</span> : <span className="text-muted">—</span>,
+              },
+              { key: 'date', header: 'Sale date', render: (row) => formatSalesShiftDate(row.createdAt || row.saleDate) },
+            ]}
+          />
+          <Pagination
+            className="mt-3"
+            page={page}
+            pageSize={pagination.limit}
+            total={pagination.total}
+            noun="closes"
+            onPageChange={setPage}
+          />
+        </Section>
+      </div>
+    </AppShell>
   );
 };
 

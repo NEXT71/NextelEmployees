@@ -6,9 +6,19 @@ import { subscribeSocket } from '../../utils/socket';
 import { formatSalesShiftDate, getSalesShiftDate } from '../../utils/salesShift';
 import { getDidCategories } from '../../utils/didCategories';
 import {
-  CheckCircle, XCircle, Clock, RefreshCw, LogOut, AlertCircle,
-  ChevronDown, ChevronUp, ClipboardList, Search, Download, Link2
+  Check, X, RefreshCw, ChevronDown, Search, Download, Link2, ClipboardCheck
 } from 'lucide-react';
+import AppShell from '../../components/layout/AppShell';
+import { formatPKR } from '../../components/employees/MonthLedger';
+import Panel from '../../components/ui/Panel';
+import StatGroup from '../../components/ui/StatGroup';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Alert from '../../components/ui/Alert';
+import Dialog from '../../components/ui/Dialog';
+import Pagination from '../../components/ui/Pagination';
+import { Segmented } from '../../components/ui/Tabs';
+import { Field, Input, Select, Textarea } from '../../components/ui/Field';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const authHeaders = () => ({
@@ -34,79 +44,69 @@ const fmtDate = (d) =>
 
 const fmtDateTimePK = (d) =>
   d
-    ? new Date(d).toLocaleString('en-PK', {
+    ? new Date(d).toLocaleString('en-GB', {
         timeZone: 'Asia/Karachi',
-        year: 'numeric',
-        month: 'short',
         day: 'numeric',
-        hour: '2-digit',
+        month: 'short',
+        hour: 'numeric',
         minute: '2-digit',
-        hour12: false,
-        timeZoneName: 'short',
+        hour12: true,
       })
     : '—';
 
+const fmtAmount = (n) => (n != null ? formatPKR(n) : '—');
+
 // ─── status badge ────────────────────────────────────────────────────────────
-const STATUS_COLORS = {
-  pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  approved: 'bg-green-500/20 text-green-300 border-green-500/30',
-  disapproved: 'bg-red-500/20 text-red-300 border-red-500/30',
-  under_review: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+const STATUS = {
+  pending: { tone: 'late', label: 'Pending' },
+  approved: { tone: 'present', label: 'Approved' },
+  disapproved: { tone: 'absent', label: 'Rejected' },
+  under_review: { tone: 'late', label: 'Under review' },
 };
 
 const StatusBadge = memo(({ status }) => {
-  const label = status === 'disapproved' ? 'rejected' : status === 'under_review' ? 'under review' : status;
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border capitalize ${STATUS_COLORS[status] || STATUS_COLORS.pending}`}>
-      {status === 'pending' && <Clock size={10} className="mr-1" />}
-      {status === 'approved' && <CheckCircle size={10} className="mr-1" />}
-      {status === 'disapproved' && <XCircle size={10} className="mr-1" />}
-      {label}
-    </span>
-  );
+  const s = STATUS[status] || STATUS.pending;
+  return <Badge tone={s.tone}>{s.label}</Badge>;
 });
+
+const STATUS_FILTERS = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'under_review', label: 'Under review' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'rejected', label: 'Rejected' },
+  { key: 'all', label: 'All' },
+];
 
 // ─── Rejection Modal ─────────────────────────────────────────────────────────
 const RejectModal = memo(({ onConfirm, onCancel, isBulk, count }) => {
   const [reason, setReason] = useState('');
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-md shadow-2xl p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-red-500/20 rounded-lg">
-            <XCircle size={20} className="text-red-400" />
-          </div>
-          <h3 className="text-white text-lg font-semibold">
-            {isBulk ? `Reject ${count} Submission${count !== 1 ? 's' : ''}` : 'Reject Submission'}
-          </h3>
-        </div>
-        <p className="text-white/60 text-sm mb-4">
-          Optionally provide a reason for rejection. The agent will see this.
-        </p>
-        <textarea
+    <Dialog
+      open
+      onClose={onCancel}
+      size="max-w-md"
+      title={isBulk ? `Reject ${count} sale${count !== 1 ? 's' : ''}` : 'Reject sale'}
+      description="The CSR sees the reason next to the rejected sale."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button variant="danger" icon={X} onClick={() => onConfirm(reason)}>
+            {isBulk ? `Reject ${count}` : 'Reject sale'}
+          </Button>
+        </>
+      }
+    >
+      <Field label="Reason (optional)" htmlFor="reject-reason">
+        <Textarea
+          id="reject-reason"
+          autoFocus
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="Reason for rejection (optional)..."
-          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-sm placeholder-white/30 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50"
+          placeholder="e.g. Customer details don't match the recording"
           rows={3}
         />
-        <div className="flex gap-3 mt-4">
-          <button
-            onClick={onCancel}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all text-sm font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onConfirm(reason)}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-red-500/80 hover:bg-red-500 text-white transition-all text-sm font-medium flex items-center justify-center gap-2"
-          >
-            <XCircle size={14} />
-            Confirm Reject
-          </button>
-        </div>
-      </div>
-    </div>
+      </Field>
+    </Dialog>
   );
 });
 
@@ -125,68 +125,58 @@ const LinkAgentModal = memo(({ sub, agents, loading, onConfirm, onCancel }) => {
   }, [agents, query]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-md shadow-2xl p-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-orange-500/20 rounded-lg">
-            <Link2 size={20} className="text-orange-300" />
-          </div>
-          <h3 className="text-white text-lg font-semibold">Link Agent</h3>
-        </div>
-        <p className="text-white/60 text-sm mb-4">
-          Submitted as <span className="text-white font-medium">"{sub.agentName || 'Unknown'}"</span>, which is not a
-          registered employee. Choose the correct employee; the sale then moves to Pending for review.
-        </p>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setAgentId(''); }}
-          placeholder="Search employee name or ID..."
-          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50 mb-3"
-        />
-        <div className="max-h-56 overflow-y-auto rounded-xl border border-white/10 divide-y divide-white/10">
-          {loading ? (
-            <p className="text-white/40 text-sm p-4 text-center">Loading employees...</p>
-          ) : matches.length === 0 ? (
-            <p className="text-white/40 text-sm p-4 text-center">No matching employees. Register them first, or the sale will link automatically once registered.</p>
-          ) : (
-            matches.map((a) => (
-              <button
-                key={a._id}
-                type="button"
-                onClick={() => setAgentId(a._id)}
-                className={`w-full text-left px-4 py-2.5 text-sm transition-all ${
-                  agentId === a._id ? 'bg-purple-600/40 text-white' : 'text-white/80 hover:bg-white/10'
-                }`}
-              >
-                {a.firstName} {a.lastName}
-                <span className="text-white/40 ml-2">{a.employeeId}{a.department ? ` · ${a.department}` : ''}</span>
-              </button>
-            ))
-          )}
-        </div>
-        <div className="flex gap-3 mt-4">
-          <button
-            onClick={onCancel}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all text-sm font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onConfirm(agentId)}
-            disabled={!agentId}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-all text-sm font-medium flex items-center justify-center gap-2"
-          >
-            <Link2 size={14} />
-            Link Agent
-          </button>
-        </div>
+    <Dialog
+      open
+      onClose={onCancel}
+      size="max-w-md"
+      title="Link to an employee"
+      description={`Submitted as "${sub.agentName || 'Unknown'}", which isn't a registered employee. Pick the right person and the sale moves to Pending.`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button icon={Link2} onClick={() => onConfirm(agentId)} disabled={!agentId}>Link employee</Button>
+        </>
+      }
+    >
+      <Input
+        type="text"
+        aria-label="Search employees"
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setAgentId(''); }}
+        placeholder="Search by name or employee ID"
+        className="mb-3"
+      />
+      <div className="max-h-56 overflow-y-auto rounded-lg border border-line divide-y divide-line">
+        {loading ? (
+          <p className="text-sm text-muted p-4">Loading employees…</p>
+        ) : matches.length === 0 ? (
+          <p className="text-sm text-muted p-4">
+            No matching employees. Register them first; the sale links automatically once they're registered.
+          </p>
+        ) : (
+          matches.map((a) => (
+            <button
+              key={a._id}
+              type="button"
+              onClick={() => setAgentId(a._id)}
+              aria-pressed={agentId === a._id}
+              className={`w-full text-left px-3 py-2.5 text-sm ${agentId === a._id ? 'bg-shift-soft text-ink' : 'text-ink hover:bg-paper'}`}
+            >
+              {a.firstName} {a.lastName}
+              <span className="text-muted ml-2">
+                {a.employeeId}{a.department ? `, ${a.department}` : ''}
+              </span>
+            </button>
+          ))
+        )}
       </div>
-    </div>
+    </Dialog>
   );
 });
 
 // ─── Submission Row ───────────────────────────────────────────────────────────
+const COLUMN_COUNT = 9;
+
 const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, onLink, onSelectDate, selectedShiftDate, expandedId, onToggleExpand, reviewNote, onReviewNoteChange, shouldFocusReview }) => {
   const isExpanded = expandedId === sub._id;
   const canAct = sub.status === 'pending';
@@ -203,127 +193,107 @@ const SubmissionRow = memo(({ sub, selected, onToggle, onApprove, onReject, onLi
     ? `${sub.customer.firstName || ''} ${sub.customer.lastName || ''}`.trim() || '—'
     : '—';
   const amount = sub.pricePerSale ?? sub.baseSalary ?? sub.totalEarning;
+  const shiftDate = getSalesShiftDate(sub.createdAt || sub.saleDate);
 
   return (
     <>
-      <tr className={`border-b border-white/10 hover:bg-white/5 transition-colors ${selected ? 'bg-white/10' : ''}`}>
-        <td className="px-4 py-3">
+      <tr className={selected ? 'bg-shift-soft' : undefined}>
+        <td className="pl-5 pr-2 py-3 w-10">
           {canAct && (
             <input
               type="checkbox"
               checked={selected}
               onChange={() => onToggle(sub._id)}
-              className="w-4 h-4 rounded border-white/30 bg-white/10 text-purple-500 cursor-pointer"
+              aria-label={`Select sale by ${agentName}`}
+              className="w-4 h-4 rounded border-line accent-ink cursor-pointer"
             />
           )}
         </td>
-        <td className="px-4 py-3 text-sm">
+        <td className="px-3 py-3">
           <button
             type="button"
-            onClick={() => onSelectDate(getSalesShiftDate(sub.createdAt || sub.saleDate))}
-            title="Show sales for this shift day"
-            className={`text-white/80 underline underline-offset-2 decoration-white/30 hover:text-white ${getSalesShiftDate(sub.createdAt || sub.saleDate) === selectedShiftDate ? 'text-cyan-300' : ''}`}
+            onClick={() => onSelectDate(shiftDate)}
+            title="Show only this shift day"
+            className={`underline underline-offset-2 decoration-line hover:decoration-ink ${shiftDate === selectedShiftDate ? 'text-shift font-medium' : 'text-ink'}`}
           >
             {formatSalesShiftDate(sub.createdAt || sub.saleDate)}
           </button>
         </td>
-        <td className="px-4 py-3 text-white text-sm font-medium">{agentName}</td>
-        <td className="px-4 py-3 text-white/80 text-sm">{customerName}</td>
-        <td className="px-4 py-3 text-white/80 text-sm">{sub.dids || '—'}</td>
-        <td className="px-4 py-3 text-white/80 text-sm">{amount != null ? `RS ${amount.toLocaleString()}` : '—'}</td>
-        <td className="px-4 py-3 text-white/80 text-sm">{fmtDateTimePK(sub.createdAt)}</td>
-        <td className="px-4 py-3"><StatusBadge status={sub.status} /></td>
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-2">
+        <td className="px-3 py-3 font-medium text-ink">{agentName}</td>
+        <td className="px-3 py-3 text-ink">{customerName}</td>
+        <td className="px-3 py-3 text-ink">{sub.dids || '—'}</td>
+        <td className="px-3 py-3 text-ink text-right">{fmtAmount(amount)}</td>
+        <td className="px-3 py-3 text-muted">{fmtDateTimePK(sub.createdAt)}</td>
+        <td className="px-3 py-3"><StatusBadge status={sub.status} /></td>
+        <td className="px-3 py-3 pr-5">
+          <div className="flex items-center justify-end gap-1.5">
             {sub.status === 'under_review' && (
               <>
-                <button
-                  onClick={() => onLink(sub)}
-                  title="Link to a registered employee"
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-500/20 hover:bg-orange-500/40 text-orange-300 hover:text-orange-200 text-xs font-medium transition-all"
-                >
-                  <Link2 size={14} /> Link agent
-                </button>
-                <button
-                  onClick={() => onReject(sub._id)}
-                  title="Reject"
-                  className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 transition-all"
-                >
-                  <XCircle size={15} />
-                </button>
+                <Button variant="secondary" size="sm" icon={Link2} onClick={() => onLink(sub)}>Link</Button>
+                <Button variant="ghost" size="icon" icon={X} onClick={() => onReject(sub._id)} aria-label="Reject" title="Reject" className="text-absent hover:text-absent" />
               </>
             )}
             {canAct && (
               <>
-                <button
-                  onClick={() => onApprove(sub._id)}
-                  title="Approve"
-                  className="p-1.5 rounded-lg bg-green-500/20 hover:bg-green-500/40 text-green-400 hover:text-green-300 transition-all"
-                >
-                  <CheckCircle size={15} />
-                </button>
-                <button
-                  onClick={() => onReject(sub._id)}
-                  title="Reject"
-                  className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 transition-all"
-                >
-                  <XCircle size={15} />
-                </button>
+                <Button variant="secondary" size="sm" icon={Check} onClick={() => onApprove(sub._id)} title="Approve">Approve</Button>
+                <Button variant="ghost" size="icon" icon={X} onClick={() => onReject(sub._id)} aria-label="Reject" title="Reject" className="text-absent hover:text-absent" />
               </>
             )}
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
+              icon={ChevronDown}
               onClick={() => onToggleExpand(sub._id)}
-              title="Details"
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all"
-            >
-              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+              aria-label={isExpanded ? 'Hide details' : 'Show details'}
+              aria-expanded={isExpanded}
+              className={isExpanded ? '[&>svg]:rotate-180' : ''}
+            />
           </div>
         </td>
       </tr>
 
       {isExpanded && (
-        <tr className="bg-white/5">
-          <td colSpan={8} className="px-6 py-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <tr className="bg-paper">
+          <td colSpan={COLUMN_COUNT} className="px-5 py-4 whitespace-normal">
+            <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
               {[
                 ['Form ID', sub.googleFormResponseId || sub._id],
                 ['Phone', sub.customer?.phone || '—'],
                 ['State', sub.customer?.state || '—'],
-                ['Zip Code', sub.customer?.zipCode || '—'],
+                ['Zip code', sub.customer?.zipCode || '—'],
                 ['Closer', typeof sub.closer === 'string' ? sub.closer : '—'],
                 ['DIDs', sub.dids || '—'],
-                ['Price/Sale', sub.pricePerSale != null ? `RS ${sub.pricePerSale.toLocaleString()}` : '—'],
+                ['Price per sale', fmtAmount(sub.pricePerSale)],
                 ['Submitted', fmtDateTimePK(sub.createdAt)],
               ].map(([label, value]) => (
-                <div key={label}>
-                  <p className="text-white/40 text-xs uppercase tracking-wide mb-0.5">{label}</p>
-                  <p className="text-white/80 break-words">{value}</p>
+                <div key={label} className="min-w-0">
+                  <dt className="text-xs text-muted">{label}</dt>
+                  <dd className="text-ink break-words">{value}</dd>
                 </div>
               ))}
               {sub.rejectionReason && (
                 <div className="col-span-2 md:col-span-4">
-                  <p className="text-white/40 text-xs uppercase tracking-wide mb-0.5">Rejection Reason</p>
-                  <p className="text-red-300">{sub.rejectionReason}</p>
+                  <dt className="text-xs text-muted">Rejection reason</dt>
+                  <dd className="text-absent">{sub.rejectionReason}</dd>
                 </div>
               )}
               {sub.notes && (
                 <div className="col-span-2 md:col-span-4">
-                  <p className="text-white/40 text-xs uppercase tracking-wide mb-0.5">Notes</p>
-                  <p className="text-white/80 italic">{sub.notes}</p>
+                  <dt className="text-xs text-muted">Notes</dt>
+                  <dd className="text-ink">{sub.notes}</dd>
                 </div>
               )}
-            </div>
-            <div className="mt-4 pt-4 border-t border-white/10">
-              <p className="text-white/40 text-xs uppercase tracking-wide mb-2">Internal Review Notes</p>
-              <textarea
+            </dl>
+            <Field label="Internal review notes" htmlFor={`review-${sub._id}`} className="mt-4">
+              <Textarea
+                id={`review-${sub._id}`}
                 ref={reviewRef}
                 value={reviewNote || ''}
                 onChange={(e) => onReviewNoteChange(sub._id, e.target.value)}
-                placeholder="Write review notes for this submission..."
-                className="w-full min-h-[110px] bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-3 text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none transition-all"
+                placeholder="Notes for this sale. Only QA sees these."
+                className="min-h-[96px] resize-y"
               />
-            </div>
+            </Field>
           </td>
         </tr>
       )}
@@ -661,285 +631,203 @@ const QADashboard = () => {
     navigate('/login');
   }, [logout, navigate]);
 
+  // /auth/me populates employeeId with the employee's name
+  const profile = typeof user?.employeeId === 'object' ? user.employeeId : null;
+  const name = profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : user?.username;
+
+  const filtersActive = agentFilter.length > 0 || packageFilter || amountTier !== 'any' || search.trim();
+  const emptyMessage = search
+    ? 'No sales match your search.'
+    : statusFilter === 'pending'
+      ? 'Nothing waiting for review. New sales appear here as CSRs submit them.'
+      : statusFilter === 'under_review'
+        ? 'No sales under review. A sale lands here when it was submitted under a name that isn\'t a registered employee.'
+        : statusFilter === 'approved'
+          ? 'No approved sales in this period.'
+          : statusFilter === 'rejected'
+            ? 'No rejected sales in this period.'
+            : 'No sales in this period.';
+
+  const headers = ['Shift date', 'CSR', 'Customer', 'DIDs', 'Amount', 'Submitted', 'Status', ''];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900">
-      {/* ── Nav ── */}
-      <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-500/20 rounded-lg">
-              <ClipboardList size={20} className="text-purple-300" />
-            </div>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-white font-bold text-lg leading-tight">QA Dashboard</h1>
-                <span className="text-white/50 text-xs bg-white/5 px-2 py-1 rounded-full border border-white/10">
-                  {formatSyncLabel(lastSynced)}
-                </span>
-              </div>
-              <p className="text-white/40 text-xs">
-                {user?.firstName} {user?.lastName} · Quality Assurance
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {pendingCount > 0 && (
-              <span className="px-2.5 py-1 bg-orange-500/20 border border-orange-500/30 rounded-full text-orange-300 text-xs font-semibold">
-                {pendingCount} pending
-              </span>
-            )}
-            <button
-              onClick={handleRefresh}
-              disabled={loading}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all disabled:opacity-50"
-              title="Refresh"
-            >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            </button>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 transition-all text-sm font-medium"
-            >
-              <LogOut size={15} />
-              Logout
-            </button>
-          </div>
+    <AppShell
+      nav={[{ key: 'review', label: 'Sales review', icon: ClipboardCheck, active: true, badge: pendingCount, onClick: () => {} }]}
+      user={{ name, detail: 'Quality assurance' }}
+      onSignOut={handleLogout}
+    >
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-[28px] leading-tight font-semibold text-ink">Sales review</h1>
+          <p className="mt-1 text-sm text-muted">{formatSyncLabel(lastSynced)}</p>
         </div>
-      </header>
-
-      {/* ── Body ── */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-
-        {/* ── Stats row ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-          {[
-            { label: 'Total Sales', value: submissionCounts.total, color: 'bg-blue-500/30', icon: ClipboardList },
-            { label: 'Pending', value: submissionCounts.pending, color: 'bg-yellow-500/30', icon: Clock },
-            { label: 'Approved', value: submissionCounts.approved, color: 'bg-green-500/30', icon: CheckCircle },
-            { label: 'Rejected', value: submissionCounts.disapproved, color: 'bg-red-500/30', icon: XCircle },
-            { label: 'Under Review', value: submissionCounts.underReview || 0, color: 'bg-orange-500/30', icon: Clock },
-          ].map(({ label, value, color, icon: Icon }) => (
-            <div key={label} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 flex items-center gap-3">
-              <div className={`p-2.5 rounded-lg ${color}`}>
-                <Icon size={18} className="text-white" />
-              </div>
-              <div>
-                <p className="text-white/50 text-xs">{label}</p>
-                <p className="text-white text-xl font-bold">{value}</p>
-              </div>
-            </div>
-          ))}
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" icon={Download} onClick={exportToCsv} disabled={filtered.length === 0}>Export CSV</Button>
+          <Button variant="ghost" size="icon" icon={RefreshCw} onClick={handleRefresh} disabled={loading} aria-label="Refresh" className={loading ? '[&>svg]:animate-spin' : ''} />
         </div>
+      </div>
 
-        {/* ── Filter / Search / Actions bar ── */}
-        <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-4 space-y-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1 flex-wrap">
-              {['pending', 'under_review', 'approved', 'rejected', 'all'].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => { setStatusFilter(s); setSelectedIds(new Set()); setPage(1); }}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-all ${
-                    statusFilter === s
-                      ? 'bg-purple-600 text-white shadow'
-                      : 'text-white/50 hover:text-white hover:bg-white/10'
-                  }`}
+      <div className="space-y-6">
+        <StatGroup
+          items={[
+            { label: 'Pending', value: submissionCounts.pending, tone: 'late' },
+            { label: 'Under review', value: submissionCounts.underReview || 0, tone: 'late' },
+            { label: 'Approved', value: submissionCounts.approved, tone: 'present' },
+            { label: 'Rejected', value: submissionCounts.disapproved, tone: 'absent' },
+            { label: 'Total', value: submissionCounts.total },
+          ]}
+        />
+
+        <div className="space-y-4">
+          <Segmented
+            label="Status"
+            items={STATUS_FILTERS}
+            value={statusFilter}
+            onChange={(s) => { setStatusFilter(s); setSelectedIds(new Set()); setPage(1); }}
+          />
+
+          <Panel className="p-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <Field label="Month" htmlFor="qa-month">
+                <Input
+                  id="qa-month"
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    setSelectedMonth(e.target.value);
+                    setSelectedShiftDate(null);
+                    setPage(1);
+                    setSelectedIds(new Set());
+                  }}
+                />
+              </Field>
+              <Field label="Single shift day" htmlFor="qa-day">
+                <Input
+                  id="qa-day"
+                  type="date"
+                  value={selectedShiftDate || ''}
+                  onChange={(e) => {
+                    setSelectedMonth('');
+                    setSelectedShiftDate(e.target.value || null);
+                    setPage(1);
+                    setSelectedIds(new Set());
+                  }}
+                />
+              </Field>
+              <Field label="Package" htmlFor="qa-package">
+                <Select id="qa-package" value={packageFilter} onChange={(e) => setPackageFilter(e.target.value)}>
+                  <option value="">Any package</option>
+                  {packageOptions.map((pkg) => (
+                    <option key={pkg} value={pkg}>{pkg}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Amount" htmlFor="qa-amount">
+                <Select id="qa-amount" value={amountTier} onChange={(e) => setAmountTier(e.target.value)}>
+                  <option value="any">Any amount</option>
+                  <option value="gt1000">Over PKR 1,000</option>
+                  <option value="gt5000">Over PKR 5,000</option>
+                </Select>
+              </Field>
+              <Field label="CSRs" htmlFor="qa-agents" hint="Ctrl-click to pick several" className="sm:col-span-2 xl:col-span-1">
+                <select
+                  id="qa-agents"
+                  multiple
+                  value={agentFilter}
+                  onChange={(e) => {
+                    const values = Array.from(e.target.selectedOptions).map((opt) => opt.value);
+                    if (values.includes('__all')) {
+                      setAgentFilter([]);
+                    } else {
+                      setAgentFilter(values);
+                    }
+                  }}
+                  className="w-full h-24 rounded-lg border border-line bg-surface px-2 py-1 text-sm text-ink focus:outline-none focus:border-shift focus:ring-2 focus:ring-shift/20"
                 >
-                  {s === 'under_review' ? 'under review' : s}
+                  <option value="__all">All CSRs</option>
+                  {agentOptions.map((agent) => (
+                    <option key={agent} value={agent}>{agent}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Search" htmlFor="qa-search" className="sm:col-span-2 xl:col-span-3 self-start">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" aria-hidden="true" />
+                  <Input
+                    id="qa-search"
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="CSR, customer, DIDs, closer, package or form ID"
+                    className="pl-9"
+                  />
+                </div>
+              </Field>
+            </div>
+            {selectedShiftDate && (
+              <p className="mt-3 text-sm text-muted">
+                Showing shift day{' '}
+                <span className="text-ink font-medium">{formatSalesShiftDate(`${selectedShiftDate}T18:00:00+05:00`)}</span>.{' '}
+                <button
+                  type="button"
+                  onClick={() => handleSelectShiftDate(selectedShiftDate)}
+                  className="text-shift font-medium hover:underline"
+                >
+                  Show all days
                 </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                onClick={exportToCsv}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-sm font-medium hover:bg-slate-700 transition-all"
-              >
-                <Download size={16} /> Export CSV
-              </button>
-              <span className="text-white/50 text-sm">{formatSyncLabel(lastSynced)}</span>
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            <div>
-              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Month</label>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => {
-                  setSelectedMonth(e.target.value);
-                  setSelectedShiftDate(null);
-                  setPage(1);
-                  setSelectedIds(new Set());
-                }}
-                className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              />
-              <label className="block text-white/60 text-xs uppercase tracking-wide mt-3 mb-1">Single Day</label>
-              <input
-                type="date"
-                value={selectedShiftDate || ''}
-                onChange={(e) => {
-                  setSelectedMonth('');
-                  setSelectedShiftDate(e.target.value || null);
-                  setPage(1);
-                  setSelectedIds(new Set());
-                }}
-                className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              />
-              {selectedShiftDate && (
-                <p className="mt-2 text-sm text-cyan-200">
-                  Showing shift day {formatSalesShiftDate(`${selectedShiftDate}T18:00:00+05:00`)}
-                  <button
-                    type="button"
-                    onClick={() => handleSelectShiftDate(selectedShiftDate)}
-                    className="ml-2 text-white/70 underline underline-offset-2 hover:text-white"
-                  >
-                    Clear
-                  </button>
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Agent</label>
-              <select
-                multiple
-                value={agentFilter}
-                onChange={(e) => {
-                  const values = Array.from(e.target.selectedOptions).map((opt) => opt.value);
-                  if (values.includes('__all')) {
-                    setAgentFilter([]);
-                  } else {
-                    setAgentFilter(values);
-                  }
-                }}
-                className="w-full min-h-[110px] bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              >
-                <option value="__all" className="bg-slate-900 text-white">
-                  All agents
-                </option>
-                {agentOptions.map((agent) => (
-                  <option key={agent} value={agent} className="bg-slate-900 text-white">
-                    {agent}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Package Type</label>
-              <select
-                value={packageFilter}
-                onChange={(e) => setPackageFilter(e.target.value)}
-                className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              >
-                <option value="">Any</option>
-                {packageOptions.map((pkg) => (
-                  <option key={pkg} value={pkg}>{pkg}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-white/60 text-xs uppercase tracking-wide mb-1">Amount Tier</label>
-              <select
-                value={amountTier}
-                onChange={(e) => setAmountTier(e.target.value)}
-                className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              >
-                <option value="any">Any</option>
-                <option value="gt1000">{'>'} RS 1,000</option>
-                <option value="gt5000">{'>'} RS 5,000</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search agent, customer, package..."
-              className="w-full bg-slate-950/80 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-            />
-          </div>
+              </p>
+            )}
+          </Panel>
         </div>
 
-        {/* ── Bulk action bar ── */}
         {selectedIds.size > 0 && (
-          <div className="bg-slate-900/90 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between transition-all">
-            <span className="text-white/70 text-sm">{selectedIds.size} submission{selectedIds.size === 1 ? '' : 's'} selected</span>
+          <Panel className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-ink">
+            <span className="text-sm text-ink font-medium">
+              {selectedIds.size} sale{selectedIds.size === 1 ? '' : 's'} selected
+            </span>
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={handleBulkApprove}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/20 hover:bg-green-500/40 text-green-300 transition-all text-sm font-medium"
-              >
-                <CheckCircle size={16} /> Bulk Approve
-              </button>
-              <button
-                onClick={openRejectBulk}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-all text-sm font-medium"
-              >
-                <XCircle size={16} /> Bulk Reject
-              </button>
+              <Button variant="secondary" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+              <Button variant="danger" size="sm" icon={X} onClick={openRejectBulk}>Reject selected</Button>
+              <Button size="sm" icon={Check} onClick={handleBulkApprove}>Approve selected</Button>
             </div>
-          </div>
+          </Panel>
         )}
 
-        {/* ── Table ── */}
-        <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
-          {error && (
-            <div className="m-4 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 text-red-300">
-              <AlertCircle size={18} className="shrink-0" />
-              <span className="text-sm">{error}</span>
-            </div>
-          )}
+        {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
+        <Panel className="overflow-hidden">
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <RefreshCw size={32} className="text-purple-400 animate-spin" />
-            </div>
+            <p className="px-5 py-8 text-sm text-muted">Loading sales…</p>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <ClipboardList size={40} className="text-white/20" />
-              <p className="text-white/40 text-sm text-center max-w-md">
-                {search
-                  ? 'No results match your search.'
-                  : statusFilter === 'approved'
-                    ? 'No approved submissions found for this period.'
-                    : statusFilter === 'rejected'
-                      ? 'No rejected submissions found for this period.'
-                      : statusFilter === 'under_review'
-                        ? 'No under-review submissions. These appear when a sale is submitted under a name that is not a registered employee.'
-                      : 'No submissions found for this period.'}
-              </p>
-            </div>
+            <p className="px-5 py-8 text-sm text-muted">{emptyMessage}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full text-sm tabular-nums whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-white/10 bg-white/5">
-                    <th className="px-4 py-3 w-10">
+                  <tr className="border-b border-line">
+                    <th scope="col" className="pl-5 pr-2 py-3 w-10 text-left">
                       {statusFilter === 'pending' && (
                         <input
                           type="checkbox"
                           checked={allPendingSelected}
                           onChange={toggleSelectAllPending}
-                          className="w-4 h-4 rounded border-white/30 bg-white/10 text-purple-500 cursor-pointer"
+                          aria-label="Select all pending sales on this page"
+                          className="w-4 h-4 rounded border-line accent-ink cursor-pointer"
                         />
                       )}
                     </th>
-                    <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Date</th>
-                    <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Agent</th>
-                    <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Customer</th>
-                    <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Package</th>
-                    <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Amount</th>
-                    <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Status</th>
-                    <th className="px-4 py-3 text-white/50 text-xs uppercase tracking-wider font-medium">Actions</th>
+                    {headers.map((h, i) => (
+                      <th
+                        key={h || 'actions'}
+                        scope="col"
+                        className={`px-3 py-3 text-xs font-medium text-muted ${i === 4 ? 'text-right' : 'text-left'} ${i === headers.length - 1 ? 'pr-5' : ''}`}
+                      >
+                        {h || <span className="sr-only">Actions</span>}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-line">
                   {filtered.map((sub) => (
                     <SubmissionRow
                       key={sub._id}
@@ -960,34 +848,24 @@ const QADashboard = () => {
                   ))}
                 </tbody>
               </table>
-
-              <div className="px-4 py-3 border-t border-white/10 text-white/40 text-sm space-y-3">
-                <div>
-                  Showing {filtered.length} of {pagination.total} submissions · Page {pagination.page} of {pagination.pages}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                    disabled={page <= 1}
-                    className="rounded-xl px-3 py-2 bg-slate-800/80 text-white text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setPage((prev) => Math.min(pagination.pages, prev + 1))}
-                    disabled={page >= pagination.pages}
-                    className="rounded-xl px-3 py-2 bg-slate-800/80 text-white text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
             </div>
           )}
-        </div>
-      </main>
+        </Panel>
 
-      {/* ── Rejection modal ── */}
+        {filtersActive && !loading && (
+          <p className="text-sm text-muted -mt-3">
+            Filters show {filtered.length} of the {submissions.length} sales on this page.
+          </p>
+        )}
+        <Pagination
+          page={page}
+          pageSize={pagination.limit}
+          total={pagination.total}
+          noun="sales"
+          onPageChange={(p) => setPage(Math.min(pagination.pages, Math.max(1, p)))}
+        />
+      </div>
+
       {linkTarget && (
         <LinkAgentModal
           sub={linkTarget}
@@ -1006,7 +884,7 @@ const QADashboard = () => {
           onCancel={() => setRejectTarget(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 };
 

@@ -1,14 +1,23 @@
-import { useEffect, useState, useCallback, useRef, memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../utils/constants';
 import { AccountsPanel, AuditPanel, SettingsPanel } from './SecurityPanels';
 import {
-  Users, Shield, TrendingUp, DollarSign, Clock, CheckCircle,
-  LogOut, RefreshCw,
-  User as UserIcon, BarChart2, FileText, Award, X, Edit,
-  AlertTriangle, ToggleLeft, ToggleRight, Eye, Trash2, KeyRound, Settings, History
+  Users, Shield, TrendingUp, Wallet, Clock, ReceiptText, MessageSquare,
+  RefreshCw, BarChart2, Pencil, Trash2, Eye, KeyRound, Settings, History
 } from 'lucide-react';
+import AppShell from '../../components/layout/AppShell';
+import { formatPKR } from '../../components/employees/MonthLedger';
+import Panel from '../../components/ui/Panel';
+import StatGroup from '../../components/ui/StatGroup';
+import DataTable from '../../components/ui/DataTable';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Alert from '../../components/ui/Alert';
+import Dialog from '../../components/ui/Dialog';
+import { Tabs, Segmented } from '../../components/ui/Tabs';
+import { Field, Input, Select, Textarea } from '../../components/ui/Field';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const authHeaders = () => ({
@@ -22,11 +31,13 @@ const apiFetch = async (path) => {
   return res.json();
 };
 
-const fmtCurrency = (n) =>
-  typeof n === 'number' ? `RS ${n.toLocaleString()}` : 'RS 0';
+const fmtCurrency = (n) => formatPKR(typeof n === 'number' ? n : 0);
 
 const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  d ? new Date(d).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+
+const fmtTime = (d) =>
+  d ? new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
 
 const toDateInputValue = (value) => {
   if (!value) return '';
@@ -35,36 +46,36 @@ const toDateInputValue = (value) => {
   return date.toISOString().slice(0, 10);
 };
 
-// ─── StatsCard ───────────────────────────────────────────────────────────────
-const StatsCard = memo(({ icon: Icon, label, value, color }) => (
-  <div className={`bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/20 flex items-center gap-4`}>
-    <div className={`p-3 rounded-lg ${color}`}>
-      <Icon size={22} className="text-white" />
-    </div>
-    <div>
-      <p className="text-white/60 text-sm">{label}</p>
-      <p className="text-white text-xl font-bold">{value}</p>
-    </div>
-  </div>
-));
-
-// ─── Badge ───────────────────────────────────────────────────────────────────
-const BADGE_COLORS = {
-  superadmin: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  admin: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  employee: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  active: 'bg-green-500/20 text-green-300 border-green-500/30',
-  inactive: 'bg-red-500/20 text-red-300 border-red-500/30',
-  approved: 'bg-green-500/20 text-green-300 border-green-500/30',
-  pending: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  rejected: 'bg-red-500/20 text-red-300 border-red-500/30',
+const SALE_STATUS = {
+  pending: { tone: 'late', label: 'Pending' },
+  approved: { tone: 'present', label: 'Approved' },
+  disapproved: { tone: 'absent', label: 'Rejected' },
+  rejected: { tone: 'absent', label: 'Rejected' },
+  under_review: { tone: 'late', label: 'Under review' },
 };
 
-const Badge = memo(({ text, color }) => (
-  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${BADGE_COLORS[color] || BADGE_COLORS.employee}`}>
-    {text}
-  </span>
-));
+const SaleBadge = ({ status }) => {
+  const s = SALE_STATUS[status] || { tone: 'neutral', label: status };
+  return <Badge tone={s.tone}>{s.label}</Badge>;
+};
+
+const ATTENDANCE_TONE = { Present: 'present', Absent: 'absent', Late: 'late', 'Half-day': 'late' };
+
+const Rank = ({ rank }) => (
+  <span className={`inline-flex w-7 justify-center tabular-nums ${rank <= 3 ? 'font-semibold text-ink' : 'text-muted'}`}>{rank}</span>
+);
+
+const PageHeader = ({ title, children }) => (
+  <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+    <h1 className="text-[28px] leading-tight font-semibold text-ink">{title}</h1>
+    {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+  </div>
+);
+
+// Row checkbox used by the bulk-delete tables
+const RowCheck = ({ checked, onChange, label }) => (
+  <input type="checkbox" checked={checked} onChange={onChange} aria-label={label} className="w-4 h-4 rounded border-line accent-ink cursor-pointer" />
+);
 
 const SaleEditModal = ({ sale, saving, error, onClose, onSave }) => {
   const [form, setForm] = useState({
@@ -119,125 +130,45 @@ const SaleEditModal = ({ sale, saving, error, onClose, onSave }) => {
     });
   };
 
+  const field = (label, id, value, onChange, props = {}) => (
+    <Field label={label} htmlFor={id} className={props.wide ? 'sm:col-span-2' : ''}>
+      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} type={props.type || 'text'} />
+    </Field>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-3xl rounded-2xl border border-white/20 bg-slate-900 shadow-2xl">
-        <form onSubmit={submit} className="max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-purple-300/70">Edit Sale</p>
-              <h2 className="text-xl font-semibold text-white">Update record details</h2>
-            </div>
-            <button type="button" onClick={onClose} className="rounded-lg p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white">
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-sm text-white/70">Agent Name</span>
-              <input
-                value={form.agentName}
-                onChange={(e) => setForm((prev) => ({ ...prev, agentName: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">Customer First Name</span>
-              <input
-                value={form.customer.firstName}
-                onChange={(e) => updateCustomer('firstName', e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">Customer Last Name</span>
-              <input
-                value={form.customer.lastName}
-                onChange={(e) => updateCustomer('lastName', e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">Phone</span>
-              <input
-                value={form.customer.phone}
-                onChange={(e) => updateCustomer('phone', e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">State</span>
-              <input
-                value={form.customer.state}
-                onChange={(e) => updateCustomer('state', e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">Zip Code</span>
-              <input
-                value={form.customer.zipCode}
-                onChange={(e) => updateCustomer('zipCode', e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">DIDs</span>
-              <input
-                value={form.dids}
-                onChange={(e) => setForm((prev) => ({ ...prev, dids: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">Closer</span>
-              <input
-                value={form.closer}
-                onChange={(e) => setForm((prev) => ({ ...prev, closer: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">Sale Date</span>
-              <input
-                type="date"
-                value={form.saleDate}
-                onChange={(e) => setForm((prev) => ({ ...prev, saleDate: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-sm text-white/70">Status</span>
-              <select
-                value={form.status}
-                onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="pending" className="bg-slate-800">Pending</option>
-                <option value="approved" className="bg-slate-800">Approved</option>
-                <option value="disapproved" className="bg-slate-800">Rejected</option>
-              </select>
-            </label>
-          </div>
-
-          {error && <div className="mx-6 rounded-xl border border-red-500/40 bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>}
-
-          <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
-            <button type="button" onClick={onClose} className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white/70 transition-colors hover:bg-white/15 hover:text-white">
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-purple-500/30 px-4 py-2 text-sm font-medium text-purple-100 transition-colors hover:bg-purple-500/40 disabled:opacity-60"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Dialog
+      open
+      onClose={onClose}
+      size="max-w-2xl"
+      title="Edit sale"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="sale-edit-form" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+        </>
+      }
+    >
+      <form id="sale-edit-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+        {error && <Alert className="sm:col-span-2">{error}</Alert>}
+        {field('CSR name', 'se-agent', form.agentName, (v) => setForm((p) => ({ ...p, agentName: v })), { wide: true })}
+        {field('Customer first name', 'se-first', form.customer.firstName, (v) => updateCustomer('firstName', v))}
+        {field('Customer last name', 'se-last', form.customer.lastName, (v) => updateCustomer('lastName', v))}
+        {field('Phone', 'se-phone', form.customer.phone, (v) => updateCustomer('phone', v))}
+        {field('State', 'se-state', form.customer.state, (v) => updateCustomer('state', v))}
+        {field('Zip code', 'se-zip', form.customer.zipCode, (v) => updateCustomer('zipCode', v))}
+        {field('DIDs', 'se-dids', form.dids, (v) => setForm((p) => ({ ...p, dids: v })))}
+        {field('Closer', 'se-closer', form.closer, (v) => setForm((p) => ({ ...p, closer: v })))}
+        {field('Sale date', 'se-date', form.saleDate, (v) => setForm((p) => ({ ...p, saleDate: v })), { type: 'date' })}
+        <Field label="Status" htmlFor="se-status" className="sm:col-span-2">
+          <Select id="se-status" value={form.status} onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="disapproved">Rejected</option>
+          </Select>
+        </Field>
+      </form>
+    </Dialog>
   );
 };
 
@@ -272,85 +203,41 @@ const SalaryEditModal = ({ salary, saving, error, onClose, onSave }) => {
     });
   };
 
+  const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-slate-900 shadow-2xl">
-        <form onSubmit={submit} className="max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-purple-300/70">Edit Salary</p>
-              <h2 className="text-xl font-semibold text-white">Update salary record</h2>
-            </div>
-            <button type="button" onClick={onClose} className="rounded-lg p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white">
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-sm text-white/70">Month</span>
-              <input
-                type="date"
-                value={form.month}
-                onChange={(e) => setForm((prev) => ({ ...prev, month: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">Base Salary</span>
-              <input
-                type="number"
-                value={form.baseSalary}
-                onChange={(e) => setForm((prev) => ({ ...prev, baseSalary: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">Bonuses</span>
-              <input
-                type="number"
-                value={form.bonuses}
-                onChange={(e) => setForm((prev) => ({ ...prev, bonuses: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm text-white/70">Deductions</span>
-              <input
-                type="number"
-                value={form.deductions}
-                onChange={(e) => setForm((prev) => ({ ...prev, deductions: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-sm text-white/70">Notes</span>
-              <textarea
-                rows={4}
-                value={form.notes}
-                onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </label>
-          </div>
-
-          {error && <div className="mx-6 rounded-xl border border-red-500/40 bg-red-500/20 px-4 py-3 text-sm text-red-200">{error}</div>}
-
-          <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
-            <button type="button" onClick={onClose} className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white/70 transition-colors hover:bg-white/15 hover:text-white">
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-purple-500/30 px-4 py-2 text-sm font-medium text-purple-100 transition-colors hover:bg-purple-500/40 disabled:opacity-60"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Dialog
+      open
+      onClose={onClose}
+      size="max-w-lg"
+      title="Edit salary record"
+      description={salary?.employee?.firstName ? `${salary.employee.firstName} ${salary.employee.lastName}` : undefined}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="salary-edit-form" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+        </>
+      }
+    >
+      <form id="salary-edit-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-3">
+        {error && <Alert className="sm:col-span-3">{error}</Alert>}
+        <Field label="Month" htmlFor="sal-month" className="sm:col-span-3">
+          <Input id="sal-month" type="date" value={form.month} onChange={set('month')} />
+        </Field>
+        <Field label="Base (PKR)" htmlFor="sal-base">
+          <Input id="sal-base" type="number" value={form.baseSalary} onChange={set('baseSalary')} />
+        </Field>
+        <Field label="Bonuses (PKR)" htmlFor="sal-bonus">
+          <Input id="sal-bonus" type="number" value={form.bonuses} onChange={set('bonuses')} />
+        </Field>
+        <Field label="Deductions (PKR)" htmlFor="sal-deduct">
+          <Input id="sal-deduct" type="number" value={form.deductions} onChange={set('deductions')} />
+        </Field>
+        <Field label="Notes" htmlFor="sal-notes" className="sm:col-span-3">
+          <Textarea id="sal-notes" rows={3} value={form.notes} onChange={set('notes')} />
+        </Field>
+      </form>
+    </Dialog>
   );
 };
 
@@ -367,7 +254,7 @@ const CSRDetailModal = ({ employee, onClose }) => {
         const data = await apiFetch(`/superadmin/employees/${employee._id}/full-history`);
         setHistory(data.data);
       } catch (e) {
-        setError('Failed to load history.');
+        setError('Could not load this employee\'s history. Close and try again.');
       } finally {
         setLoading(false);
       }
@@ -375,179 +262,115 @@ const CSRDetailModal = ({ employee, onClose }) => {
     load();
   }, [employee._id]);
 
+  const salesRows = history?.salesByMonth || [];
+  const sum = (key) => salesRows.reduce((s, r) => s + (r[key] || 0), 0);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-purple-500/20 rounded-xl">
-              <UserIcon size={24} className="text-purple-300" />
-            </div>
-            <div>
-              <h2 className="text-white text-xl font-bold">
-                {employee.firstName} {employee.lastName}
-              </h2>
-              <p className="text-white/50 text-sm">
-                {employee.employeeId} · {employee.department} · Hired {fmtDate(employee.hireDate)}
-              </p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
+    <Dialog
+      open
+      onClose={onClose}
+      size="max-w-4xl"
+      title={`${employee.firstName} ${employee.lastName}`}
+      description={`${employee.employeeId}, ${employee.department || 'no department'}, hired ${fmtDate(employee.hireDate)}`}
+    >
+      <Tabs
+        className="-mt-2 mb-5"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { key: 'sales', label: 'Sales by month' },
+          { key: 'salary', label: 'Salary history' },
+        ]}
+      />
 
-        {/* Tabs */}
-        <div className="flex border-b border-white/10 px-6">
-          {['sales', 'salary'].map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 capitalize ${
-                tab === t
-                  ? 'border-purple-400 text-purple-300'
-                  : 'border-transparent text-white/50 hover:text-white/80'
-              }`}
-            >
-              {t === 'sales' ? 'Sales History' : 'Salary History'}
-            </button>
-          ))}
-        </div>
+      {error && <Alert>{error}</Alert>}
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {loading && (
-            <div className="flex items-center justify-center h-40">
-              <RefreshCw size={30} className="text-purple-400 animate-spin" />
-            </div>
-          )}
-          {error && (
-            <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-4 text-red-300 text-center">
-              {error}
-            </div>
-          )}
+      {!error && tab === 'sales' && (
+        loading ? (
+          <p className="py-8 text-sm text-muted">Loading history…</p>
+        ) : salesRows.length === 0 ? (
+          <p className="py-8 text-sm text-muted">No sales on record.</p>
+        ) : (
+          <Panel className="overflow-x-auto">
+            <table className="w-full text-sm tabular-nums whitespace-nowrap">
+              <thead>
+                <tr className="border-b border-line text-left">
+                  {['Month', 'Approved', 'Pending', 'Rejected', 'Base', 'Tier bonus', 'Total'].map((h, i) => (
+                    <th key={h} scope="col" className={`px-4 py-3 text-xs font-medium text-muted ${i >= 1 ? 'text-right' : ''}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {salesRows.map((row) => (
+                  <tr key={row.month}>
+                    <td className="px-4 py-3 text-ink font-medium">{row.month}</td>
+                    <td className="px-4 py-3 text-right text-present">{row.approved}</td>
+                    <td className="px-4 py-3 text-right text-late">{row.pending}</td>
+                    <td className="px-4 py-3 text-right text-absent">{row.disapproved}</td>
+                    <td className="px-4 py-3 text-right text-ink">{fmtCurrency(row.earnings)}</td>
+                    <td className="px-4 py-3 text-right text-ink">{fmtCurrency(row.tierBonus)}</td>
+                    <td className="px-4 py-3 text-right text-ink font-semibold">{fmtCurrency(row.totalEarnings)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-ink">
+                  <td colSpan={4} className="px-4 py-3 text-sm text-muted">All time</td>
+                  <td className="px-4 py-3 text-right font-semibold text-ink">{fmtCurrency(sum('earnings'))}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-ink">{fmtCurrency(sum('tierBonus'))}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-ink">{fmtCurrency(sum('totalEarnings'))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </Panel>
+        )
+      )}
 
-          {/* Sales History Tab */}
-          {!loading && !error && tab === 'sales' && (
-            <div>
-              {history?.salesByMonth?.length === 0 ? (
-                <p className="text-white/50 text-center py-8">No sales records found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-white/50 border-b border-white/10">
-                        <th className="text-left py-3 px-3">Month</th>
-                        <th className="text-center py-3 px-3">Approved</th>
-                        <th className="text-center py-3 px-3">Pending</th>
-                        <th className="text-center py-3 px-3">Rejected</th>
-                        <th className="text-right py-3 px-3">Base Earnings</th>
-                        <th className="text-right py-3 px-3">Tier Bonus</th>
-                        <th className="text-right py-3 px-3">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history?.salesByMonth?.map((row) => (
-                        <tr key={row.month} className="border-b border-white/5 hover:bg-white/5">
-                          <td className="py-3 px-3 text-white font-medium">{row.month}</td>
-                          <td className="py-3 px-3 text-center">
-                            <Badge text={row.approved} color="approved" />
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <Badge text={row.pending} color="pending" />
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <Badge text={row.disapproved} color="rejected" />
-                          </td>
-                          <td className="py-3 px-3 text-right text-white/80">{fmtCurrency(row.earnings)}</td>
-                          <td className="py-3 px-3 text-right text-yellow-300">{fmtCurrency(row.tierBonus)}</td>
-                          <td className="py-3 px-3 text-right text-green-300 font-semibold">{fmtCurrency(row.totalEarnings)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-white/5">
-                      <tr>
-                        <td colSpan={4} className="py-3 px-3 text-white/60 text-sm">All-time totals</td>
-                        <td className="py-3 px-3 text-right text-white font-semibold">
-                          {fmtCurrency(history?.salesByMonth?.reduce((s, r) => s + (r.earnings || 0), 0))}
-                        </td>
-                        <td className="py-3 px-3 text-right text-yellow-300 font-semibold">
-                          {fmtCurrency(history?.salesByMonth?.reduce((s, r) => s + (r.tierBonus || 0), 0))}
-                        </td>
-                        <td className="py-3 px-3 text-right text-green-300 font-bold">
-                          {fmtCurrency(history?.salesByMonth?.reduce((s, r) => s + (r.totalEarnings || 0), 0))}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Salary History Tab */}
-          {!loading && !error && tab === 'salary' && (
-            <div>
-              {history?.salaryHistory?.length === 0 ? (
-                <p className="text-white/50 text-center py-8">No salary records found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-white/50 border-b border-white/10">
-                        <th className="text-left py-3 px-3">Month</th>
-                        <th className="text-right py-3 px-3">Base Salary</th>
-                        <th className="text-right py-3 px-3">Bonuses</th>
-                        <th className="text-right py-3 px-3">Deductions</th>
-                        <th className="text-right py-3 px-3">Net Pay</th>
-                        <th className="text-left py-3 px-3">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history?.salaryHistory?.map((s) => (
-                        <tr key={s._id} className="border-b border-white/5 hover:bg-white/5">
-                          <td className="py-3 px-3 text-white font-medium">{fmtDate(s.month)}</td>
-                          <td className="py-3 px-3 text-right text-white/80">{fmtCurrency(s.baseSalary)}</td>
-                          <td className="py-3 px-3 text-right text-green-300">{fmtCurrency(s.bonuses)}</td>
-                          <td className="py-3 px-3 text-right text-red-300">{fmtCurrency(s.deductions)}</td>
-                          <td className="py-3 px-3 text-right text-white font-bold">{fmtCurrency((s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0))}</td>
-                          <td className="py-3 px-3 text-white/50 text-xs max-w-xs truncate">{s.notes || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      {!error && tab === 'salary' && (
+        <DataTable
+          loading={loading}
+          empty="No salary records yet."
+          rows={history?.salaryHistory || []}
+          columns={[
+            { key: 'month', header: 'Month', render: (s) => fmtDate(s.month) },
+            { key: 'base', header: 'Base', align: 'right', render: (s) => fmtCurrency(s.baseSalary) },
+            { key: 'bonus', header: 'Bonuses', align: 'right', render: (s) => fmtCurrency(s.bonuses) },
+            { key: 'deduct', header: 'Deductions', align: 'right', render: (s) => fmtCurrency(s.deductions) },
+            { key: 'net', header: 'Net', align: 'right', render: (s) => <span className="font-semibold">{fmtCurrency((s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0))}</span> },
+            { key: 'notes', header: 'Notes', render: (s) => <span className="block max-w-xs truncate text-muted" title={s.notes || ''}>{s.notes || '—'}</span> },
+          ]}
+        />
+      )}
+    </Dialog>
   );
 };
 
-// ─── Tab config (module-scope constant – never recreated) ────────────────────
+// ─── Sections (module-scope constant – never recreated) ──────────────────────
 const TABS = [
-  { key: 'overview',   label: 'Overview',   icon: BarChart2 },
-  { key: 'users',      label: 'Users',      icon: Shield },
-  { key: 'employees',  label: 'Employees',  icon: Users },
-  { key: 'sales',      label: 'Sales',      icon: TrendingUp },
-  { key: 'salaries',   label: 'Salaries',   icon: DollarSign },
-  { key: 'fines',      label: 'Fines',      icon: AlertTriangle },
-  { key: 'attendance', label: 'Attendance', icon: Clock },
-  { key: 'messages',   label: 'Messages',   icon: FileText },
-  { key: 'accounts',   label: 'Accounts',   icon: KeyRound },
-  { key: 'audit',      label: 'Audit Log',  icon: History },
-  { key: 'settings',   label: 'Settings',   icon: Settings },
+  { key: 'overview',   label: 'Overview',      icon: BarChart2 },
+  { key: 'users',      label: 'Users',         icon: Shield },
+  { key: 'employees',  label: 'Employees',     icon: Users },
+  { key: 'sales',      label: 'Sales',         icon: TrendingUp },
+  { key: 'salaries',   label: 'Salaries',      icon: Wallet },
+  { key: 'fines',      label: 'Fines',         icon: ReceiptText },
+  { key: 'attendance', label: 'Attendance',    icon: Clock },
+  { key: 'messages',   label: 'Messages',      icon: MessageSquare },
+  { key: 'accounts',   label: 'Accounts',      icon: KeyRound },
+  { key: 'audit',      label: 'Audit log',     icon: History },
+  { key: 'settings',   label: 'Settings',      icon: Settings },
 ];
+const TAB_KEYS = TABS.map((t) => t.key);
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const [activeTab, setActiveTab] = useState('overview');
+  // Sections are addressed with ?tab= so they're linkable from the sidebar
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab = TAB_KEYS.includes(tabParam) ? tabParam : 'overview';
+  const setActiveTab = useCallback((key) => setSearchParams({ tab: key }), [setSearchParams]);
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -853,907 +676,569 @@ const SuperAdminDashboard = () => {
     navigate('/login');
   }, [logout, navigate]);
 
+  const refreshButton = (tab) => (
+    <Button variant="ghost" size="icon" icon={RefreshCw} onClick={() => load(tab)} disabled={loading} aria-label="Refresh" title="Refresh" />
+  );
+
+  const loadingPanel = <Panel><p className="px-5 py-8 text-sm text-muted">Loading…</p></Panel>;
+
+  const approveFine = async (f) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/fines/${f._id}/approve`, { method: 'PATCH', headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      setFines(prev => prev.map(x => x._id === f._id ? { ...x, approved: true } : x));
+    } catch { alert('Could not approve the fine. Try again.'); }
+  };
+
+  const deleteFine = async (f) => {
+    if (!window.confirm('Delete this fine?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/fines/${f._id}`, { method: 'DELETE', headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      setFines(prev => prev.filter(x => x._id !== f._id));
+    } catch { alert('Could not delete the fine. Try again.'); }
+  };
+
+  const sendReply = async (m) => {
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/messages/${m._id}/respond`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ message: messageReplyText }),
+      });
+      if (!res.ok) throw new Error();
+      setMessages(prev => prev.map(x => x._id === m._id ? { ...x, status: 'responded', adminResponse: { message: messageReplyText } } : x));
+      setMessageReplyId(null);
+      setMessageReplyText('');
+    } catch { alert('Could not send the reply. Try again.'); }
+    finally { setSubmitting(false); }
+  };
+
+  const resolveMessage = async (m) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/superadmin/messages/${m._id}/resolve`, { method: 'PATCH', headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      setMessages(prev => prev.map(x => x._id === m._id ? { ...x, status: 'resolved' } : x));
+    } catch { alert('Could not resolve the message. Try again.'); }
+  };
+
+  // Bulk-delete toolbar for employees, sales and salaries
+  const bulkActions = (type, selected, rows) => (
+    <>
+      {selected.size > 0 && (
+        <Button variant="danger" size="sm" icon={Trash2} disabled={bulkDeleting} onClick={() => handleBulkDelete(type, selected, false)}>
+          Delete {selected.size} selected
+        </Button>
+      )}
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={bulkDeleting || rows.length === 0}
+        onClick={() => handleBulkDelete(type, null, true)}
+        className="text-absent hover:border-absent"
+      >
+        Delete all
+      </Button>
+    </>
+  );
+
+  const rowActions = (onEdit, onDelete, id, label) => (
+    <div className="flex items-center justify-end gap-0.5">
+      {onEdit && <Button variant="ghost" size="icon" icon={Pencil} onClick={onEdit} aria-label={`Edit ${label}`} title={`Edit ${label}`} />}
+      <Button
+        variant="ghost"
+        size="icon"
+        icon={deletingId === id ? RefreshCw : Trash2}
+        disabled={deletingId === id || bulkDeleting}
+        onClick={onDelete}
+        aria-label={`Delete ${label}`}
+        title={`Delete ${label}`}
+        className={`hover:text-absent ${deletingId === id ? '[&>svg]:animate-spin' : ''}`}
+      />
+    </div>
+  );
+
+  const nav = TABS.map(({ key, label, icon }) => ({
+    key,
+    label,
+    icon,
+    active: activeTab === key,
+    onClick: () => setActiveTab(key),
+  }));
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-black/30 backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-500/20 rounded-lg">
-              <Shield size={20} className="text-yellow-300" />
+    <AppShell nav={nav} user={{ name: user?.username, detail: 'Super admin' }} onSignOut={handleLogout}>
+      {error && (
+        <Alert className="mb-6">
+          {error}{' '}
+          <button type="button" onClick={() => load(activeTab)} className="underline underline-offset-2 font-medium">Try again</button>
+        </Alert>
+      )}
+
+      {/* ── Overview ── */}
+      {activeTab === 'overview' && (
+        <>
+          <PageHeader title="Overview">{refreshButton('overview')}</PageHeader>
+          {loading || !stats ? loadingPanel : (
+            <div className="space-y-4">
+              <StatGroup
+                items={[
+                  { label: 'Users', value: stats.totalUsers ?? 0 },
+                  { label: 'Admins', value: stats.totalAdmins ?? 0 },
+                  { label: 'Employees', value: stats.totalEmployees ?? 0 },
+                  { label: 'Salary records', value: stats.totalSalaryRecords ?? 0 },
+                ]}
+              />
+              <StatGroup
+                items={[
+                  { label: 'Sales submitted', value: stats.totalSales ?? 0 },
+                  { label: 'Approved', value: stats.approvedSales ?? 0, tone: 'present' },
+                  { label: 'Waiting for QA', value: stats.pendingSales ?? 0, tone: 'late' },
+                  { label: 'Paid out', value: fmtCurrency(stats.totalEarningsPaid) },
+                ]}
+              />
             </div>
-            <div>
-              <span className="text-white font-bold text-lg">Super Admin</span>
-              <span className="text-white/40 text-xs ml-2">Nextel Employees</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-white/60 text-sm hidden sm:block">{user?.username}</span>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm transition-colors"
-            >
-              <LogOut size={15} />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </div>
-      </header>
+          )}
+        </>
+      )}
 
-      {/* Tab nav */}
-      <nav className="bg-black/20 border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto py-1">
-          {TABS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                activeTab === key
-                  ? 'bg-purple-500/30 text-purple-200 border border-purple-500/40'
-                  : 'text-white/50 hover:text-white/80 hover:bg-white/5'
-              }`}
-            >
-              <Icon size={15} />
-              {label}
-            </button>
-          ))}
-        </div>
-      </nav>
+      {activeTab === 'accounts' && <><PageHeader title="Accounts" /><AccountsPanel /></>}
+      {activeTab === 'audit' && <><PageHeader title="Audit log" /><AuditPanel /></>}
+      {activeTab === 'settings' && <><PageHeader title="Settings" /><SettingsPanel /></>}
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {error && (
-          <div className="mb-4 bg-red-500/20 border border-red-500/40 rounded-xl p-4 flex items-center gap-3 text-red-300">
-            <AlertTriangle size={18} />
-            {error}
-            <button onClick={() => load(activeTab)} className="ml-auto text-sm underline">Retry</button>
-          </div>
-        )}
-
-        {loading && (
-          <div className="flex items-center justify-center h-48">
-            <RefreshCw size={32} className="text-purple-400 animate-spin" />
-          </div>
-        )}
-
-        {/* ── Overview ── */}
-        {!loading && activeTab === 'overview' && stats && (
-          <div>
-            <h2 className="text-white text-2xl font-bold mb-6">System Overview</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-              <StatsCard icon={Users} label="Total Users" value={stats.totalUsers ?? 0} color="bg-blue-500/40" />
-              <StatsCard icon={Shield} label="Admins" value={stats.totalAdmins ?? 0} color="bg-purple-500/40" />
-              <StatsCard icon={UserIcon} label="Employees" value={stats.totalEmployees ?? 0} color="bg-indigo-500/40" />
-              <StatsCard icon={Clock} label="Pending Sales" value={stats.pendingSales ?? 0} color="bg-yellow-500/40" />
-              <StatsCard icon={CheckCircle} label="Approved Sales" value={stats.approvedSales ?? 0} color="bg-green-500/40" />
-              <StatsCard icon={FileText} label="Total Sales" value={stats.totalSales ?? 0} color="bg-cyan-500/40" />
-              <StatsCard icon={Award} label="Salary Records" value={stats.totalSalaryRecords ?? 0} color="bg-pink-500/40" />
-              <StatsCard icon={DollarSign} label="Total Paid Out" value={fmtCurrency(stats.totalEarningsPaid)} color="bg-emerald-500/40" />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'accounts' && <AccountsPanel />}
-        {activeTab === 'audit' && <AuditPanel />}
-        {activeTab === 'settings' && <SettingsPanel />}
-
-        {/* ── Users ── */}
-        {!loading && activeTab === 'users' && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-white text-2xl font-bold">All Users</h2>
-              <button onClick={() => load('users')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
-                <RefreshCw size={14} /> Refresh
-              </button>
-            </div>
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-white/50 border-b border-white/10">
-                      <th className="text-left py-3 px-4">Username</th>
-                      <th className="text-left py-3 px-4">Email</th>
-                      <th className="text-center py-3 px-4">Role</th>
-                      <th className="text-center py-3 px-4">Status</th>
-                      <th className="text-center py-3 px-4">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u) => (
-                      <tr key={u._id} className="border-b border-white/5 hover:bg-white/5">
-                        <td className="py-3 px-4 text-white font-medium">{u.username}</td>
-                        <td className="py-3 px-4 text-white/70">{u.email}</td>
-                        <td className="py-3 px-4 text-center">
-                          <Badge text={u.role} color={u.role} />
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <Badge
-                            text={u.isActive !== false ? 'Active' : 'Inactive'}
-                            color={u.isActive !== false ? 'active' : 'inactive'}
-                          />
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          {u.role !== 'superadmin' ? (
-                            <button
-                              disabled={togglingUser === u._id}
-                              onClick={() => handleToggleUser(u._id)}
-                              className={`flex items-center gap-1.5 mx-auto px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                u.isActive !== false
-                                  ? 'bg-red-500/20 hover:bg-red-500/30 text-red-300'
-                                  : 'bg-green-500/20 hover:bg-green-500/30 text-green-300'
-                              }`}
-                            >
-                              {togglingUser === u._id ? (
-                                <RefreshCw size={12} className="animate-spin" />
-                              ) : u.isActive !== false ? (
-                                <ToggleRight size={12} />
-                              ) : (
-                                <ToggleLeft size={12} />
-                              )}
-                              {u.isActive !== false ? 'Deactivate' : 'Activate'}
-                            </button>
-                          ) : (
-                            <span className="text-white/30 text-xs">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {users.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="py-10 text-center text-white/40">No users found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Employees ── */}
-        {!loading && activeTab === 'employees' && (
-          <div>
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-              <div>
-                <h2 className="text-white text-2xl font-bold">All Employees</h2>
-                {selectedEmpIds.size > 0 && (
-                  <p className="text-white/50 text-sm mt-1">{selectedEmpIds.size} selected</p>
-                )}
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {selectedEmpIds.size > 0 && (
-                  <button
-                    disabled={bulkDeleting}
-                    onClick={() => handleBulkDelete('employees', selectedEmpIds, false)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {bulkDeleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    Delete Selected ({selectedEmpIds.size})
-                  </button>
-                )}
-                <button
-                  disabled={bulkDeleting || employees.length === 0}
-                  onClick={() => handleBulkDelete('employees', null, true)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-600/30 hover:bg-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <Trash2 size={14} /> Delete All
-                </button>
-                <button onClick={() => load('employees')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
-                  <RefreshCw size={14} /> Refresh
-                </button>
-              </div>
-            </div>
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-white/50 border-b border-white/10">
-                      <th className="w-10 py-3 px-4">
-                        <input
-                          type="checkbox"
-                          checked={employees.length > 0 && selectedEmpIds.size === employees.length}
-                          onChange={() => toggleSelectAll(employees, setSelectedEmpIds)}
-                          className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
-                        />
-                      </th>
-                      <th className="text-left py-3 px-4">Name</th>
-                      <th className="text-left py-3 px-4">Employee ID</th>
-                      <th className="text-left py-3 px-4">Department</th>
-                      <th className="text-left py-3 px-4">Hire Date</th>
-                      <th className="text-center py-3 px-4">History</th>
-                      <th className="text-center py-3 px-4">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {employees.map((emp) => (
-                      <tr key={emp._id} className={`border-b border-white/5 hover:bg-white/5 ${selectedEmpIds.has(emp._id) ? 'bg-purple-500/5' : ''}`}>
-                        <td className="w-10 py-3 px-4">
-                          <input
-                            type="checkbox"
-                            checked={selectedEmpIds.has(emp._id)}
-                            onChange={() => toggleSelect(setSelectedEmpIds, emp._id)}
-                            className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
-                          />
-                        </td>
-                        <td className="py-3 px-4 text-white font-medium">{emp.firstName} {emp.lastName}</td>
-                        <td className="py-3 px-4 text-white/70">{emp.employeeId}</td>
-                        <td className="py-3 px-4 text-white/70">{emp.department}</td>
-                        <td className="py-3 px-4 text-white/70">{fmtDate(emp.hireDate)}</td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => setSelectedEmployee(emp)}
-                            className="flex items-center gap-1.5 mx-auto px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 transition-colors"
-                          >
-                            <Eye size={12} />
-                            View History
-                          </button>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            disabled={deletingId === emp._id || bulkDeleting}
-                            onClick={() => handleDeleteEmployee(emp._id)}
-                            className="flex items-center gap-1 mx-auto px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors disabled:opacity-50"
-                          >
-                            {deletingId === emp._id ? <RefreshCw size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {employees.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="py-10 text-center text-white/40">No employees found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Sales ── */}
-        {!loading && activeTab === 'sales' && (
-          <div className="space-y-6">
-            {/* Top Performer card */}
-            {topPerformer && (
-              <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <div className="p-3 bg-yellow-500/30 rounded-xl">
-                  <Award size={28} className="text-yellow-300" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-yellow-300 text-xs font-semibold uppercase tracking-widest mb-1">Top Performer</p>
-                  <p className="text-white text-2xl font-bold">{topPerformer.agentName}</p>
-                  <p className="text-white/50 text-sm">{topPerformer.employeeId} · {topPerformer.department}</p>
-                </div>
-                <div className="flex gap-6">
-                  <div className="text-center">
-                    <p className="text-3xl font-bold text-green-300">{topPerformer.approvedSales}</p>
-                    <p className="text-white/50 text-xs mt-1">Approved</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xl font-bold text-white">{fmtCurrency(topPerformer.totalEarnings)}</p>
-                    <p className="text-white/50 text-xs mt-1">Earned</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* View toggle + filter */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 gap-1">
-                <button
-                  onClick={() => setSalesView('leaderboard')}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${salesView === 'leaderboard' ? 'bg-purple-500/40 text-purple-200' : 'text-white/50 hover:text-white/80'}`}
-                >
-                  CSR Leaderboard
-                </button>
-                <button
-                  onClick={() => setSalesView('verifier')}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${salesView === 'verifier' ? 'bg-teal-500/40 text-teal-200' : 'text-white/50 hover:text-white/80'}`}
-                >
-                  Verifier Board
-                </button>
-                <button
-                  onClick={() => setSalesView('all')}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${salesView === 'all' ? 'bg-purple-500/40 text-purple-200' : 'text-white/50 hover:text-white/80'}`}
-                >
-                  All Submissions
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                {salesView === 'all' && (
-                  <>
-                    <select
-                      value={salesFilter}
-                      onChange={(e) => setSalesFilter(e.target.value)}
-                      className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+      {/* ── Users ── */}
+      {activeTab === 'users' && (
+        <>
+          <PageHeader title="Users">{refreshButton('users')}</PageHeader>
+          <DataTable
+            loading={loading}
+            empty="No users found."
+            rows={users}
+            columns={[
+              { key: 'username', header: 'Username', render: (u) => <span className="font-medium">{u.username}</span> },
+              { key: 'email', header: 'Email', render: (u) => u.email || '—' },
+              { key: 'role', header: 'Role', render: (u) => <Badge tone={u.role === 'superadmin' || u.role === 'admin' ? 'shift' : 'neutral'}>{u.role}</Badge> },
+              {
+                key: 'status',
+                header: 'Status',
+                render: (u) => <Badge tone={u.isActive !== false ? 'present' : 'absent'}>{u.isActive !== false ? 'Active' : 'Inactive'}</Badge>,
+              },
+              {
+                key: 'action',
+                header: <span className="sr-only">Action</span>,
+                align: 'right',
+                render: (u) =>
+                  u.role !== 'superadmin' ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={togglingUser === u._id}
+                      onClick={() => handleToggleUser(u._id)}
+                      className={u.isActive !== false ? 'hover:text-absent' : 'hover:text-present'}
                     >
-                      <option value="all" className="bg-slate-800">All</option>
-                      <option value="pending" className="bg-slate-800">Pending</option>
-                      <option value="approved" className="bg-slate-800">Approved</option>
-                      <option value="rejected" className="bg-slate-800">Rejected</option>
-                    </select>
-                    {selectedSaleIds.size > 0 && (
-                      <button
-                        disabled={bulkDeleting}
-                        onClick={() => handleBulkDelete('sales', selectedSaleIds, false)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {bulkDeleting ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                        Delete ({selectedSaleIds.size})
-                      </button>
-                    )}
-                    <button
-                      disabled={bulkDeleting || sales.length === 0}
-                      onClick={() => handleBulkDelete('sales', null, true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-600/30 hover:bg-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      <Trash2 size={13} /> Delete All
-                    </button>
-                  </>
-                )}
-                <button onClick={() => load('sales')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
-                  <RefreshCw size={14} />
-                </button>
-              </div>
-            </div>
+                      {togglingUser === u._id ? 'Saving…' : u.isActive !== false ? 'Deactivate' : 'Activate'}
+                    </Button>
+                  ) : (
+                    <span className="text-muted">—</span>
+                  ),
+              },
+            ]}
+          />
+        </>
+      )}
 
-            {/* Leaderboard view */}
-            {salesView === 'leaderboard' && (
-              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-white/50 border-b border-white/10">
-                        <th className="text-center py-3 px-4 w-12">Rank</th>
-                        <th className="text-left py-3 px-4">CSR Name</th>
-                        <th className="text-left py-3 px-4">Employee ID</th>
-                        <th className="text-left py-3 px-4">Department</th>
-                        <th className="text-center py-3 px-4">Approved</th>
-                        <th className="text-center py-3 px-4">Pending</th>
-                        <th className="text-right py-3 px-4">Total Earned</th>
-                        <th className="text-left py-3 px-4">Last Sale</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {leaderboard.map((row) => (
-                        <tr key={String(row.agentId)} className={`border-b border-white/5 hover:bg-white/5 ${row.rank === 1 ? 'bg-yellow-500/5' : ''}`}>
-                          <td className="py-3 px-4 text-center">
-                            {row.rank === 1 ? (
-                              <span className="text-yellow-300 font-bold text-base">🥇</span>
-                            ) : row.rank === 2 ? (
-                              <span className="text-gray-300 font-bold">🥈</span>
-                            ) : row.rank === 3 ? (
-                              <span className="text-orange-400 font-bold">🥉</span>
-                            ) : (
-                              <span className="text-white/40">{row.rank}</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-white font-medium">{row.agentName}</td>
-                          <td className="py-3 px-4 text-white/60">{row.employeeId}</td>
-                          <td className="py-3 px-4 text-white/60">{row.department}</td>
-                          <td className="py-3 px-4 text-center">
-                            <span className="bg-green-500/20 text-green-300 border border-green-500/30 px-2 py-0.5 rounded-full text-xs font-bold">{row.approvedSales}</span>
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span className="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 px-2 py-0.5 rounded-full text-xs font-bold">{row.pendingSales}</span>
-                          </td>
-                          <td className="py-3 px-4 text-right text-green-300 font-semibold">{fmtCurrency(row.totalEarnings)}</td>
-                          <td className="py-3 px-4 text-white/50">{fmtDate(row.lastSaleDate)}</td>
-                        </tr>
-                      ))}
-                      {leaderboard.length === 0 && (
-                        <tr><td colSpan={8} className="py-10 text-center text-white/40">No approved sales yet.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Verifier Board view */}
-            {salesView === 'verifier' && (
-              <div>
-                {topCloser && (
-                  <div className="mb-4 bg-gradient-to-r from-teal-800/60 to-cyan-800/60 border border-teal-500/30 rounded-2xl p-5 flex items-center gap-5">
-                    <div className="text-4xl">🏆</div>
-                    <div className="flex-1">
-                      <p className="text-teal-300 text-xs font-semibold uppercase tracking-widest mb-1">Top Verifier</p>
-                      <p className="text-white text-2xl font-bold">{topCloser.closerName}</p>
-                      <p className="text-white/50 text-sm">{topCloser.employeeId}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-3xl font-bold text-green-300">{topCloser.approvedCloses}</p>
-                      <p className="text-white/50 text-xs mt-1">Closes</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xl font-bold text-white">{fmtCurrency(topCloser.totalEarnings)}</p>
-                      <p className="text-white/50 text-xs mt-1">Earned</p>
-                    </div>
+      {/* ── Employees ── */}
+      {activeTab === 'employees' && (
+        <>
+          <PageHeader title="Employees">
+            {bulkActions('employees', selectedEmpIds, employees)}
+            {refreshButton('employees')}
+          </PageHeader>
+          <DataTable
+            loading={loading}
+            empty="No employees found."
+            rows={employees}
+            columns={[
+              {
+                key: 'select',
+                header: (
+                  <RowCheck
+                    checked={employees.length > 0 && selectedEmpIds.size === employees.length}
+                    onChange={() => toggleSelectAll(employees, setSelectedEmpIds)}
+                    label="Select all employees"
+                  />
+                ),
+                render: (emp) => (
+                  <RowCheck
+                    checked={selectedEmpIds.has(emp._id)}
+                    onChange={() => toggleSelect(setSelectedEmpIds, emp._id)}
+                    label={`Select ${emp.firstName} ${emp.lastName}`}
+                  />
+                ),
+              },
+              { key: 'name', header: 'Name', render: (emp) => <span className="font-medium">{emp.firstName} {emp.lastName}</span> },
+              { key: 'id', header: 'Employee ID', render: (emp) => emp.employeeId || '—' },
+              { key: 'dept', header: 'Department', render: (emp) => emp.department || '—' },
+              { key: 'hired', header: 'Hired', render: (emp) => fmtDate(emp.hireDate) },
+              {
+                key: 'actions',
+                header: <span className="sr-only">Actions</span>,
+                align: 'right',
+                render: (emp) => (
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="secondary" size="sm" icon={Eye} onClick={() => setSelectedEmployee(emp)}>History</Button>
+                    {rowActions(null, () => handleDeleteEmployee(emp._id), emp._id, 'employee')}
                   </div>
-                )}
-                <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-white/50 border-b border-white/10">
-                          <th className="text-center py-3 px-4 w-12">Rank</th>
-                          <th className="text-left py-3 px-4">Verifier Name</th>
-                          <th className="text-left py-3 px-4">Employee ID</th>
-                          <th className="text-center py-3 px-4">Closes</th>
-                          <th className="text-right py-3 px-4">Earned (RS)</th>
-                          <th className="text-left py-3 px-4">Last Close</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {closerLeaderboard.map((row) => (
-                          <tr key={String(row.closerId)} className={`border-b border-white/5 hover:bg-white/5 ${row.rank === 1 ? 'bg-teal-500/5' : ''}`}>
-                            <td className="py-3 px-4 text-center">
-                              {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : <span className="text-white/40">{row.rank}</span>}
-                            </td>
-                            <td className="py-3 px-4 text-white font-medium">{row.closerName}</td>
-                            <td className="py-3 px-4 text-white/60">{row.employeeId}</td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full text-xs font-bold">{row.approvedCloses}</span>
-                            </td>
-                            <td className="py-3 px-4 text-right text-green-300 font-semibold">{fmtCurrency(row.totalEarnings)}</td>
-                            <td className="py-3 px-4 text-white/50">{fmtDate(row.lastCloseDate)}</td>
-                          </tr>
-                        ))}
-                        {closerLeaderboard.length === 0 && (
-                          <tr><td colSpan={6} className="py-10 text-center text-white/40">No verifier data yet.</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
+                ),
+              },
+            ]}
+          />
+        </>
+      )}
 
-            {/* All submissions view */}
-            {salesView === 'all' && (
-              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-white/50 border-b border-white/10">
-                        <th className="w-10 py-3 px-4">
-                          <input
-                            type="checkbox"
-                            checked={sales.length > 0 && selectedSaleIds.size === sales.length}
-                            onChange={() => toggleSelectAll(sales, setSelectedSaleIds)}
-                            className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
-                          />
-                        </th>
-                        <th className="text-left py-3 px-4">Employee</th>
-                        <th className="text-left py-3 px-4">Customer</th>
-                        <th className="text-left py-3 px-4">Phone</th>
-                        <th className="text-left py-3 px-4">DIDs</th>
-                        <th className="text-left py-3 px-4">Closer</th>
-                        <th className="text-center py-3 px-4">Status</th>
-                        <th className="text-left py-3 px-4">Date</th>
-                        <th className="text-center py-3 px-4">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sales.map((s) => (
-                        <tr key={s._id} className={`border-b border-white/5 hover:bg-white/5 ${selectedSaleIds.has(s._id) ? 'bg-purple-500/5' : ''}`}>
-                          <td className="w-10 py-3 px-4">
-                            <input
-                              type="checkbox"
-                              checked={selectedSaleIds.has(s._id)}
-                              onChange={() => toggleSelect(setSelectedSaleIds, s._id)}
-                              className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
-                            />
-                          </td>
-                          <td className="py-3 px-4 text-white">
-                            {s.agentName || (s.agent?.firstName ? `${s.agent.firstName} ${s.agent.lastName}` : '—')}
-                          </td>
-                          <td className="py-3 px-4 text-white/70">
-                            {s.customer?.firstName ? `${s.customer.firstName} ${s.customer.lastName}` : '—'}
-                          </td>
-                          <td className="py-3 px-4 text-white/70">{s.customer?.phone || '—'}</td>
-                          <td className="py-3 px-4 text-white/70">{s.dids || '—'}</td>
-                          <td className="py-3 px-4 text-white/70">{s.closer || '—'}</td>
-                          <td className="py-3 px-4 text-center">
-                            <Badge text={s.status} color={s.status} />
-                          </td>
-                          <td className="py-3 px-4 text-white/50">{fmtDate(s.submittedAt || s.createdAt)}</td>
-                          <td className="py-3 px-4 text-center">
-                            <button
-                              onClick={() => openSaleEdit(s)}
-                              className="mr-2 inline-flex items-center gap-1 rounded-lg bg-blue-500/20 px-2.5 py-1.5 text-xs font-medium text-blue-200 transition-colors hover:bg-blue-500/30"
-                            >
-                              <Edit size={11} />
-                              Edit
-                            </button>
-                            <button
-                              disabled={deletingId === s._id || bulkDeleting}
-                              onClick={() => handleDeleteSale(s._id)}
-                              className="flex items-center gap-1 mx-auto px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors disabled:opacity-50"
-                            >
-                              {deletingId === s._id ? <RefreshCw size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      {sales.length === 0 && (
-                        <tr>
-                          <td colSpan={9} className="py-10 text-center text-white/40">No sales found.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+      {/* ── Sales ── */}
+      {activeTab === 'sales' && (
+        <>
+          <PageHeader title="Sales">
+            {salesView === 'all' && bulkActions('sales', selectedSaleIds, sales)}
+            {refreshButton('sales')}
+          </PageHeader>
 
-        {/* ── Salaries ── */}
-        {!loading && activeTab === 'salaries' && (
-          <div>
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-              <div>
-                <h2 className="text-white text-2xl font-bold">All Salary Records</h2>
-                {selectedSalaryIds.size > 0 && (
-                  <p className="text-white/50 text-sm mt-1">{selectedSalaryIds.size} selected</p>
-                )}
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {selectedSalaryIds.size > 0 && (
-                  <button
-                    disabled={bulkDeleting}
-                    onClick={() => handleBulkDelete('salaries', selectedSalaryIds, false)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {bulkDeleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    Delete Selected ({selectedSalaryIds.size})
-                  </button>
-                )}
-                <button
-                  disabled={bulkDeleting || salaries.length === 0}
-                  onClick={() => handleBulkDelete('salaries', null, true)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-600/30 hover:bg-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <Trash2 size={14} /> Delete All
-                </button>
-                <button onClick={() => load('salaries')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
-                  <RefreshCw size={14} /> Refresh
-                </button>
-              </div>
-            </div>
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-white/50 border-b border-white/10">
-                      <th className="w-10 py-3 px-4">
-                        <input
-                          type="checkbox"
-                          checked={salaries.length > 0 && selectedSalaryIds.size === salaries.length}
-                          onChange={() => toggleSelectAll(salaries, setSelectedSalaryIds)}
-                          className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
-                        />
-                      </th>
-                      <th className="text-left py-3 px-4">Employee</th>
-                      <th className="text-left py-3 px-4">Month</th>
-                      <th className="text-right py-3 px-4">Base Salary</th>
-                      <th className="text-right py-3 px-4">Sales Bonus</th>
-                      <th className="text-right py-3 px-4">Deductions</th>
-                      <th className="text-right py-3 px-4">Net Pay</th>
-                      <th className="text-center py-3 px-4">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {salaries.map((s) => (
-                      <tr key={s._id} className={`border-b border-white/5 hover:bg-white/5 ${selectedSalaryIds.has(s._id) ? 'bg-purple-500/5' : ''}`}>
-                        <td className="w-10 py-3 px-4">
-                          <input
-                            type="checkbox"
-                            checked={selectedSalaryIds.has(s._id)}
-                            onChange={() => toggleSelect(setSelectedSalaryIds, s._id)}
-                            className="rounded border-white/30 bg-white/10 accent-purple-500 cursor-pointer"
-                          />
-                        </td>
-                        <td className="py-3 px-4 text-white">
-                          {s.employee?.firstName
-                            ? `${s.employee.firstName} ${s.employee.lastName}`
-                            : s.employeeId || '—'}
-                        </td>
-                        <td className="py-3 px-4 text-white/70">{s.month}</td>
-                        <td className="py-3 px-4 text-right text-white/80">{fmtCurrency(s.baseSalary)}</td>
-                        <td className="py-3 px-4 text-right text-green-300">{fmtCurrency(s.bonuses)}</td>
-                        <td className="py-3 px-4 text-right text-red-300">{fmtCurrency(s.deductions)}</td>
-                        <td className="py-3 px-4 text-right text-white font-bold">
-                          {fmtCurrency(s.netPay ?? ((s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0)))}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => openSalaryEdit(s)}
-                            className="mr-2 inline-flex items-center gap-1 rounded-lg bg-blue-500/20 px-2.5 py-1.5 text-xs font-medium text-blue-200 transition-colors hover:bg-blue-500/30"
-                          >
-                            <Edit size={11} />
-                            Edit
-                          </button>
-                          <button
-                            disabled={deletingId === s._id || bulkDeleting}
-                            onClick={() => handleDeleteSalary(s._id)}
-                            className="flex items-center gap-1 mx-auto px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors disabled:opacity-50"
-                          >
-                            {deletingId === s._id ? <RefreshCw size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {salaries.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="py-10 text-center text-white/40">No salary records found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Fines ── */}
-        {!loading && activeTab === 'fines' && (
-          <div>
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-              <h2 className="text-white text-2xl font-bold">All Fines</h2>
-              <div className="flex items-center gap-2">
-                <select
-                  value={finesFilter}
-                  onChange={e => setFinesFilter(e.target.value)}
-                  className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="all" className="bg-slate-800">All</option>
-                  <option value="pending" className="bg-slate-800">Pending</option>
-                  <option value="approved" className="bg-slate-800">Approved</option>
-                </select>
-                <button onClick={() => load('fines')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
-                  <RefreshCw size={14} /> Refresh
-                </button>
-              </div>
-            </div>
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-white/50 border-b border-white/10">
-                      <th className="text-left py-3 px-4">Employee</th>
-                      <th className="text-left py-3 px-4">Type</th>
-                      <th className="text-right py-3 px-4">Amount</th>
-                      <th className="text-left py-3 px-4">Date</th>
-                      <th className="text-center py-3 px-4">Status</th>
-                      <th className="text-center py-3 px-4">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fines.map(f => (
-                      <tr key={f._id} className="border-b border-white/5 hover:bg-white/5">
-                        <td className="py-3 px-4 text-white font-medium">
-                          {f.employee ? `${f.employee.firstName} ${f.employee.lastName}` : '—'}
-                          <span className="block text-white/40 text-xs">{f.employee?.employeeId}</span>
-                        </td>
-                        <td className="py-3 px-4 text-white/70">{f.type}</td>
-                        <td className="py-3 px-4 text-right text-red-300 font-semibold">RS {f.amount?.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-white/60">{fmtDate(f.date)}</td>
-                        <td className="py-3 px-4 text-center">
-                          <Badge text={f.approved ? 'Approved' : 'Pending'} color={f.approved ? 'approved' : 'pending'} />
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            {!f.approved && (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const res = await fetch(`${API_BASE_URL}/superadmin/fines/${f._id}/approve`, { method: 'PATCH', headers: authHeaders() });
-                                    if (!res.ok) throw new Error();
-                                    setFines(prev => prev.map(x => x._id === f._id ? { ...x, approved: true } : x));
-                                  } catch { alert('Failed to approve fine.'); }
-                                }}
-                                className="px-2.5 py-1 rounded-lg text-xs bg-green-500/20 hover:bg-green-500/30 text-green-300 transition-colors"
-                              >
-                                Approve
-                              </button>
-                            )}
-                            <button
-                              onClick={async () => {
-                                if (!window.confirm('Delete this fine?')) return;
-                                try {
-                                  const res = await fetch(`${API_BASE_URL}/superadmin/fines/${f._id}`, { method: 'DELETE', headers: authHeaders() });
-                                  if (!res.ok) throw new Error();
-                                  setFines(prev => prev.filter(x => x._id !== f._id));
-                                } catch { alert('Failed to delete fine.'); }
-                              }}
-                              className="px-2.5 py-1 rounded-lg text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-colors"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {fines.length === 0 && (
-                      <tr><td colSpan={6} className="py-10 text-center text-white/40">No fines found.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Attendance ── */}
-        {!loading && activeTab === 'attendance' && (
-          <div>
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-              <h2 className="text-white text-2xl font-bold">Attendance</h2>
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={attendanceDate}
-                  onChange={e => setAttendanceDate(e.target.value)}
-                  className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-                <button onClick={() => load('attendance')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
-                  <RefreshCw size={14} /> Refresh
-                </button>
-              </div>
-            </div>
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-white/50 border-b border-white/10">
-                      <th className="text-left py-3 px-4">Employee</th>
-                      <th className="text-left py-3 px-4">Date</th>
-                      <th className="text-center py-3 px-4">Status</th>
-                      <th className="text-left py-3 px-4">Clock In</th>
-                      <th className="text-left py-3 px-4">Clock Out</th>
-                      <th className="text-left py-3 px-4">Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {attendance.map(a => (
-                      <tr key={a._id} className="border-b border-white/5 hover:bg-white/5">
-                        <td className="py-3 px-4 text-white font-medium">
-                          {a.employee ? `${a.employee.firstName} ${a.employee.lastName}` : '—'}
-                          <span className="block text-white/40 text-xs">{a.employee?.employeeId}</span>
-                        </td>
-                        <td className="py-3 px-4 text-white/60">{fmtDate(a.date)}</td>
-                        <td className="py-3 px-4 text-center">
-                          <Badge
-                            text={a.status}
-                            color={a.status === 'Present' ? 'active' : a.status === 'Absent' ? 'inactive' : 'pending'}
-                          />
-                        </td>
-                        <td className="py-3 px-4 text-white/60">
-                          {a.clockIn ? new Date(a.clockIn).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' }) : '—'}
-                        </td>
-                        <td className="py-3 px-4 text-white/60">
-                          {a.clockOut ? new Date(a.clockOut).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' }) : '—'}
-                        </td>
-                        <td className="py-3 px-4 text-white/50 text-xs">{a.notes || '—'}</td>
-                      </tr>
-                    ))}
-                    {attendance.length === 0 && (
-                      <tr><td colSpan={6} className="py-10 text-center text-white/40">No attendance records for this date.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Messages ── */}
-        {!loading && activeTab === 'messages' && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-white text-2xl font-bold">Messages / Support</h2>
-              <button onClick={() => load('messages')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/60 hover:text-white bg-white/10 rounded-lg transition-colors">
-                <RefreshCw size={14} /> Refresh
-              </button>
-            </div>
-            <div className="space-y-3">
-              {messages.map(m => (
-                <div key={m._id} className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                  <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div>
-                      <p className="text-white font-semibold">{m.subject}</p>
-                      <p className="text-white/50 text-xs mt-0.5">{m.from?.username} · {m.category} · {fmtDate(m.createdAt)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        text={m.priority}
-                        color={m.priority === 'urgent' ? 'rejected' : m.priority === 'high' ? 'pending' : 'employee'}
-                      />
-                      <Badge
-                        text={m.status}
-                        color={m.status === 'resolved' ? 'approved' : m.status === 'responded' ? 'active' : 'pending'}
-                      />
-                    </div>
-                  </div>
-                  <p className="text-white/70 text-sm mt-3">{m.message}</p>
-                  {m.adminResponse?.message && (
-                    <div className="mt-3 pl-3 border-l-2 border-purple-500/40">
-                      <p className="text-purple-300 text-xs font-semibold mb-1">Admin Response</p>
-                      <p className="text-white/60 text-sm">{m.adminResponse.message}</p>
-                    </div>
-                  )}
-                  {m.status !== 'resolved' && (
-                    <div className="mt-4 flex flex-col gap-2">
-                      {messageReplyId === m._id ? (
-                        <div className="flex gap-2">
-                          <input
-                            value={messageReplyText}
-                            onChange={e => setMessageReplyText(e.target.value)}
-                            placeholder="Type your reply…"
-                            className="flex-1 bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                          />
-                          <button
-                            disabled={submitting || !messageReplyText.trim()}
-                            onClick={async () => {
-                              setSubmitting(true);
-                              try {
-                                const res = await fetch(`${API_BASE_URL}/superadmin/messages/${m._id}/respond`, {
-                                  method: 'PATCH',
-                                  headers: authHeaders(),
-                                  body: JSON.stringify({ message: messageReplyText }),
-                                });
-                                if (!res.ok) throw new Error();
-                                setMessages(prev => prev.map(x => x._id === m._id ? { ...x, status: 'responded', adminResponse: { message: messageReplyText } } : x));
-                                setMessageReplyId(null);
-                                setMessageReplyText('');
-                              } catch { alert('Failed to send reply.'); }
-                              finally { setSubmitting(false); }
-                            }}
-                            className="px-4 py-2 bg-purple-500/30 hover:bg-purple-500/40 text-purple-200 rounded-lg text-sm transition-colors disabled:opacity-50"
-                          >
-                            {submitting ? <RefreshCw size={14} className="animate-spin" /> : 'Send'}
-                          </button>
-                          <button onClick={() => { setMessageReplyId(null); setMessageReplyText(''); }} className="px-3 py-2 bg-white/10 text-white/60 rounded-lg text-sm">Cancel</button>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setMessageReplyId(m._id)}
-                            className="px-3 py-1.5 text-sm bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors"
-                          >
-                            Reply
-                          </button>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const res = await fetch(`${API_BASE_URL}/superadmin/messages/${m._id}/resolve`, { method: 'PATCH', headers: authHeaders() });
-                                if (!res.ok) throw new Error();
-                                setMessages(prev => prev.map(x => x._id === m._id ? { ...x, status: 'resolved' } : x));
-                              } catch { alert('Failed to resolve message.'); }
-                            }}
-                            className="px-3 py-1.5 text-sm bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-colors"
-                          >
-                            Mark Resolved
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {messages.length === 0 && (
-                <div className="text-center py-16 text-white/40">No messages found.</div>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Segmented
+                label="View"
+                value={salesView}
+                onChange={setSalesView}
+                items={[
+                  { key: 'leaderboard', label: 'CSR leaderboard' },
+                  { key: 'verifier', label: 'Verifier leaderboard' },
+                  { key: 'all', label: 'All submissions' },
+                ]}
+              />
+              {salesView === 'all' && (
+                <Select aria-label="Status" value={salesFilter} onChange={(e) => setSalesFilter(e.target.value)} className="w-40">
+                  <option value="all">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </Select>
               )}
             </div>
+
+            {loading ? loadingPanel : (
+              <>
+                {salesView === 'leaderboard' && (
+                  <>
+                    {topPerformer && (
+                      <Panel className="px-5 py-4 flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm text-muted">Top CSR</p>
+                          <p className="text-lg font-semibold text-ink">{topPerformer.agentName}</p>
+                          <p className="text-xs text-muted">{topPerformer.employeeId}, {topPerformer.department}</p>
+                        </div>
+                        <dl className="flex gap-8 text-sm">
+                          <div><dt className="text-muted">Approved</dt><dd className="text-lg font-semibold text-present tabular-nums">{topPerformer.approvedSales}</dd></div>
+                          <div><dt className="text-muted">Earned</dt><dd className="text-lg font-semibold text-ink tabular-nums">{fmtCurrency(topPerformer.totalEarnings)}</dd></div>
+                        </dl>
+                      </Panel>
+                    )}
+                    <DataTable
+                      empty="No approved sales yet."
+                      rows={leaderboard}
+                      rowKey={(row) => String(row.agentId)}
+                      columns={[
+                        { key: 'rank', header: '#', render: (row) => <Rank rank={row.rank} /> },
+                        { key: 'name', header: 'CSR', render: (row) => <span className="font-medium">{row.agentName}</span> },
+                        { key: 'id', header: 'Employee ID', render: (row) => row.employeeId || '—' },
+                        { key: 'dept', header: 'Department', render: (row) => row.department || '—' },
+                        { key: 'approved', header: 'Approved', align: 'right', render: (row) => <span className="text-present">{row.approvedSales}</span> },
+                        { key: 'pending', header: 'Pending', align: 'right', render: (row) => <span className="text-late">{row.pendingSales}</span> },
+                        { key: 'earned', header: 'Earned', align: 'right', render: (row) => <span className="font-medium">{fmtCurrency(row.totalEarnings)}</span> },
+                        { key: 'last', header: 'Last sale', render: (row) => fmtDate(row.lastSaleDate) },
+                      ]}
+                    />
+                  </>
+                )}
+
+                {salesView === 'verifier' && (
+                  <>
+                    {topCloser && (
+                      <Panel className="px-5 py-4 flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm text-muted">Top verifier</p>
+                          <p className="text-lg font-semibold text-ink">{topCloser.closerName}</p>
+                          <p className="text-xs text-muted">{topCloser.employeeId}</p>
+                        </div>
+                        <dl className="flex gap-8 text-sm">
+                          <div><dt className="text-muted">Closes</dt><dd className="text-lg font-semibold text-present tabular-nums">{topCloser.approvedCloses}</dd></div>
+                          <div><dt className="text-muted">Earned</dt><dd className="text-lg font-semibold text-ink tabular-nums">{fmtCurrency(topCloser.totalEarnings)}</dd></div>
+                        </dl>
+                      </Panel>
+                    )}
+                    <DataTable
+                      empty="No verifier closes yet."
+                      rows={closerLeaderboard}
+                      rowKey={(row) => String(row.closerId)}
+                      columns={[
+                        { key: 'rank', header: '#', render: (row) => <Rank rank={row.rank} /> },
+                        { key: 'name', header: 'Verifier', render: (row) => <span className="font-medium">{row.closerName}</span> },
+                        { key: 'id', header: 'Employee ID', render: (row) => row.employeeId || '—' },
+                        { key: 'closes', header: 'Closes', align: 'right', render: (row) => <span className="text-present">{row.approvedCloses}</span> },
+                        { key: 'earned', header: 'Earned', align: 'right', render: (row) => <span className="font-medium">{fmtCurrency(row.totalEarnings)}</span> },
+                        { key: 'last', header: 'Last close', render: (row) => fmtDate(row.lastCloseDate) },
+                      ]}
+                    />
+                  </>
+                )}
+
+                {salesView === 'all' && (
+                  <DataTable
+                    empty="No sales match this status."
+                    rows={sales}
+                    columns={[
+                      {
+                        key: 'select',
+                        header: (
+                          <RowCheck
+                            checked={sales.length > 0 && selectedSaleIds.size === sales.length}
+                            onChange={() => toggleSelectAll(sales, setSelectedSaleIds)}
+                            label="Select all sales"
+                          />
+                        ),
+                        render: (s) => <RowCheck checked={selectedSaleIds.has(s._id)} onChange={() => toggleSelect(setSelectedSaleIds, s._id)} label="Select sale" />,
+                      },
+                      { key: 'agent', header: 'CSR', render: (s) => <span className="font-medium">{s.agentName || (s.agent?.firstName ? `${s.agent.firstName} ${s.agent.lastName}` : '—')}</span> },
+                      {
+                        key: 'customer',
+                        header: 'Customer',
+                        render: (s) => (
+                          <>
+                            {s.customer?.firstName ? `${s.customer.firstName} ${s.customer.lastName}` : '—'}
+                            <span className="block text-xs text-muted">{s.customer?.phone || ''}</span>
+                          </>
+                        ),
+                      },
+                      { key: 'dids', header: 'DIDs', render: (s) => s.dids || '—' },
+                      { key: 'closer', header: 'Closer', render: (s) => s.closer || '—' },
+                      { key: 'status', header: 'Status', render: (s) => <SaleBadge status={s.status} /> },
+                      { key: 'date', header: 'Date', render: (s) => fmtDate(s.submittedAt || s.createdAt) },
+                      {
+                        key: 'actions',
+                        header: <span className="sr-only">Actions</span>,
+                        align: 'right',
+                        render: (s) => rowActions(() => openSaleEdit(s), () => handleDeleteSale(s._id), s._id, 'sale'),
+                      },
+                    ]}
+                  />
+                )}
+              </>
+            )}
           </div>
-        )}
-      </main>
+        </>
+      )}
+
+      {/* ── Salaries ── */}
+      {activeTab === 'salaries' && (
+        <>
+          <PageHeader title="Salaries">
+            {bulkActions('salaries', selectedSalaryIds, salaries)}
+            {refreshButton('salaries')}
+          </PageHeader>
+          <DataTable
+            loading={loading}
+            empty="No salary records yet."
+            rows={salaries}
+            columns={[
+              {
+                key: 'select',
+                header: (
+                  <RowCheck
+                    checked={salaries.length > 0 && selectedSalaryIds.size === salaries.length}
+                    onChange={() => toggleSelectAll(salaries, setSelectedSalaryIds)}
+                    label="Select all salary records"
+                  />
+                ),
+                render: (s) => <RowCheck checked={selectedSalaryIds.has(s._id)} onChange={() => toggleSelect(setSelectedSalaryIds, s._id)} label="Select salary record" />,
+              },
+              {
+                key: 'employee',
+                header: 'Employee',
+                render: (s) => <span className="font-medium">{s.employee?.firstName ? `${s.employee.firstName} ${s.employee.lastName}` : s.employeeId || '—'}</span>,
+              },
+              { key: 'month', header: 'Month', render: (s) => s.month },
+              { key: 'base', header: 'Base', align: 'right', render: (s) => fmtCurrency(s.baseSalary) },
+              { key: 'bonus', header: 'Sales bonus', align: 'right', render: (s) => fmtCurrency(s.bonuses) },
+              { key: 'deduct', header: 'Deductions', align: 'right', render: (s) => fmtCurrency(s.deductions) },
+              {
+                key: 'net',
+                header: 'Net',
+                align: 'right',
+                render: (s) => <span className="font-semibold">{fmtCurrency(s.netPay ?? ((s.baseSalary || 0) + (s.bonuses || 0) - (s.deductions || 0)))}</span>,
+              },
+              {
+                key: 'actions',
+                header: <span className="sr-only">Actions</span>,
+                align: 'right',
+                render: (s) => rowActions(() => openSalaryEdit(s), () => handleDeleteSalary(s._id), s._id, 'salary record'),
+              },
+            ]}
+          />
+        </>
+      )}
+
+      {/* ── Fines ── */}
+      {activeTab === 'fines' && (
+        <>
+          <PageHeader title="Fines">
+            <Segmented
+              label="Fine status"
+              value={finesFilter}
+              onChange={setFinesFilter}
+              items={[
+                { key: 'all', label: 'All' },
+                { key: 'pending', label: 'Pending' },
+                { key: 'approved', label: 'Approved' },
+              ]}
+            />
+            {refreshButton('fines')}
+          </PageHeader>
+          <DataTable
+            loading={loading}
+            empty="No fines match this status."
+            rows={fines}
+            columns={[
+              {
+                key: 'employee',
+                header: 'Employee',
+                render: (f) => (
+                  <>
+                    <span className="font-medium">{f.employee ? `${f.employee.firstName} ${f.employee.lastName}` : '—'}</span>
+                    <span className="block text-xs text-muted">{f.employee?.employeeId}</span>
+                  </>
+                ),
+              },
+              { key: 'type', header: 'Type', render: (f) => f.type },
+              { key: 'amount', header: 'Amount', align: 'right', render: (f) => fmtCurrency(f.amount) },
+              { key: 'date', header: 'Date', render: (f) => fmtDate(f.date) },
+              { key: 'status', header: 'Status', render: (f) => <Badge tone={f.approved ? 'absent' : 'late'}>{f.approved ? 'Approved' : 'Pending'}</Badge> },
+              {
+                key: 'actions',
+                header: <span className="sr-only">Actions</span>,
+                align: 'right',
+                render: (f) => (
+                  <div className="flex items-center justify-end gap-1">
+                    {!f.approved && <Button variant="secondary" size="sm" onClick={() => approveFine(f)}>Approve</Button>}
+                    <Button variant="ghost" size="icon" icon={Trash2} onClick={() => deleteFine(f)} aria-label="Delete fine" title="Delete fine" className="hover:text-absent" />
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </>
+      )}
+
+      {/* ── Attendance ── */}
+      {activeTab === 'attendance' && (
+        <>
+          <PageHeader title="Attendance">
+            <Input type="date" aria-label="Date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} className="w-44" />
+            {refreshButton('attendance')}
+          </PageHeader>
+          <DataTable
+            loading={loading}
+            empty="No attendance records for this date."
+            rows={attendance}
+            columns={[
+              {
+                key: 'employee',
+                header: 'Employee',
+                render: (a) => (
+                  <>
+                    <span className="font-medium">{a.employee ? `${a.employee.firstName} ${a.employee.lastName}` : '—'}</span>
+                    <span className="block text-xs text-muted">{a.employee?.employeeId}</span>
+                  </>
+                ),
+              },
+              { key: 'date', header: 'Date', render: (a) => fmtDate(a.date) },
+              { key: 'status', header: 'Status', render: (a) => <Badge tone={ATTENDANCE_TONE[a.status] || 'neutral'}>{a.status}</Badge> },
+              { key: 'in', header: 'Clock in', render: (a) => fmtTime(a.clockIn) },
+              { key: 'out', header: 'Clock out', render: (a) => fmtTime(a.clockOut) },
+              { key: 'notes', header: 'Notes', render: (a) => <span className="text-muted">{a.notes || '—'}</span> },
+            ]}
+          />
+        </>
+      )}
+
+      {/* ── Messages ── */}
+      {activeTab === 'messages' && (
+        <>
+          <PageHeader title="Messages">{refreshButton('messages')}</PageHeader>
+          {loading ? loadingPanel : messages.length === 0 ? (
+            <Panel><p className="px-5 py-8 text-sm text-muted">No messages yet.</p></Panel>
+          ) : (
+            <Panel className="overflow-hidden">
+              <ul className="divide-y divide-line">
+                {messages.map(m => (
+                  <li key={m._id} className="px-5 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink">{m.subject}</p>
+                        <p className="text-xs text-muted mt-0.5">
+                          {m.from?.username || 'Unknown'}, <span className="capitalize">{m.category}</span>, {fmtDate(m.createdAt)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {(m.priority === 'urgent' || m.priority === 'high') && (
+                          <Badge tone={m.priority === 'urgent' ? 'absent' : 'late'}>{m.priority === 'urgent' ? 'Urgent' : 'High'}</Badge>
+                        )}
+                        <Badge tone={m.status === 'resolved' ? 'neutral' : m.status === 'responded' ? 'present' : 'shift'}>
+                          {m.status === 'unread' ? 'New' : m.status === 'responded' ? 'Replied' : m.status === 'resolved' ? 'Resolved' : m.status}
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-sm text-ink-soft mt-2 whitespace-pre-line">{m.message}</p>
+                    {m.adminResponse?.message && (
+                      <div className="mt-3 rounded-lg bg-paper border-l-2 border-present px-3 py-2">
+                        <p className="text-xs text-muted">Reply</p>
+                        <p className="text-sm text-ink">{m.adminResponse.message}</p>
+                      </div>
+                    )}
+                    {m.status !== 'resolved' && (
+                      <div className="mt-3">
+                        {messageReplyId === m._id ? (
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <Input
+                              aria-label="Reply"
+                              value={messageReplyText}
+                              onChange={e => setMessageReplyText(e.target.value)}
+                              placeholder="Write a reply"
+                              autoFocus
+                              className="flex-1"
+                            />
+                            <div className="flex gap-2">
+                              <Button variant="secondary" onClick={() => { setMessageReplyId(null); setMessageReplyText(''); }}>Cancel</Button>
+                              <Button disabled={submitting || !messageReplyText.trim()} onClick={() => sendReply(m)}>
+                                {submitting ? 'Sending…' : 'Send reply'}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Button variant="secondary" size="sm" onClick={() => setMessageReplyId(m._id)}>Reply</Button>
+                            <Button variant="ghost" size="sm" onClick={() => resolveMessage(m)}>Mark resolved</Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+        </>
+      )}
 
       {saleToEdit && (
         <SaleEditModal
@@ -1775,14 +1260,13 @@ const SuperAdminDashboard = () => {
         />
       )}
 
-      {/* CSR Detail Modal */}
       {selectedEmployee && (
         <CSRDetailModal
           employee={selectedEmployee}
           onClose={() => setSelectedEmployee(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 };
 

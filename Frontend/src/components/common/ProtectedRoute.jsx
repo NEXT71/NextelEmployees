@@ -32,10 +32,10 @@ const ProtectedRoute = ({ children, adminOnly, superAdminOnly, qaOnly }) => {
   // Show loading while checking auth
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center">
+      <div className="min-h-screen bg-paper flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-blue-200">Checking authentication...</p>
+          <div className="w-8 h-8 border-2 border-line border-t-ink rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-sm text-muted">Signing you in…</p>
         </div>
       </div>
     );

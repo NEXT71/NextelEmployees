@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { API_BASE_URL } from '../../utils/constants';
-import { RefreshCw, X, KeyRound, LogOut, Unlink, UserPlus, RotateCcw } from 'lucide-react';
+import { RefreshCw, X, KeyRound, LogOut, UserPlus, RotateCcw } from 'lucide-react';
 
 const headers = () => ({
   'Content-Type': 'application/json',
@@ -119,7 +119,6 @@ export const AccountsPanel = () => {
               <th className="text-left py-3 px-4">User</th>
               <th className="text-center py-3 px-4">Role</th>
               <th className="text-center py-3 px-4">Session</th>
-              <th className="text-center py-3 px-4">Device</th>
               <th className="text-left py-3 px-4">Last login</th>
               <th className="text-center py-3 px-4">Actions</th>
             </tr>
@@ -135,7 +134,6 @@ export const AccountsPanel = () => {
                 <td className="py-3 px-4 text-center">
                   <span className={u.sessionLive ? 'text-green-300' : 'text-white/40'}>{u.sessionLive ? 'Logged in' : 'Offline'}</span>
                 </td>
-                <td className="py-3 px-4 text-center text-white/70">{u.deviceBound ? 'Bound' : '—'}</td>
                 <td className="py-3 px-4 text-white/60">{fmtDateTime(u.lastLogin)}</td>
                 <td className="py-3 px-4">
                   <div className="flex flex-wrap gap-2 justify-center">
@@ -150,15 +148,12 @@ export const AccountsPanel = () => {
                     <button onClick={() => direct(`/users/${u._id}/force-logout`, 'Force logout', u)} className={`${btnCls} bg-red-500/20 text-red-200 hover:bg-red-500/30`}>
                       <LogOut size={12} /> Logout
                     </button>
-                    <button onClick={() => direct(`/users/${u._id}/unbind-device`, 'Unbind device and end session', u)} className={`${btnCls} bg-orange-500/20 text-orange-200 hover:bg-orange-500/30`} disabled={!u.deviceBound}>
-                      <Unlink size={12} /> Unbind
-                    </button>
                   </div>
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={6} className="py-10 text-center text-white/40">No users found.</td></tr>
+              <tr><td colSpan={5}className="py-10 text-center text-white/40">No users found.</td></tr>
             )}
           </tbody>
         </table>

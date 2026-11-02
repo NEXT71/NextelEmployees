@@ -486,104 +486,21 @@ const login = async (req, res, next) => {
       });
     }
 
-    // For employee role, identify the account type and closer status.
+    // For employee role, include closer status
     let isCloser = false;
-    let isCsr = false;
     if (user.role === 'employee') {
-      const emp = await Employee.findOne({ user: user._id }).select('isCloser department');
+      const emp = await Employee.findOne({ user: user._id }).select('isCloser');
       isCloser = emp?.isCloser || false;
-      isCsr = emp?.department === 'Sales';
     }
 
-    let sessionId;
-    if (isCsr) {
-      const { deviceId } = req.body;
-      if (typeof deviceId !== 'string' || deviceId.length < 8 || deviceId.length > 128) {
-        return res.status(400).json({
-          success: false,
-          message: 'Unable to identify this browser. Please refresh and try again.'
-        });
-      }
-
-      const now = new Date();
-      await User.updateMany(
-        { activeDeviceId: deviceId, activeSessionExpiresAt: { $lte: now } },
-        {
-          $unset: {
-            activeSessionId: 1,
-            activeDeviceId: 1,
-            activeSessionExpiresAt: 1
-          },
-          $set: { isLoggedIn: false }
-        }
-      );
-
-      sessionId = crypto.randomBytes(32).toString('hex');
-      try {
-        const reservedUser = await User.findOneAndUpdate(
-          { _id: user._id,
-            $and: [
-              {
-                $or: [
-                  { activeSessionId: { $exists: false } },
-                  { activeSessionExpiresAt: { $lte: now } }
-                ]
-              },
-              {
-                $or: [
-                  { boundDeviceId: { $exists: false } },
-                  { boundDeviceId: deviceId }
-                ]
-              }
-            ]
-          },
-          {
-            $set: {
-              isLoggedIn: true,
-              lastLogin: now,
-              activeSessionId: sessionId,
-              activeDeviceId: deviceId,
-              boundDeviceId: deviceId,
-              activeSessionExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000)
-            }
-          },
-          { new: true }
-        );
-
-        if (!reservedUser) {
-          const deviceOwner = await User.findOne({ boundDeviceId: deviceId }).select('_id');
-          if (deviceOwner) {
-            return res.status(409).json({
-              success: false,
-              message: 'This browser is registered to another CSR account and cannot be used to clock in with a different account.'
-            });
-          }
-
-          return res.status(409).json({
-            success: false,
-            message: 'This CSR account is already logged in on another browser or computer.'
-          });
-        }
-      } catch (err) {
-        if (err.code === 11000) {
-          return res.status(409).json({
-            success: false,
-            message: 'This browser is registered to another CSR account and cannot be used to clock in with a different account.'
-          });
-        }
-        throw err;
-      }
-    } else {
-      user.isLoggedIn = true;
-      user.lastLogin = new Date();
-      await user.save();
-    }
+    user.isLoggedIn = true;
+    user.lastLogin = new Date();
+    await user.save();
 
     // Generate token
-    const token = generateToken({ 
-      userId: user._id, 
-      role: user.role,
-      ...(sessionId ? { sessionId } : {})
+    const token = generateToken({
+      userId: user._id,
+      role: user.role
     });
 
     const responsePayload = {
@@ -645,17 +562,11 @@ const getMe = async (req, res, next) => {
 const logout = async (req, res, next) => {
   try {
     // Find and update user's login status
-    const filter = { _id: req.user.userId };
-    const update = { $set: { isLoggedIn: false } };
-    if (req.user.sessionId) {
-      filter.activeSessionId = req.user.sessionId;
-      update.$unset = {
-        activeSessionId: 1,
-        activeDeviceId: 1,
-        activeSessionExpiresAt: 1
-      };
-    }
-    const user = await User.findOneAndUpdate(filter, update, { new: true });
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      { $set: { isLoggedIn: false } },
+      { new: true }
+    );
 
     if (!user) {
       return res.status(404).json({

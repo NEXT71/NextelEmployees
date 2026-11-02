@@ -24,18 +24,6 @@ const setToken = (token) => {
   }
 };
 
-const getBrowserDeviceId = () => {
-  let deviceId = localStorage.getItem('csrDeviceId');
-  if (!deviceId) {
-    if (!window.crypto?.randomUUID) {
-      throw new Error('This browser cannot establish a secure login identity.');
-    }
-    deviceId = window.crypto.randomUUID();
-    localStorage.setItem('csrDeviceId', deviceId);
-  }
-  return deviceId;
-};
-
 // Helper function to create cache key
 const createCacheKey = (endpoint, options = {}) => {
   const method = options.method || 'GET';
@@ -208,7 +196,7 @@ export const authAPI = {
   login: async (credentials) => {
     const response = await apiRequest('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ ...credentials, deviceId: getBrowserDeviceId() }),
+      body: JSON.stringify(credentials),
     });
     
     // Store token if login successful

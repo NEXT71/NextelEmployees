@@ -36,7 +36,6 @@ import {
   resetUserPassword,
   getUserSessions,
   forceLogoutUser,
-  unbindUserDevice,
   previewRestore,
   restoreFromAudit,
   getSettings,
@@ -55,7 +54,6 @@ router.post('/users', createUserAccount);
 router.patch('/users/:id/role', changeUserRole);
 router.post('/users/:id/reset-password', resetUserPassword);
 router.post('/users/:id/force-logout', forceLogoutUser);
-router.post('/users/:id/unbind-device', unbindUserDevice);
 router.patch('/users/:id/toggle-active', toggleUserActive);
 router.get('/employees',        getAllEmployees);
 router.get('/employees/:id/full-history', getEmployeeFullHistory);

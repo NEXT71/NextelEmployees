@@ -148,11 +148,10 @@ export const resetUserPassword = async (req, res, next) => {
 export const getUserSessions = async (req, res, next) => {
   try {
     const users = await User.find({})
-      .select('username email role isActive isLoggedIn activeSessionExpiresAt boundDeviceId lastLogin')
+      .select('username email role isActive isLoggedIn lastLogin')
       .sort({ lastLogin: -1 })
       .lean();
 
-    const now = Date.now();
     const data = users.map((u) => ({
       _id: u._id,
       username: u.username,
@@ -160,9 +159,7 @@ export const getUserSessions = async (req, res, next) => {
       role: u.role,
       isActive: u.isActive,
       isLoggedIn: !!u.isLoggedIn,
-      sessionExpiresAt: u.activeSessionExpiresAt || null,
-      sessionLive: !!(u.isLoggedIn && u.activeSessionExpiresAt && new Date(u.activeSessionExpiresAt).getTime() > now),
-      deviceBound: !!u.boundDeviceId, // the device id itself is not sent to the browser
+      sessionLive: !!u.isLoggedIn,
       lastLogin: u.lastLogin || null
     }));
 
@@ -185,26 +182,6 @@ export const forceLogoutUser = async (req, res, next) => {
 
     const self = String(target._id) === String(req.user._id);
     res.json({ success: true, message: self ? 'Your session has been ended. Log in again.' : `${target.username} has been logged out` });
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const unbindUserDevice = async (req, res, next) => {
-  try {
-    const target = await User.findById(req.params.id).select('username');
-    if (!target) return fail(res, 404, 'User not found');
-
-    await User.updateOne(
-      { _id: target._id },
-      { $set: { isLoggedIn: false }, $unset: { ...SESSION_FIELDS, boundDeviceId: 1 } }
-    );
-    await logAudit(req, {
-      action: 'user.unbindDevice', entityType: 'user', entityId: target._id,
-      summary: `Unbound device and ended session for ${target.username}`
-    });
-
-    res.json({ success: true, message: `${target.username} can now log in from a new device` });
   } catch (err) {
     next(err);
   }

@@ -127,8 +127,8 @@ const BonusesTab = memo(({ onRefresh }) => {
   const [monthFilter, setMonthFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  // 'active' (default, includes On Leave) | 'inactive' | 'all'
-  const [statusFilter, setStatusFilter] = useState('active');
+  // Admin pages show active employees only (On Leave counts as active)
+  const statusFilter = 'active';
 
   useEffect(() => {
     const load = async () => {
@@ -197,7 +197,6 @@ const BonusesTab = memo(({ onRefresh }) => {
     setMonthFilter('');
     setEmployeeFilter('');
     setTypeFilter('');
-    setStatusFilter('active');
   }, []);
 
   const handleCreated = useCallback((bonus) => {
@@ -268,11 +267,6 @@ const BonusesTab = memo(({ onRefresh }) => {
           />
         </div>
         <Input type="month" aria-label="Month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className="sm:w-44" />
-        <Select aria-label="Employee status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="sm:w-44">
-          <option value="active">Active employees</option>
-          <option value="inactive">Inactive employees</option>
-          <option value="all">All employees</option>
-        </Select>
         <Select aria-label="Employee" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="sm:w-48">
           <option value="">All employees</option>
           {employees.filter((emp) => matchesStatus(emp._id)).map((emp) => (

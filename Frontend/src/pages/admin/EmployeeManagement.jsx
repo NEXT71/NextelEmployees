@@ -15,7 +15,7 @@ const EmployeeManagement = () => {
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
           <h1 className="text-[28px] leading-tight font-semibold text-ink">Employee accounts</h1>
-          <p className="mt-1 text-sm text-muted">Create logins and see who's active in each department.</p>
+          <p className="mt-1 text-sm text-muted">Create logins and see your active staff by department.</p>
         </div>
         <Button icon={UserPlus} onClick={() => setShowCreateModal(true)}>
           Add employee

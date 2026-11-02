@@ -35,6 +35,14 @@ const TAB_TITLES = {
   sales: 'Sales',
 };
 
+// CSRs and verifiers: the only staff admin and HR may delete permanently.
+// Mirrors isFrontlineEmployee on the backend, which enforces it.
+const isFrontline = (employee) => {
+  const loginRole = employee.user?.role;
+  if (loginRole && loginRole !== 'employee') return false;
+  return employee.isCloser === true || ['Sales', 'Verifier'].includes(employee.department);
+};
+
 const employeeStatusTone = (status) => {
   const s = String(status || 'active').toLowerCase();
   if (s === 'active') return 'present';
@@ -68,7 +76,9 @@ const AdminDashboard = () => {
   const [employees, setEmployees] = useState([]);
   const [fines, setFines] = useState([]);
   const [salaries, setSalaries] = useState([]);
-  const [summary, setSummary] = useState({});
+  // Backend summary still loads, but its totals include inactive employees, so the
+  // figures shown are computed from active employees instead
+  const [, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [salesSubTab, setSalesSubTab] = useState('pending');
 
@@ -88,12 +98,17 @@ const AdminDashboard = () => {
   const [employeeToEdit, setEmployeeToEdit] = useState(null);
   const [showDocumentsModal, setShowDocumentsModal] = useState(false);
   const [employeeForDocuments, setEmployeeForDocuments] = useState(null);
+  const [employeeToDelete, setEmployeeToDelete] = useState(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingEmployee, setDeletingEmployee] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   // 'active' (default, includes On Leave) | 'inactive' | 'all'
-  const [employeeStatusFilter, setEmployeeStatusFilter] = useState('active');
+  // Admin pages show active employees only (On Leave counts as active); inactive ones are hidden
+  const employeeStatusFilter = 'active';
   const [fineFilter, setFineFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -288,6 +303,34 @@ const AdminDashboard = () => {
       setError(err.message || 'Failed to load employee details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const closeDeleteDialog = () => {
+    if (deletingEmployee) return;
+    setEmployeeToDelete(null);
+    setDeleteConfirmText('');
+    setDeleteError('');
+  };
+
+  // Permanent delete (CSRs and verifiers only). The backend snapshots everything to the
+  // audit log first, so a super admin can restore it.
+  const handleDeleteEmployee = async () => {
+    if (!employeeToDelete) return;
+    setDeletingEmployee(true);
+    setDeleteError('');
+    try {
+      const response = await employeeAPI.deleteEmployee(employeeToDelete._id);
+      if (response?.error) throw new Error(response.message);
+      setEmployees((prev) => prev.filter((e) => e._id !== employeeToDelete._id));
+      setFines((prev) => prev.filter((f) => f.employee?._id !== employeeToDelete._id));
+      setSalaries((prev) => prev.filter((s) => s.employee?._id !== employeeToDelete._id));
+      setEmployeeToDelete(null);
+      setDeleteConfirmText('');
+    } catch (err) {
+      setDeleteError(err.message || 'Could not delete this employee. Try again.');
+    } finally {
+      setDeletingEmployee(false);
     }
   };
 
@@ -704,13 +747,8 @@ const AdminDashboard = () => {
     bonuses: null,
   }[activeTab];
 
-  const statusSelect = (
-    <Select aria-label="Employee status" value={employeeStatusFilter} onChange={(e) => setEmployeeStatusFilter(e.target.value)} className="sm:w-48">
-      <option value="active">Active employees</option>
-      <option value="inactive">Inactive employees</option>
-      <option value="all">All employees</option>
-    </Select>
-  );
+  // Fines on active employees only, for the summary figures
+  const activeFines = fines.filter((f) => f.employee && matchesEmployeeStatus(f.employee._id));
 
   const searchBox = (value, onChange, placeholder) => (
     <div className="relative flex-1 min-w-[220px]">
@@ -737,10 +775,9 @@ const AdminDashboard = () => {
         {['employees', 'fines'].includes(activeTab) && (
           <StatGroup
             items={[
-              { label: 'Employees', value: summary.totalEmployees || employees.length || 0 },
-              { label: 'Active', value: summary.activeEmployees || employees.filter(emp => emp.status === 'Active').length || 0, tone: 'present' },
-              { label: 'Fines issued', value: summary.totalFinesCount || 0 },
-              { label: 'Fines total', value: formatPKR(summary.totalFineAmount || 0), tone: 'absent' },
+              { label: 'Active employees', value: activeEmployees.length },
+              { label: 'Fines issued', value: activeFines.length },
+              { label: 'Fines total', value: formatPKR(activeFines.reduce((sum, f) => sum + (f.amount || 0), 0)), tone: 'absent' },
             ]}
           />
         )}
@@ -750,7 +787,6 @@ const AdminDashboard = () => {
           <div className="space-y-4">
             <div className="flex flex-wrap gap-3">
               {searchBox(searchTerm, (e) => setSearchTerm(e.target.value), 'Search name, email or employee ID')}
-              {statusSelect}
               <Select aria-label="Department" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} className="sm:w-48">
                 <option value="">All departments</option>
                 {DEPARTMENTS.map(dept => (
@@ -761,11 +797,7 @@ const AdminDashboard = () => {
 
             <DataTable
               loading={loading}
-              empty={
-                employeeStatusFilter === 'active' && employees.some(e => String(e.status || '').toLowerCase() === 'inactive')
-                  ? 'No active employees match. Switch the status filter to see inactive ones.'
-                  : 'No employees match your search and filters.'
-              }
+              empty="No active employees match your search and filters."
               rows={filteredEmployees}
               columns={[
                 {
@@ -799,18 +831,23 @@ const AdminDashboard = () => {
                       <Button variant="ghost" size="icon" icon={Pencil} onClick={() => openEditModal(employee)} aria-label="Edit employee" title="Edit employee" />
                       <Button variant="ghost" size="icon" icon={ReceiptText} onClick={() => openFineModal(employee)} aria-label="Add fine" title="Add fine" />
                       <Button variant="ghost" size="icon" icon={Paperclip} onClick={() => openDocumentsModal(employee)} aria-label="Documents" title="Documents" />
-                      {employee.status === 'Inactive' ? (
-                        <Button variant="ghost" size="sm" onClick={() => handleToggleEmployeeActive(employee)} className="text-present hover:text-present">
-                          Reactivate
-                        </Button>
-                      ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        icon={UserX}
+                        onClick={() => handleToggleEmployeeActive(employee)}
+                        aria-label="Deactivate employee"
+                        title="Deactivate employee"
+                        className="hover:text-absent"
+                      />
+                      {isFrontline(employee) && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          icon={UserX}
-                          onClick={() => handleToggleEmployeeActive(employee)}
-                          aria-label="Deactivate employee"
-                          title="Deactivate employee"
+                          icon={Trash2}
+                          onClick={() => setEmployeeToDelete(employee)}
+                          aria-label="Delete employee permanently"
+                          title="Delete permanently"
                           className="hover:text-absent"
                         />
                       )}
@@ -820,7 +857,7 @@ const AdminDashboard = () => {
               ]}
             />
             {!loading && (
-              <p className="text-sm text-muted">Showing {filteredEmployees.length} of {employees.length} employees</p>
+              <p className="text-sm text-muted">Showing {filteredEmployees.length} of {activeEmployees.length} active employees</p>
             )}
           </div>
         )}
@@ -832,13 +869,6 @@ const AdminDashboard = () => {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="Search" htmlFor="fine-search" className="sm:col-span-2 lg:col-span-1">
                   <Input id="fine-search" type="text" placeholder="Employee, type or description" value={fineSearchTerm} onChange={(e) => setFineSearchTerm(e.target.value)} />
-                </Field>
-                <Field label="Employee status" htmlFor="fine-status">
-                  <Select id="fine-status" value={employeeStatusFilter} onChange={(e) => setEmployeeStatusFilter(e.target.value)}>
-                    <option value="active">Active employees</option>
-                    <option value="inactive">Inactive employees</option>
-                    <option value="all">All employees</option>
-                  </Select>
                 </Field>
                 <Field label="Employee" htmlFor="fine-employee">
                   <Select id="fine-employee" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}>
@@ -967,7 +997,6 @@ const AdminDashboard = () => {
             />
             <div className="flex flex-wrap gap-3">
               {searchBox(salarySearchTerm, (e) => setSalarySearchTerm(e.target.value), 'Search name, email or employee ID')}
-              {statusSelect}
             </div>
             <DataTable
               loading={loading}
@@ -1191,6 +1220,47 @@ const AdminDashboard = () => {
             <Textarea id="fine-modal-desc" rows={3} value={fineForm.description} onChange={(e) => setFineForm({ ...fineForm, description: e.target.value })} />
           </Field>
         </div>
+      </Dialog>
+
+      {/* Delete Employee (permanent) */}
+      <Dialog
+        open={!!employeeToDelete}
+        onClose={closeDeleteDialog}
+        size="max-w-md"
+        title={employeeToDelete ? `Delete ${employeeToDelete.firstName} ${employeeToDelete.lastName}?` : ''}
+        description="This permanently removes the employee, their login, and all their salaries, sales, fines and attendance."
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeDeleteDialog} disabled={deletingEmployee}>Cancel</Button>
+            <Button
+              variant="danger"
+              icon={Trash2}
+              onClick={handleDeleteEmployee}
+              disabled={deletingEmployee || deleteConfirmText.trim() !== (employeeToDelete?.employeeId || '')}
+            >
+              {deletingEmployee ? 'Deleting…' : 'Delete permanently'}
+            </Button>
+          </>
+        }
+      >
+        {employeeToDelete && (
+          <div className="space-y-4">
+            {deleteError && <Alert>{deleteError}</Alert>}
+            <p className="text-sm text-ink">
+              If they might come back, <strong className="font-semibold">deactivate</strong> them instead. That keeps their records
+              and blocks sign-in. Only a super admin can restore a deleted employee.
+            </p>
+            <Field label={`Type ${employeeToDelete.employeeId} to confirm`} htmlFor="delete-confirm">
+              <Input
+                id="delete-confirm"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                autoComplete="off"
+                autoFocus
+              />
+            </Field>
+          </div>
+        )}
       </Dialog>
 
       {/* Bulk Fine Modal */}

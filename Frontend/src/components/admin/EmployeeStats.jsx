@@ -18,7 +18,8 @@ const EmployeeStats = () => {
   const fetchStats = async () => {
     try {
       const employeesResult = await employeeAPI.getAllEmployees();
-      const employees = employeesResult.data || [];
+      // Admin pages count active employees only (On Leave counts as active)
+      const employees = (employeesResult.data || []).filter((emp) => String(emp.status || '').toLowerCase() !== 'inactive');
 
       const departmentStats = employees.reduce((acc, emp) => {
         const dept = emp.department || 'Unknown';
@@ -44,20 +45,16 @@ const EmployeeStats = () => {
     }
   };
 
-  const activeShare = stats.totalEmployees > 0 ? ((stats.activeEmployees / stats.totalEmployees) * 100).toFixed(0) : 0;
+  const onLeave = stats.totalEmployees - stats.activeEmployees;
   const departments = [...stats.departmentStats].sort((a, b) => b.count - a.count);
+  const largest = departments[0]?.count || 1;
 
   return (
     <div className="space-y-8">
       <StatGroup
         items={[
-          { label: 'Employees', value: loading ? '—' : stats.totalEmployees },
-          {
-            label: 'Active',
-            value: loading ? '—' : stats.activeEmployees,
-            hint: loading ? undefined : `${activeShare}% of all employees`,
-            tone: 'present',
-          },
+          { label: 'Active employees', value: loading ? '—' : stats.totalEmployees, tone: 'present' },
+          { label: 'On leave', value: loading ? '—' : onLeave, tone: onLeave ? 'late' : undefined },
           { label: 'Departments', value: loading ? '—' : stats.departmentStats.length },
         ]}
       />
@@ -67,19 +64,19 @@ const EmployeeStats = () => {
           <Panel className="overflow-hidden">
             <ul className="divide-y divide-line">
               {departments.map((dept) => {
-                const inactive = dept.count - dept.active;
+                const deptOnLeave = dept.count - dept.active;
                 return (
                   <li key={dept.name} className="grid grid-cols-[1fr_auto] sm:grid-cols-[200px_1fr_auto] items-center gap-x-4 gap-y-2 px-5 py-3">
                     <p className="text-sm font-medium text-ink truncate">{dept.name}</p>
                     <div className="order-last col-span-2 sm:order-none sm:col-span-1 h-2 rounded-full bg-paper overflow-hidden" aria-hidden="true">
                       <div
-                        className="h-full rounded-full bg-present"
-                        style={{ width: `${dept.count > 0 ? (dept.active / dept.count) * 100 : 0}%` }}
+                        className="h-full rounded-full bg-ink"
+                        style={{ width: `${(dept.count / largest) * 100}%` }}
                       />
                     </div>
                     <p className="text-sm text-muted tabular-nums text-right whitespace-nowrap">
-                      <span className="text-ink">{dept.active}</span> active
-                      {inactive > 0 && `, ${inactive} inactive`}
+                      <span className="text-ink">{dept.count}</span> {dept.count === 1 ? 'employee' : 'employees'}
+                      {deptOnLeave > 0 && `, ${deptOnLeave} on leave`}
                     </p>
                   </li>
                 );

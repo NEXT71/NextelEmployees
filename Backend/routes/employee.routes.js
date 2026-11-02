@@ -21,7 +21,6 @@ import {
 import auth from '../middlewares/auth.js';
 import hr from '../middlewares/hr.js';
 import roles from '../middlewares/roles.js';
-import superadmin from '../middlewares/superadmin.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -61,8 +60,9 @@ employeeRouter.patch('/:id', auth, roles('admin'), updateEmployee); // Add PATCH
 // Soft removal (HR/admin): employee -> Inactive, login disabled, history kept
 employeeRouter.patch('/:id/deactivate', auth, roles('admin'), deactivateEmployee);
 employeeRouter.patch('/:id/activate', auth, roles('admin'), activateEmployee);
-// Permanent deletion wipes salary/fine/attendance history: superadmin only
-employeeRouter.delete('/:id', auth, superadmin, deleteEmployee);
+// Permanent deletion with full history (restorable by superadmin from the audit log).
+// Admin/HR: CSRs and verifiers only, enforced in the controller. Superadmin: anyone.
+employeeRouter.delete('/:id', auth, hr, deleteEmployee);
 employeeRouter.get('/user/:userId', auth, getEmployeeByUserId); // Add this route
 
 

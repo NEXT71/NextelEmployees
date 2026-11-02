@@ -7,6 +7,7 @@ import Attendance from '../models/Attendance.js';
 import Message from '../models/Message.js';
 import AuditLog from '../models/AuditLog.js';
 import { logAudit, logAuditDelete } from '../utils/audit.js';
+import { findLinkedUser, deleteEmployeeCascade } from '../utils/employeeDeletion.js';
 import { getSalesShiftDate, getSalesShiftRange, getSalesWeekStart } from '../utils/salesShift.js';
 import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcDailyEarning, getDailyTier } from '../utils/payRules.js';
 import { hasCplDid } from '../utils/didCategories.js';
@@ -572,26 +573,7 @@ export const deleteEmployee = async (req, res, next) => {
     if (!employee) {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
-    const [salaries, sales, fines, attendance] = await Promise.all([
-      Salary.find({ employee: id }).lean(),
-      SalesTarget.find({ agent: id }).lean(),
-      Fine.find({ employee: id }).lean(),
-      Attendance.find({ employee: id }).lean()
-    ]);
-    await logAuditDelete(req, {
-      action: 'employee.delete', entityType: 'employee', entityId: employee._id,
-      summary: `Permanently deleted ${employee.firstName} ${employee.lastName} (${employee.employeeId}) with ${salaries.length} salaries, ${sales.length} sales, ${fines.length} fines, ${attendance.length} attendance records`,
-      snapshot: employee,
-      meta: { salaries, sales, fines, attendance }
-    });
-    await Promise.all([
-      Salary.deleteMany({ employee: id }),
-      SalesTarget.deleteMany({ agent: id }),
-      Fine.deleteMany({ employee: id }),
-      Attendance.deleteMany({ employee: id }),
-      employee.user ? User.findByIdAndDelete(employee.user) : Promise.resolve(),
-    ]);
-    await Employee.findByIdAndDelete(id);
+    await deleteEmployeeCascade(req, employee, await findLinkedUser(employee));
     res.json({ success: true, message: 'Employee and all associated records deleted' });
   } catch (err) {
     next(err);

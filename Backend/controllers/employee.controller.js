@@ -5,6 +5,7 @@ import Fine from '../models/Fine.js';
 import Attendance from '../models/Attendance.js';
 import { validateEmployee } from '../validations/employee.validation.js';
 import { logAudit, logAuditDelete } from '../utils/audit.js';
+import { findLinkedUser, isFrontlineEmployee, deleteEmployeeCascade } from '../utils/employeeDeletion.js';
 
 const PRIVILEGED_ROLES = ['admin', 'superadmin', 'hr'];
 
@@ -309,7 +310,8 @@ const activateEmployee = async (req, res, next) => {
   }
 };
 
-// Permanently delete employee (superadmin only - see routes)
+// Permanently delete an employee with their full history (restorable from the audit log).
+// Super admins can delete anyone; admin and HR only CSRs and verifiers.
 const deleteEmployee = async (req, res, next) => {
   try {
     const employee = await Employee.findById(req.params.id);
@@ -321,47 +323,21 @@ const deleteEmployee = async (req, res, next) => {
       });
     }
 
-    await logAuditDelete(req, {
-      action: 'employee.delete',
-      entityType: 'employee',
-      entityId: employee._id,
-      summary: `Permanently deleted ${employee.firstName} ${employee.lastName} (${employee.employeeId})`,
-      snapshot: employee
-    });
+    const linkedUser = await findLinkedUser(employee);
 
-    // Find and delete associated user account by employeeId reference
-    // This handles both directions of the relationship
-    const associatedUser = await User.findOne({ 
-      $or: [
-        { employeeId: employee._id },  // User references this employee
-        { _id: employee.user }         // Employee references this user
-      ]
-    });
-
-    if (associatedUser) {
-      await User.findByIdAndDelete(associatedUser._id);
-      console.log(`✅ Deleted associated user account: ${associatedUser.username}`);
+    if (req.user.role !== 'superadmin' && !isFrontlineEmployee(employee, linkedUser)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admins and HR can only delete CSRs and verifiers. Deactivate other staff instead.'
+      });
     }
 
-    // Delete the employee record
-    await Employee.findByIdAndDelete(req.params.id);
-
-    // Delete associated records
-    const [deletedFines, deletedSalaries, deletedAttendance] = await Promise.all([
-      Fine.deleteMany({ employee: employee._id }),
-      Salary.deleteMany({ employee: employee._id }),
-      Attendance.deleteMany({ employee: employee._id })
-    ]);
-
-    console.log(`✅ Deleted employee and all associated records: ${employee.firstName} ${employee.lastName}`);
-    console.log(`   - Fines deleted: ${deletedFines.deletedCount}`);
-    console.log(`   - Salaries deleted: ${deletedSalaries.deletedCount}`);
-    console.log(`   - Attendance records deleted: ${deletedAttendance.deletedCount}`);
+    const removed = await deleteEmployeeCascade(req, employee, linkedUser);
 
     res.json({
       success: true,
-      message: 'Employee and associated user account deleted successfully',
-      data: {}
+      message: `Deleted ${employee.firstName} ${employee.lastName} with their login, salaries, sales, fines and attendance`,
+      data: removed
     });
   } catch (err) {
     console.error('Error deleting employee:', err);

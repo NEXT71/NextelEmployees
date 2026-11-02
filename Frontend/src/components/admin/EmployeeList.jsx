@@ -18,14 +18,13 @@ const EmployeeList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
-  // 'active' (default, includes On Leave) | 'inactive' | 'all'
-  const [filterStatus, setFilterStatus] = useState('active');
 
   const fetchEmployees = useCallback(async () => {
     try {
       setLoading(true);
       const data = await employeeAPI.getAllEmployees();
-      setEmployees(data.data || []);
+      // Admin pages show active employees only (On Leave counts as active)
+      setEmployees((data.data || []).filter((emp) => String(emp.status || '').toLowerCase() !== 'inactive'));
     } catch (error) {
       console.error('Error fetching employees:', error);
     } finally {
@@ -47,27 +46,21 @@ const EmployeeList = () => {
         emp.employeeId?.toLowerCase().includes(q);
 
       const matchesDepartment = !filterDepartment || emp.department === filterDepartment;
-      const isInactive = String(emp.status || '').toLowerCase() === 'inactive';
-      const matchesStatus =
-        filterStatus === 'all' ||
-        (filterStatus === 'inactive' ? isInactive : !isInactive);
 
-      return matchesSearch && matchesDepartment && matchesStatus;
+      return matchesSearch && matchesDepartment;
     });
-  }, [employees, searchTerm, filterDepartment, filterStatus]);
+  }, [employees, searchTerm, filterDepartment]);
 
   const departments = [...new Set(employees.map((emp) => emp.department).filter(Boolean))];
 
   const empty =
     searchTerm || filterDepartment
-      ? 'No employees match your search and filters.'
-      : filterStatus === 'active'
-        ? 'No active employees. Switch the status filter to see inactive ones.'
-        : 'No employees here yet. Add one with the button above.';
+      ? 'No active employees match your search.'
+      : 'No active employees yet. Add one with the button above.';
 
   return (
-    <Section title="All employees">
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px_200px] gap-3 mb-4">
+    <Section title="Active employees">
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-3 mb-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" aria-hidden="true" />
           <Input
@@ -84,11 +77,6 @@ const EmployeeList = () => {
           {departments.map((dept) => (
             <option key={dept} value={dept}>{dept}</option>
           ))}
-        </Select>
-        <Select aria-label="Status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="active">Active employees</option>
-          <option value="inactive">Inactive employees</option>
-          <option value="all">All employees</option>
         </Select>
       </div>
 
@@ -128,7 +116,7 @@ const EmployeeList = () => {
       />
       {!loading && filteredEmployees.length > 0 && (
         <p className="mt-3 text-sm text-muted">
-          Showing {filteredEmployees.length} of {employees.length} employees
+          Showing {filteredEmployees.length} of {employees.length} active employees
         </p>
       )}
     </Section>

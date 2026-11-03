@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { RefreshCw, ClipboardCheck, Award } from 'lucide-react';
 import BonusLinesTab from './BonusLinesTab';
 import { useAuth } from '../../contexts/AuthContext';
-import { salesTargetAPI } from '../../utils/api';
+import { salesTargetAPI, attendanceAPI } from '../../utils/api';
+import { isWithinAttendanceWindow, isWithinClockInWindow } from '../../utils/attendanceTimeAccess';
+import { subscribeSocket } from '../../utils/socket';
+import ShiftPanel from '../../components/employees/ShiftPanel';
 import { formatSalesShiftDate, getCurrentSalesShiftDate } from '../../utils/salesShift';
 import AppShell from '../../components/layout/AppShell';
 import { formatPKR } from '../../components/employees/MonthLedger';
@@ -39,6 +42,81 @@ const CloserDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(getCurrentSalesShiftDate);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10 });
+
+  const [clockInAt, setClockInAt] = useState(null);
+  const [clockOutAt, setClockOutAt] = useState(null);
+  const [clockBusy, setClockBusy] = useState(false);
+  const [now, setNow] = useState(new Date());
+
+  // /auth/me populates employeeId with the employee record
+  const profile = typeof user?.employeeId === 'object' ? user.employeeId : null;
+  const employeeDbId = profile?._id;
+
+  const checkClockStatus = useCallback(async () => {
+    if (!employeeDbId) return;
+    try {
+      const res = await attendanceAPI.getAttendanceStatus(employeeDbId);
+      const record = res?.data?.hasClockedIn ? res.data.record : null;
+      setClockInAt(record?.clockIn || null);
+      setClockOutAt(record?.clockOut || null);
+    } catch (e) {
+      setClockInAt(null);
+      setClockOutAt(null);
+    }
+  }, [employeeDbId]);
+
+  useEffect(() => {
+    checkClockStatus();
+    const timer = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, [checkClockStatus]);
+
+  useEffect(() => {
+    if (!employeeDbId) return undefined;
+    return subscribeSocket('attendance:update', (payload) => {
+      if (payload?.employeeId === employeeDbId && (payload.type === 'clockIn' || payload.type === 'clockOut')) {
+        checkClockStatus();
+      }
+    });
+  }, [employeeDbId, checkClockStatus]);
+
+  const handleClockIn = async () => {
+    setError('');
+    if (!isWithinClockInWindow()) {
+      setError('Clock-in is open from 5:30 PM to 6:00 AM PKT.');
+      return;
+    }
+    setClockBusy(true);
+    try {
+      const res = await attendanceAPI.clockIn();
+      if (res?.success) {
+        setClockInAt(res.data.clockIn);
+        setClockOutAt(null);
+      }
+    } catch (e) {
+      setError(e.message || 'Clock-in did not go through. Try again.');
+      if (e.message?.includes('already clocked in')) await checkClockStatus();
+    } finally {
+      setClockBusy(false);
+    }
+  };
+
+  const handleClockOut = async () => {
+    setError('');
+    if (!isWithinAttendanceWindow()) {
+      setError('Clock-out is open from 5:30 PM to 6:30 AM PKT.');
+      return;
+    }
+    setClockBusy(true);
+    try {
+      const res = await attendanceAPI.clockOut();
+      if (res?.success) setClockOutAt(res.data.clockOut);
+    } catch (e) {
+      setError(e.message || 'Clock-out did not go through. Try again.');
+    } finally {
+      setClockBusy(false);
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -81,8 +159,6 @@ const CloserDashboard = () => {
     setPage(1);
   }, [statusFilter, selectedDate]);
 
-  // /auth/me populates employeeId with the employee's name and ID
-  const profile = typeof user?.employeeId === 'object' ? user.employeeId : null;
   const name = profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : user?.username;
 
   const dayLabel = selectedDate
@@ -98,7 +174,18 @@ const CloserDashboard = () => {
       user={{ name, detail: profile?.employeeId || 'Verifier' }}
       onSignOut={handleLogout}
     >
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+      <ShiftPanel
+        now={now}
+        clockInAt={clockInAt}
+        clockOutAt={clockOutAt}
+        canClockIn={isWithinClockInWindow()}
+        canClockOut={isWithinAttendanceWindow()}
+        busy={clockBusy}
+        onClockIn={handleClockIn}
+        onClockOut={handleClockOut}
+      />
+
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-6 mt-8">
         <div>
           <h1 className="text-[28px] leading-tight font-semibold text-ink">{tab === 'bonus' ? 'Bonus lines' : 'My closes'}</h1>
           <p className="mt-1 text-sm text-muted">

@@ -13,9 +13,9 @@ const Dialog = ({ open, onClose, title, description, children, footer, size = 'm
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <div className={`relative w-full ${size} bg-surface rounded-t-xl sm:rounded-xl shadow-float flex flex-col max-h-[92vh]`}>
+      <div className={`relative w-full ${size} bg-surface rounded-xl shadow-float flex flex-col max-h-[90vh] max-h-[90dvh]`}>
         <div className="flex items-start justify-between gap-4 px-5 sm:px-6 pt-5 pb-4 border-b border-line">
           <div>
             <h2 className="text-lg font-semibold text-ink">{title}</h2>
@@ -31,7 +31,7 @@ const Dialog = ({ open, onClose, title, description, children, footer, size = 'm
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5">{children}</div>
-        {footer && <div className="px-5 sm:px-6 py-4 border-t border-line flex justify-end gap-3">{footer}</div>}
+        {footer && <div className="px-5 sm:px-6 py-4 border-t border-line flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 [&>*]:w-full sm:[&>*]:w-auto">{footer}</div>}
       </div>
     </div>
   );

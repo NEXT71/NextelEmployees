@@ -1202,7 +1202,9 @@ async function getMyBonusLineCloses(req, res, next) {
       .sort((a, b) => (a.date < b.date ? 1 : -1))
       .map((d) => ({
         ...d,
-        bonus: d.date >= VERIFIER_BONUS_START_SHIFT_DATE ? calcVerifierDailyBonus(d.approved) : 0
+        bonus: d.date >= VERIFIER_BONUS_START_SHIFT_DATE ? calcVerifierDailyBonus(d.approved) : 0,
+        // Bonus if pending closes also get approved (shown for now, not yet payable)
+        projectedBonus: d.date >= VERIFIER_BONUS_START_SHIFT_DATE ? calcVerifierDailyBonus(d.approved + d.pending) : 0
       }));
 
     res.json({
@@ -1213,6 +1215,7 @@ async function getMyBonusLineCloses(req, res, next) {
         approved: closes.filter((c) => c.status === 'approved').length,
         pending: closes.filter((c) => c.status === 'pending').length,
         totalBonus: daily.reduce((sum, d) => sum + d.bonus, 0),
+        totalProjectedBonus: daily.reduce((sum, d) => sum + d.projectedBonus, 0),
         daily,
         closes
       }

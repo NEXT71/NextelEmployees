@@ -55,6 +55,11 @@ const BonusLinesTab = () => {
           { label: 'Approved', value: data?.approved ?? '—', tone: 'present' },
           { label: 'Pending', value: data?.pending ?? '—' },
           { label: 'Daily bonus earned', value: data ? formatPKR(data.totalBonus) : '—', tone: 'present' },
+          {
+            label: 'Bonus incl. pending',
+            value: data ? formatPKR(data.totalProjectedBonus ?? data.totalBonus) : '—',
+            hint: 'If pending closes are approved',
+          },
         ]}
       />
 
@@ -92,6 +97,13 @@ const BonusLinesTab = () => {
                 header: 'Daily bonus',
                 align: 'right',
                 render: (row) => (row.bonus ? <span className="text-present">{formatPKR(row.bonus)}</span> : <span className="text-muted">—</span>),
+              },
+              {
+                key: 'projected',
+                header: 'Incl. pending',
+                align: 'right',
+                render: (row) =>
+                  row.projectedBonus ? <span className="text-late">{formatPKR(row.projectedBonus)}</span> : <span className="text-muted">—</span>,
               },
             ]}
           />

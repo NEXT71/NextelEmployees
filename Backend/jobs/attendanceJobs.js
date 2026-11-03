@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import Employee from '../models/Employee.js';
 import Attendance from '../models/Attendance.js';
+import { isOffDay } from '../utils/holidays.js';
 
 /**
  * Mark all active employees as absent shortly before the attendance window opens (5:45 PM PKT)
@@ -25,6 +26,11 @@ export const markAbsentEmployees = async () => {
       0, 0, 0, 0
     ));
     
+    if (isOffDay(attendanceDate)) {
+      console.log(`🏖️ ${attendanceDate.toISOString().split('T')[0]} is an official off day - no absences marked`);
+      return { success: true, count: 0, message: 'Official off day - no absences marked', date: attendanceDate };
+    }
+
     console.log(`📅 Creating absence records for date: ${attendanceDate.toISOString()}`);
     console.log(`⏰ Current PKT Time: ${pktTime.toISOString()} (UTC+5)`);
     

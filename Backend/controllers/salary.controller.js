@@ -8,6 +8,7 @@ import { logAudit, logAuditDelete } from '../utils/audit.js';
 import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcCloserPay } from '../utils/payRules.js';
 import { getSalesShiftDate, getSalesShiftMonthRange, getSalesWeekStart } from '../utils/salesShift.js';
 import { hasCplDid } from '../utils/didCategories.js';
+import { OFF_DAY_DATES } from '../utils/holidays.js';
 
 // Helper: calculate daily tier bonus from sales count
 const calcDailyTierBonus = calcTierBonus;
@@ -134,10 +135,10 @@ export const generateMonthlySalary = async (req, res, next) => {
 
     const totalFines = finesData.reduce((sum, fine) => sum + (fine.amount || 0), 0);
 
-    // Query attendance for the month - count absent days
+    // Query attendance for the month - count absent days (official off days are not deducted)
     const attendanceData = await Attendance.find({
       employee: employeeId,
-      date: { $gte: monthStart, $lte: monthEnd },
+      date: { $gte: monthStart, $lte: monthEnd, $nin: OFF_DAY_DATES },
       status: 'Absent'
     }).select('status');
 

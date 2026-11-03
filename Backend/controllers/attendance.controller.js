@@ -15,23 +15,18 @@ import {
 } from '../middlewares/attendanceTimeAccess.js';
 import { markAbsentEmployees } from '../jobs/attendanceJobs.js';
 import { emitAttendanceUpdate } from '../utils/socket.js';
+import { isOffDay } from '../utils/holidays.js';
 
-const getTodayRange = () => {
-  const now = new Date();
-  const todayUTC = new Date(Date.UTC(
-    now.getUTCFullYear(), 
-    now.getUTCMonth(), 
-    now.getUTCDate(),
+// Attendance date to report status for: the shift date during the shift (after midnight
+// belongs to yesterday's shift, same as clock-in), otherwise today's PKT date
+const getStatusAttendanceDate = () => {
+  const pktTime = getCurrentPKTTime();
+  return getShiftAttendanceDate(pktTime) || new Date(Date.UTC(
+    pktTime.getFullYear(),
+    pktTime.getMonth(),
+    pktTime.getDate(),
     0, 0, 0, 0
   ));
-  
-  const tomorrowUTC = new Date(todayUTC);
-  tomorrowUTC.setUTCDate(tomorrowUTC.getUTCDate() + 1);
-  
-  return { 
-    today: todayUTC, 
-    tomorrow: tomorrowUTC 
-  };
 };
 
 export const clockIn = async (req, res) => {
@@ -371,7 +366,7 @@ const userId = req.user?._id || req.user?.userId;
 export const getAttendanceStatus = async (req, res) => {
   try {
 const userId = req.user?._id || req.user?.userId;
-    const { today, tomorrow } = getTodayRange();
+    const attendanceDate = getStatusAttendanceDate();
 
     // Find employee by user reference
     const employee = await Employee.findOne({ user: userId });
@@ -384,7 +379,7 @@ const userId = req.user?._id || req.user?.userId;
 
     const attendance = await Attendance.findOne({
       employee: employee._id,
-      date: { $gte: today, $lt: tomorrow }
+      date: attendanceDate
     });
 
     res.json({
@@ -475,7 +470,7 @@ export const getAdminAttendance = async (req, res) => {
       .maxTimeMS(30000) // 30 second timeout
 
     // If we're fetching for a specific date, ensure all employees have records
-    if (selectedDate && !isDateRange && nonAdminEmployeeIds.length > 0) {
+    if (selectedDate && !isDateRange && nonAdminEmployeeIds.length > 0 && !isOffDay(selectedDate)) {
       const employeesWithRecords = new Set(attendance.map(record => record.employee._id.toString()));
       const employeesWithoutRecords = nonAdminEmployeeIds.filter(
         empId => !employeesWithRecords.has(empId.toString())
@@ -735,8 +730,9 @@ export const getAdminAttendanceSummary = async (req, res) => {
     const nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);
     matchQuery.employee = { $in: nonAdminEmployeeIds };
 
-    // For daily view, ensure all employees have attendance records
-    if (selectedDate) {
+    // For daily view, ensure all employees have attendance records (except on official off days)
+    const offDay = selectedDate && isOffDay(selectedDate);
+    if (selectedDate && !offDay) {
       const existingRecords = await Attendance.find(matchQuery);
       const employeesWithRecords = new Set(existingRecords.map(record => record.employee.toString()));
       const employeesWithoutRecords = nonAdminEmployees.filter(
@@ -798,7 +794,7 @@ export const getAdminAttendanceSummary = async (req, res) => {
 
     // Ensure Absent count is correct
     const accountedEmployees = summaryObj.Present + summaryObj.Late + summaryObj['Half-day'] + summaryObj.Absent;
-    if (accountedEmployees < totalEmployees) {
+    if (!offDay && accountedEmployees < totalEmployees) {
       summaryObj.Absent = totalEmployees - (summaryObj.Present + summaryObj.Late + summaryObj['Half-day']);
     }
 

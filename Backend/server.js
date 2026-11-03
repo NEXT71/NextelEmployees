@@ -6,7 +6,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
 import errorHandler from './middlewares/errorHandler.js';
 import { ipRestriction } from './middlewares/ipRestriction.js';
@@ -52,12 +53,32 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
+// Rate limits run before the route's auth middleware, so read the user from the token here.
+// The whole office shares one IP, so counting by IP would make every employee share one limit.
+const getTokenUserId = (req) => {
+  const token = req.header('Authorization')?.replace('Bearer ', '') || req.cookies?.token;
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return (decoded.userId || decoded._id)?.toString() || null;
+  } catch {
+    return null;
+  }
+};
+
+const rateLimitKey = (req) => {
+  const userId = getTokenUserId(req);
+  return userId ? `user:${userId}` : `ip:${ipKeyGenerator(req.ip)}`;
+};
+
 // General Rate limiting for all API routes
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  // 100 per logged-in user; unauthenticated requests (login, time window) share the IP's 300
+  max: (req) => (getTokenUserId(req) ? 100 : 300),
+  keyGenerator: rateLimitKey,
   message: {
-    error: 'Too many requests from this IP, please try again later.',
+    error: 'Too many requests, please try again later.',
     retryAfter: 900 // 15 minutes in seconds
   },
   standardHeaders: true,
@@ -72,17 +93,29 @@ const limiter = rateLimit({
 // Handles 30-40 concurrent agents clocking in simultaneously
 const attendanceLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // Allow up to 300 requests per 15 minutes per IP
+  max: 300, // Allow up to 300 requests per 15 minutes per user (per IP if not logged in)
   message: {
     error: 'Too many attendance requests. Please wait before trying again.',
     retryAfter: 900
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req, res) => {
-    // Prefer user ID for rate limiting, fallback to IP for unauthenticated requests
-    return req.user?._id?.toString() || req.ip;
-  }
+  keyGenerator: rateLimitKey
+});
+
+// Failed logins per account per IP, so password guessing stays limited
+// even though the general limit is no longer shared by the whole office
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip)}:${String(req.body?.email || '').toLowerCase()}`,
+  message: {
+    success: false,
+    message: 'Too many failed login attempts. Please try again in 15 minutes.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
 });
 
 app.use('/api/', limiter);
@@ -175,6 +208,7 @@ app.get('/api', (req, res) => {
 });
 
 // Routes
+app.use('/api/auth/login', loginLimiter); // after express.json so the email is available
 app.use('/api/auth', authRouter);
 app.use('/api/employees', employeeRouter);
 app.use('/api/attendance', attendanceRouter);

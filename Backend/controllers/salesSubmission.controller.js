@@ -1,7 +1,7 @@
 import SalesTarget from '../models/SalesTarget.js';
 import Employee from '../models/Employee.js';
 import mongoose from 'mongoose';
-import { normalizeName } from '../utils/employeeMatch.js';
+import { normalizeName, resolveEmployeeByName } from '../utils/employeeMatch.js';
 import { logAudit } from '../utils/audit.js';
 import {
   BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcDailyEarning, calcWeeklyBonus, getTierName,
@@ -70,31 +70,11 @@ const createSubmission = async (req, res, next) => {
         agentName = actualName;
       }
     } else if (agentName) {
-      // Use strict exact-name (case-insensitive) matching only. Avoid fuzzy matches like "ahmedia" -> "ahmed".
-      const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const norm = normalizeName(agentName).trim();
-      const parts = norm.split(/\s+/).filter(Boolean);
-      let exactEmp = null;
-      if (parts.length === 1) {
-        // Match either firstName OR lastName exactly (case-insensitive)
-        exactEmp = await Employee.findOne({
-          $or: [
-            { firstName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } },
-            { lastName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } }
-          ]
-        }).select('_id firstName lastName');
-      } else {
-        const first = escaped(parts[0]);
-        const last = escaped(parts.slice(1).join(' '));
-        exactEmp = await Employee.findOne({
-          firstName: { $regex: new RegExp(`^${first}$`, 'i') },
-          lastName: { $regex: new RegExp(`^${last}$`, 'i') }
-        }).select('_id firstName lastName');
-      }
-
-      if (exactEmp) {
-        resolvedAgent = exactEmp._id;
-        agentName = normalizeName(`${exactEmp.firstName || ''} ${exactEmp.lastName || ''}`);
+      // Exact match first, then the closest Active employee for spelling mistakes (fakhira -> Fakhra)
+      const match = await resolveEmployeeByName(Employee, agentName);
+      if (match) {
+        resolvedAgent = match.employee._id;
+        agentName = normalizeName(`${match.employee.firstName || ''} ${match.employee.lastName || ''}`);
       }
     }
 
@@ -200,28 +180,10 @@ const handleGoogleFormWebhook = async (req, res, next) => {
     }
 
     agentName = normalizeName(agentName);
-    // Strict exact matching: avoid fuzzy corrections that could attribute to similar names
-    const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const normAgent = agentName.trim();
-    const parts = normAgent.split(/\s+/).filter(Boolean);
-    let matchedEmployee = null;
-    if (parts.length === 1) {
-      matchedEmployee = await Employee.findOne({
-        $or: [
-          { firstName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } },
-          { lastName: { $regex: new RegExp(`^${escaped(parts[0])}$`, 'i') } }
-        ]
-      }).select('_id firstName lastName');
-      if (matchedEmployee) agentName = normalizeName(`${matchedEmployee.firstName || ''} ${matchedEmployee.lastName || ''}`);
-    } else if (parts.length > 1) {
-      const first = escaped(parts[0]);
-      const last = escaped(parts.slice(1).join(' '));
-      matchedEmployee = await Employee.findOne({
-        firstName: { $regex: new RegExp(`^${first}$`, 'i') },
-        lastName: { $regex: new RegExp(`^${last}$`, 'i') }
-      }).select('_id firstName lastName');
-      if (matchedEmployee) agentName = normalizeName(`${matchedEmployee.firstName || ''} ${matchedEmployee.lastName || ''}`);
-    }
+    // Exact match first, then the closest Active employee for spelling mistakes
+    const agentMatch = await resolveEmployeeByName(Employee, agentName);
+    const matchedEmployee = agentMatch ? agentMatch.employee : null;
+    if (matchedEmployee) agentName = normalizeName(`${matchedEmployee.firstName || ''} ${matchedEmployee.lastName || ''}`);
 
     // Try to match closer by name to an employee record
     const closerName = normalizeName(closer);

@@ -69,3 +69,68 @@ export const getBestEmployeeNameMatch = async (Employee, rawName) => {
   const maxDistance = Math.max(1, Math.ceil(Math.min(normalizedInput.length, bestMatch.correctedName.length) * 0.45));
   return bestMatch.score <= maxDistance ? bestMatch : null;
 };
+
+// ── Agent name resolution (tolerates spelling mistakes) ─────────────────────
+
+// Sound-alike key: "fakhra" and "fakhira" both become "fkhr"
+const phoneticKey = (token) => {
+  const letters = token.toLowerCase().replace(/[^a-z]/g, '')
+    .replace(/ph/g, 'f').replace(/kh/g, 'k').replace(/gh/g, 'g')
+    .replace(/(.)\1+/g, '$1');
+  return letters.charAt(0) + letters.slice(1).replace(/[aeiouyh]/g, '');
+};
+
+// 0 = same word, higher = worse, Infinity = not the same word
+const scoreToken = (input, candidate) => {
+  const a = input.toLowerCase().replace(/[^a-z]/g, '');
+  const b = candidate.toLowerCase().replace(/[^a-z]/g, '');
+  if (!a || !b) return Infinity;
+  if (a === b) return 0;
+  if (Math.min(a.length, b.length) <= 3) return Infinity; // too short to guess safely
+  const distance = levenshteinDistance(a, b);
+  const allowed = Math.max(a.length, b.length) <= 5 ? 1 : 2;
+  if (distance <= allowed) return distance;
+  if (phoneticKey(a) === phoneticKey(b) && distance <= allowed + 1) return distance;
+  return Infinity;
+};
+
+const scoreEmployee = (tokens, employee) => {
+  const first = employee.firstName || '';
+  const last = (employee.lastName || '').replace(/\s+/g, '');
+  if (tokens.length === 1) {
+    return Math.min(scoreToken(tokens[0], first), scoreToken(tokens[0], last));
+  }
+  return scoreToken(tokens[0], first) + scoreToken(tokens.slice(1).join(''), last);
+};
+
+// Returns { employee, exact } or null. Exact (case-insensitive) matches win; otherwise the
+// single closest Active employee within a small spelling distance. Ties return null so the
+// sale goes to review instead of being credited to the wrong person.
+export const resolveEmployeeByName = async (Employee, rawName) => {
+  const name = normalizeName(rawName);
+  if (!name) return null;
+  const tokens = name.split(' ');
+  const lower = name.toLowerCase();
+
+  const employees = await Employee.find({}, 'firstName lastName status').lean();
+
+  const exact = employees.filter((e) => {
+    const first = normalizeName(e.firstName).toLowerCase();
+    const last = normalizeName(e.lastName).toLowerCase();
+    return tokens.length === 1
+      ? lower === first || lower === last
+      : lower === `${first} ${last}`.trim();
+  });
+  if (exact.length > 0) return { employee: exact[0], exact: true };
+
+  let best = null;
+  let bestScore = Infinity;
+  let tied = false;
+  employees.filter((e) => e.status === 'Active').forEach((e) => {
+    const score = scoreEmployee(tokens, e);
+    if (score < bestScore) { best = e; bestScore = score; tied = false; }
+    else if (score === bestScore && score !== Infinity) tied = true;
+  });
+
+  return best && !tied && bestScore !== Infinity ? { employee: best, exact: false } : null;
+};

@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, X, Trash2, CheckCircle } from 'lucide-react';
 
 const ConfirmDialog = ({ 
@@ -38,7 +39,7 @@ const ConfirmDialog = ({
   const config = types[type] || types.danger;
   const Icon = config.icon;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9998] p-4 animate-fade-in">
       <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl w-full max-w-md mx-auto animate-scale-in">
         {/* Header */}
@@ -92,7 +93,8 @@ const ConfirmDialog = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

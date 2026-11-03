@@ -143,8 +143,8 @@ const EmployeesTab = memo(({ user, onRefresh }) => {
           <p>No employees found</p>
         </div>
       ) : (
-        <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-          <table className="w-full">
+        <div className="bg-surface border border-line rounded-xl overflow-hidden">
+          <div className="overflow-x-auto"><table className="w-full whitespace-nowrap">
             <thead className="bg-white/5">
               <tr>
                 <th className="px-6 py-4 text-left"><input type="checkbox" onChange={toggleSelectAll} /></th>
@@ -191,7 +191,7 @@ const EmployeesTab = memo(({ user, onRefresh }) => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 

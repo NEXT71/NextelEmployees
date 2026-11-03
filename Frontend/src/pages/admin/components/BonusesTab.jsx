@@ -82,7 +82,7 @@ const GiveBonusModal = ({ employees, onClose, onCreated }) => {
           </Select>
         </Field>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Bonus type" htmlFor="gb-type">
             <Select id="gb-type" value={form.type} onChange={update('type')}>
               {BONUS_TYPES.map((t) => (
@@ -255,7 +255,7 @@ const BonusesTab = memo(({ onRefresh }) => {
       {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
       <div className="flex flex-col sm:flex-row flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-0 sm:min-w-[200px] w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" aria-hidden="true" />
           <Input
             type="text"

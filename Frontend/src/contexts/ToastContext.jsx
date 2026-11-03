@@ -33,9 +33,9 @@ export const ToastProvider = ({ children }) => {
       {children}
       
       {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none">
+      <div className="fixed top-4 left-4 right-4 sm:left-auto z-[9999] flex flex-col items-end gap-3 pointer-events-none">
         {toasts.map(toast => (
-          <div key={toast.id} className="pointer-events-auto">
+          <div key={toast.id} className="pointer-events-auto w-full sm:w-auto flex justify-end">
             <Toast
               message={toast.message}
               type={toast.type}

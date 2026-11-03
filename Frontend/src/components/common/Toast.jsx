@@ -24,7 +24,7 @@ const Toast = ({ message, type = 'info', duration = 4000, onClose }) => {
   return (
     <div
       role={type === 'error' ? 'alert' : 'status'}
-      className={`bg-surface border border-line border-l-4 ${config.edge} rounded-lg shadow-float p-4 pr-10 min-w-[300px] max-w-md animate-toast-in relative`}
+      className={`bg-surface border border-line border-l-4 ${config.edge} rounded-lg shadow-float p-4 pr-10 w-full sm:min-w-[300px] max-w-md animate-toast-in relative`}
     >
       <div className="flex items-start gap-3">
         <Icon className={`w-5 h-5 ${config.icon_} flex-shrink-0`} aria-hidden="true" />

@@ -61,7 +61,7 @@ const PerformanceMonitor = ({ enabled = false }) => {
 
       {/* Performance panel */}
       {isVisible && (
-        <div className="fixed bottom-16 right-4 z-50 bg-black/90 backdrop-blur-sm text-white p-4 rounded-lg shadow-xl border border-white/20 min-w-[250px]">
+        <div className="fixed bottom-16 right-4 left-4 sm:left-auto z-50 bg-black/90 backdrop-blur-sm text-white p-4 rounded-lg shadow-xl border border-white/20 sm:min-w-[250px]">
           <div className="flex items-center gap-2 mb-3">
             <Zap className="w-4 h-4 text-yellow-400" />
             <h3 className="font-medium text-sm">Performance Metrics</h3>

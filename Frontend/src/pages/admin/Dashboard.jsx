@@ -751,7 +751,7 @@ const AdminDashboard = () => {
   const activeFines = fines.filter((f) => f.employee && matchesEmployeeStatus(f.employee._id));
 
   const searchBox = (value, onChange, placeholder) => (
-    <div className="relative flex-1 min-w-[220px]">
+    <div className="relative flex-1 min-w-0 sm:min-w-[220px] w-full sm:w-auto">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" aria-hidden="true" />
       <Input type="text" aria-label="Search" placeholder={placeholder} value={value} onChange={onChange} className="pl-9" />
     </div>
@@ -1140,7 +1140,7 @@ const AdminDashboard = () => {
       >
         <div className="space-y-4">
           {error && <Alert>{error}</Alert>}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="First name" htmlFor="edit-first">
               <Input id="edit-first" type="text" value={employeeForm.firstName} onChange={(e) => setEmployeeForm({ ...employeeForm, firstName: e.target.value })} required />
             </Field>
@@ -1151,7 +1151,7 @@ const AdminDashboard = () => {
           <Field label="Email" htmlFor="edit-email">
             <Input id="edit-email" type="email" value={employeeForm.email} onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })} required />
           </Field>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Department" htmlFor="edit-dept">
               <Select id="edit-dept" value={employeeForm.department} onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })} required>
                 {DEPARTMENTS.map(dept => (

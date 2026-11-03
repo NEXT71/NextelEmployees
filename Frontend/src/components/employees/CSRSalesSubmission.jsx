@@ -214,7 +214,7 @@ const CSRSalesSubmission = ({ onBack }) => {
           <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 backdrop-blur">
             <h2 className="text-lg font-semibold text-cyan-400 mb-4">Customer Information</h2>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* First Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">

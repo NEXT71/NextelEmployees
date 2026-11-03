@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, DollarSign, AlertCircle } from 'lucide-react';
 
 const SalarySlipModal = ({ isOpen, onClose, salarySlip }) => {
@@ -48,7 +49,7 @@ const SalarySlipModal = ({ isOpen, onClose, salarySlip }) => {
 
   const breakdown = parseDeductionBreakdown(salarySlip.notes);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         
@@ -73,7 +74,7 @@ const SalarySlipModal = ({ isOpen, onClose, salarySlip }) => {
           {/* Employee Information */}
           <div className="mb-8 pb-6 border-b border-gray-200">
             <h4 className="text-lg font-bold text-gray-900 mb-4">Employee Information</h4>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-600 font-medium">Name</p>
                 <p className="text-lg text-gray-900 font-semibold">
@@ -208,7 +209,8 @@ const SalarySlipModal = ({ isOpen, onClose, salarySlip }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

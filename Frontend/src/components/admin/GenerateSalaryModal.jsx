@@ -126,7 +126,7 @@ const GenerateSalaryModal = ({ isOpen, onClose, onSuccess, employees = [] }) => 
               ))}
             </Select>
           </Field>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Month" htmlFor="gen-month">
               <Select id="gen-month" value={month} onChange={(e) => setMonth(e.target.value)}>
                 {MONTHS.map((name, i) => {

@@ -388,7 +388,7 @@ const AdminAttendance = () => {
               ))}
             </Select>
           </Field>
-          <Field label="Search" htmlFor="att-search" className="flex-1 min-w-[200px]">
+          <Field label="Search" htmlFor="att-search" className="flex-1 min-w-0 sm:min-w-[200px] w-full sm:w-auto">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" aria-hidden="true" />
               <Input

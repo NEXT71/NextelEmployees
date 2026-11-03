@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 // Centered dialog. Closes on Escape and on backdrop click.
@@ -10,9 +11,19 @@ const Dialog = ({ open, onClose, title, description, children, footer, size = 'm
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // Lock page scroll behind the dialog so it stays where the user is looking
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
       <div className={`relative w-full ${size} bg-surface rounded-xl shadow-float flex flex-col max-h-[90vh] max-h-[90dvh]`}>
@@ -33,7 +44,8 @@ const Dialog = ({ open, onClose, title, description, children, footer, size = 'm
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5">{children}</div>
         {footer && <div className="px-5 sm:px-6 py-4 border-t border-line flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 [&>*]:w-full sm:[&>*]:w-auto">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

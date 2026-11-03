@@ -18,7 +18,8 @@ import {
   getMyMonthlyEarnings,
   getMySalesSummary,
   getMyCloses,
-  getMyClosesStats
+  getMyClosesStats,
+  getMyBonusLineCloses
 } from '../controllers/salesSubmission.controller.js';
 import auth from '../middlewares/auth.js';
 import admin from '../middlewares/admin.js';
@@ -139,6 +140,7 @@ router.get('/my/summary', auth, getMySalesSummary);
 // Closer/Verifier endpoints (auth required)
 router.get('/my/closes', auth, getMyCloses);
 router.get('/my/closes/stats', auth, getMyClosesStats);
+router.get('/my/closes/bonus-lines', auth, getMyBonusLineCloses);
 
 // Static routes BEFORE dynamic routes
 router.get('/pending/count', auth, qa, getPendingCount);

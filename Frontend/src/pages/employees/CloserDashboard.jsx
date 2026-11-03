@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, ClipboardCheck } from 'lucide-react';
+import { RefreshCw, ClipboardCheck, Award } from 'lucide-react';
+import BonusLinesTab from './BonusLinesTab';
 import { useAuth } from '../../contexts/AuthContext';
 import { salesTargetAPI } from '../../utils/api';
 import { formatSalesShiftDate, getCurrentSalesShiftDate } from '../../utils/salesShift';
@@ -29,6 +30,7 @@ const CloserDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const [tab, setTab] = useState('closes');
   const [stats, setStats] = useState(null);
   const [closes, setCloses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -89,17 +91,25 @@ const CloserDashboard = () => {
 
   return (
     <AppShell
-      nav={[{ key: 'closes', label: 'My closes', icon: ClipboardCheck, active: true, onClick: () => {} }]}
+      nav={[
+        { key: 'closes', label: 'My closes', icon: ClipboardCheck, active: tab === 'closes', onClick: () => setTab('closes') },
+        { key: 'bonus', label: 'Bonus lines', icon: Award, active: tab === 'bonus', onClick: () => setTab('bonus') },
+      ]}
       user={{ name, detail: profile?.employeeId || 'Verifier' }}
       onSignOut={handleLogout}
     >
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-[28px] leading-tight font-semibold text-ink">My closes</h1>
-          <p className="mt-1 text-sm text-muted">You earn {formatPKR(COMMISSION)} for every close QA approves.</p>
+          <h1 className="text-[28px] leading-tight font-semibold text-ink">{tab === 'bonus' ? 'Bonus lines' : 'My closes'}</h1>
+          <p className="mt-1 text-sm text-muted">
+            {tab === 'bonus'
+              ? 'From 1 Nov: 20 approved closes in a day on these lines pays 1,000, 30 pays 2,000, 40 pays 5,000.'
+              : `You earn ${formatPKR(COMMISSION)} for every close QA approves.`}
+          </p>
         </div>
       </div>
 
+      {tab === 'bonus' ? <BonusLinesTab /> : (
       <div className="space-y-8">
         {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
@@ -178,6 +188,7 @@ const CloserDashboard = () => {
           />
         </Section>
       </div>
+      )}
     </AppShell>
   );
 };

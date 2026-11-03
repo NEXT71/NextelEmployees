@@ -32,3 +32,15 @@ export const calcDailyEarning = (approvedCount) =>
   approvedCount * BASE_PER_SALE + calcTierBonus(approvedCount);
 
 export const calcCloserPay = (closeCount) => closeCount * CLOSER_RATE_PER_CLOSE;
+
+// Verifier daily bonus, highest first. Based on approved closes on the bonus lines
+// (see hasVerifierBonusDid) in one sales shift day.
+export const VERIFIER_BONUS_START_SHIFT_DATE = '2026-11-01';
+export const VERIFIER_DAILY_TIERS = [
+  { minCloses: 40, bonus: 5000 },
+  { minCloses: 30, bonus: 2000 },
+  { minCloses: 20, bonus: 1000 }
+];
+
+export const calcVerifierDailyBonus = (closeCount) =>
+  (VERIFIER_DAILY_TIERS.find((t) => closeCount >= t.minCloses) || { bonus: 0 }).bonus;

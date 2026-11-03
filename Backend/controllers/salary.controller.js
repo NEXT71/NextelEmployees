@@ -5,9 +5,9 @@ import Bonus from '../models/Bonus.js';
 import Attendance from '../models/Attendance.js';
 import SalesTarget from '../models/SalesTarget.js';
 import { logAudit, logAuditDelete } from '../utils/audit.js';
-import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcCloserPay } from '../utils/payRules.js';
+import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcCloserPay, calcVerifierDailyBonus, VERIFIER_BONUS_START_SHIFT_DATE } from '../utils/payRules.js';
 import { getSalesShiftDate, getSalesShiftMonthRange, getSalesWeekStart } from '../utils/salesShift.js';
-import { hasCplDid } from '../utils/didCategories.js';
+import { hasCplDid, hasVerifierBonusDid } from '../utils/didCategories.js';
 import { OFF_DAY_DATES } from '../utils/holidays.js';
 
 // Helper: calculate daily tier bonus from sales count
@@ -90,10 +90,28 @@ export const generateMonthlySalary = async (req, res, next) => {
         });
       }
 
+      // Automatic daily bonus on the bonus lines, from VERIFIER_BONUS_START_SHIFT_DATE onwards
+      const monthCloses = await SalesTarget.find({
+        closerRef: employeeId,
+        status: 'approved',
+        createdAt: { $gte: salesMonthRange.start, $lt: salesMonthRange.end }
+      }).select('createdAt saleDate dids');
+      const closesByDay = {};
+      monthCloses.forEach((close) => {
+        if (!hasVerifierBonusDid(close.dids)) return;
+        const shiftDate = getSalesShiftDate(close.createdAt || close.saleDate);
+        if (!shiftDate || shiftDate < VERIFIER_BONUS_START_SHIFT_DATE) return;
+        closesByDay[shiftDate] = (closesByDay[shiftDate] || 0) + 1;
+      });
+      const verifierBonusDays = Object.values(closesByDay).filter((count) => calcVerifierDailyBonus(count) > 0).length;
+      const verifierDailyBonus = Object.values(closesByDay)
+        .reduce((total, count) => total + calcVerifierDailyBonus(count), 0);
+
       const manualBonus = await sumManualBonuses(employeeId, monthStart, monthEnd);
-      const closerTotal = totalCloserPay + manualBonus.total;
+      const closerTotal = totalCloserPay + verifierDailyBonus + manualBonus.total;
 
       let closerNotes = `Verifier/Closer Pay: ${totalCloserPay} RS (${approvedCloses} approved closes × ${CLOSER_RATE_PER_CLOSE} RS)`;
+      if (verifierDailyBonus > 0) closerNotes += ` | Verifier Daily Bonus: ${verifierDailyBonus} RS (${verifierBonusDays} qualifying days)`;
       if (manualBonus.count > 0) closerNotes += ` | Bonuses: ${manualBonus.total} RS (${manualBonus.count})`;
       const salary = await Salary.create({
         employee: employeeId,
@@ -115,6 +133,7 @@ export const generateMonthlySalary = async (req, res, next) => {
             approvedCloses,
             ratePerClose: CLOSER_RATE_PER_CLOSE,
             totalCloserPay,
+            verifierDailyBonus,
             manualBonuses: manualBonus.total,
             netPay: closerTotal
           }

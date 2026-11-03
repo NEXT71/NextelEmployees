@@ -4,11 +4,12 @@ import mongoose from 'mongoose';
 import { normalizeName } from '../utils/employeeMatch.js';
 import { logAudit } from '../utils/audit.js';
 import {
-  BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcDailyEarning, calcWeeklyBonus, getTierName
+  BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcDailyEarning, calcWeeklyBonus, getTierName,
+  calcVerifierDailyBonus, VERIFIER_BONUS_START_SHIFT_DATE
 } from '../utils/payRules.js';
 import { emitSalesSubmissionUpdate } from '../utils/socket.js';
 import { getSalesShiftDate, getSalesShiftMonthRange, getSalesShiftRange, getSalesWeekStart } from '../utils/salesShift.js';
-import { hasCplDid } from '../utils/didCategories.js';
+import { hasCplDid, hasVerifierBonusDid } from '../utils/didCategories.js';
 
 // Helper: resolve employee._id from a user _id (for consistent agent storage)
 const resolveEmployeeId = async (userId) => {
@@ -1091,7 +1092,8 @@ export {
   getMyMonthlyEarnings,
   getMySalesSummary,
   getMyCloses,
-  getMyClosesStats
+  getMyClosesStats,
+  getMyBonusLineCloses
 };
 
 // ── Closer / Verifier endpoints ──────────────────────────────────────────────
@@ -1189,6 +1191,68 @@ async function getMyClosesStats(req, res, next) {
         totalVerifiers: rankAgg.length,
         selectedMonth: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,
         selectedDay: selectedDay ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}` : null
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Verifier's closes on the bonus lines for a day, week (Sun-Sat) or month, with daily bonus progress
+async function getMyBonusLineCloses(req, res, next) {
+  try {
+    const userId = req.user?.userId || req.user?._id;
+    const emp = await Employee.findOne({ user: userId }).select('_id');
+    if (!emp) return res.status(404).json({ success: false, message: 'Employee not found' });
+
+    const { period = 'day', date = getSalesShiftDate(new Date()) || '', status = 'all' } = req.query;
+
+    let range = null;
+    if (period === 'day') {
+      range = getSalesShiftRange(date);
+    } else if (period === 'week') {
+      const weekStart = getSalesWeekStart(date);
+      const first = weekStart && getSalesShiftRange(weekStart);
+      if (first) range = { start: first.start, end: new Date(first.start.getTime() + 7 * 24 * 60 * 60 * 1000) };
+    } else if (period === 'month') {
+      const m = /^(\d{4})-(\d{2})/.exec(String(date));
+      range = m ? getSalesShiftMonthRange(Number(m[1]), Number(m[2])) : null;
+    } else {
+      return res.status(400).json({ success: false, message: 'period must be day, week or month' });
+    }
+    if (!range) return res.status(400).json({ success: false, message: 'Invalid date' });
+
+    const filter = { closerRef: emp._id, createdAt: { $gte: range.start, $lt: range.end } };
+    if (status !== 'all') filter.status = status;
+
+    const all = await SalesTarget.find(filter).sort({ createdAt: -1 }).limit(5000).lean();
+    const closes = all.filter((c) => hasVerifierBonusDid(c.dids));
+
+    const byDay = {};
+    closes.forEach((c) => {
+      if (!['approved', 'pending'].includes(c.status)) return;
+      const day = getSalesShiftDate(c.createdAt || c.saleDate);
+      if (!day) return;
+      byDay[day] = byDay[day] || { date: day, approved: 0, pending: 0 };
+      byDay[day][c.status] += 1;
+    });
+    const daily = Object.values(byDay)
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .map((d) => ({
+        ...d,
+        bonus: d.date >= VERIFIER_BONUS_START_SHIFT_DATE ? calcVerifierDailyBonus(d.approved) : 0
+      }));
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        total: closes.length,
+        approved: closes.filter((c) => c.status === 'approved').length,
+        pending: closes.filter((c) => c.status === 'pending').length,
+        totalBonus: daily.reduce((sum, d) => sum + d.bonus, 0),
+        daily,
+        closes
       }
     });
   } catch (err) {

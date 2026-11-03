@@ -583,6 +583,11 @@ export const salesTargetAPI = {
     return apiRequest(`/sales-submissions/my/closes${queryString ? `?${queryString}` : ''}`);
   },
 
+  getMyBonusLineCloses: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/sales-submissions/my/closes/bonus-lines${queryString ? `?${queryString}` : ''}`);
+  },
+
   getMyClosesStats: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
     return apiRequest(`/sales-submissions/my/closes/stats${queryString ? `?${queryString}` : ''}`);

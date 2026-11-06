@@ -1060,6 +1060,10 @@ export {
 
 // ── Closer / Verifier endpoints ──────────────────────────────────────────────
 
+// Closes that count toward a verifier's dashboard pay. under_review is only a CSR
+// name mismatch, so the verifier's work still counts.
+const COUNTED_CLOSE_STATUSES = ['approved', 'pending', 'under_review'];
+
 // Get all sales closed by this verifier
 async function getMyCloses(req, res, next) {
   try {
@@ -1125,16 +1129,16 @@ async function getMyClosesStats(req, res, next) {
     }
 
     const [allTimeCount, monthCount, dayCount] = await Promise.all([
-      SalesTarget.countDocuments({ closerRef: empId, status: { $in: ['approved', 'pending'] } }),
-      SalesTarget.countDocuments({ closerRef: empId, status: { $in: ['approved', 'pending'] }, createdAt: { $gte: monthRange.start, $lt: monthRange.end } }),
+      SalesTarget.countDocuments({ closerRef: empId, status: { $in: COUNTED_CLOSE_STATUSES } }),
+      SalesTarget.countDocuments({ closerRef: empId, status: { $in: COUNTED_CLOSE_STATUSES }, createdAt: { $gte: monthRange.start, $lt: monthRange.end } }),
       dayRange
-        ? SalesTarget.countDocuments({ closerRef: empId, status: { $in: ['approved', 'pending'] }, createdAt: { $gte: dayRange.start, $lt: dayRange.end } })
+        ? SalesTarget.countDocuments({ closerRef: empId, status: { $in: COUNTED_CLOSE_STATUSES }, createdAt: { $gte: dayRange.start, $lt: dayRange.end } })
         : Promise.resolve(0)
     ]);
 
     // Compute rank: count how many closers have more counted closes than me this month
     const rankAgg = await SalesTarget.aggregate([
-      { $match: { status: { $in: ['approved', 'pending'] }, closerRef: { $ne: null }, createdAt: { $gte: monthRange.start, $lt: monthRange.end } } },
+      { $match: { status: { $in: COUNTED_CLOSE_STATUSES }, closerRef: { $ne: null }, createdAt: { $gte: monthRange.start, $lt: monthRange.end } } },
       { $group: { _id: '$closerRef', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
@@ -1192,11 +1196,12 @@ async function getMyBonusLineCloses(req, res, next) {
 
     const byDay = {};
     closes.forEach((c) => {
-      if (!['approved', 'pending'].includes(c.status)) return;
+      if (!COUNTED_CLOSE_STATUSES.includes(c.status)) return;
       const day = getSalesShiftDate(c.createdAt || c.saleDate);
       if (!day) return;
       byDay[day] = byDay[day] || { date: day, approved: 0, pending: 0 };
-      byDay[day][c.status] += 1;
+      // under_review counts as pending (awaiting QA once the agent is linked)
+      byDay[day][c.status === 'approved' ? 'approved' : 'pending'] += 1;
     });
     const daily = Object.values(byDay)
       .sort((a, b) => (a.date < b.date ? 1 : -1))
@@ -1213,7 +1218,7 @@ async function getMyBonusLineCloses(req, res, next) {
         period,
         total: closes.length,
         approved: closes.filter((c) => c.status === 'approved').length,
-        pending: closes.filter((c) => c.status === 'pending').length,
+        pending: closes.filter((c) => ['pending', 'under_review'].includes(c.status)).length,
         totalBonus: daily.reduce((sum, d) => sum + d.bonus, 0),
         totalProjectedBonus: daily.reduce((sum, d) => sum + d.projectedBonus, 0),
         daily,

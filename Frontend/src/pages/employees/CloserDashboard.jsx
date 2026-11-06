@@ -27,6 +27,7 @@ const statusBadge = {
   approved: <Badge tone="present">Approved</Badge>,
   pending: <Badge tone="late">Pending</Badge>,
   disapproved: <Badge tone="absent">Rejected</Badge>,
+  under_review: <Badge tone="late">Under review</Badge>,
 };
 
 const CloserDashboard = () => {
@@ -232,6 +233,7 @@ const CloserDashboard = () => {
                 <option value="all">All statuses</option>
                 <option value="approved">Approved</option>
                 <option value="pending">Pending</option>
+                <option value="under_review">Under review</option>
                 <option value="disapproved">Rejected</option>
               </Select>
               <Button variant="ghost" size="icon" icon={RefreshCw} onClick={loadData} disabled={loading} aria-label="Refresh" />
@@ -242,7 +244,7 @@ const CloserDashboard = () => {
             loading={loading}
             empty={
               statusFilter !== 'all'
-                ? `No ${statusFilter === 'disapproved' ? 'rejected' : statusFilter} closes on ${dayLabel}.`
+                ? `No ${statusFilter === 'disapproved' ? 'rejected' : statusFilter.replace('_', '-')} closes on ${dayLabel}.`
                 : `No closes on ${dayLabel}. Pick another date to see earlier closes.`
             }
             rows={closes}

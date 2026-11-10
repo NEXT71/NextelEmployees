@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { RefreshCw, ClipboardCheck, Award } from 'lucide-react';
 import BonusLinesTab from './BonusLinesTab';
 import { useAuth } from '../../contexts/AuthContext';
-import { salesTargetAPI, attendanceAPI } from '../../utils/api';
+import { salesTargetAPI, attendanceAPI, fineAPI } from '../../utils/api';
 import { isWithinAttendanceWindow, isWithinClockInWindow } from '../../utils/attendanceTimeAccess';
 import { subscribeSocket } from '../../utils/socket';
 import ShiftPanel from '../../components/employees/ShiftPanel';
@@ -43,6 +43,9 @@ const CloserDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(getCurrentSalesShiftDate);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10 });
+  const [fines, setFines] = useState([]);
+  const [loadingFines, setLoadingFines] = useState(true);
+  const [finesError, setFinesError] = useState(null);
 
   const [clockInAt, setClockInAt] = useState(null);
   const [clockOutAt, setClockOutAt] = useState(null);
@@ -151,6 +154,25 @@ const CloserDashboard = () => {
     loadData();
   }, [loadData]);
 
+  const loadFines = useCallback(async (bypassCache = false) => {
+    setLoadingFines(true);
+    setFinesError(null);
+    try {
+      const res = await fineAPI.getEmployeeFines({ bypassCache });
+      const data = res?.data || res;
+      setFines(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setFinesError(e.message || 'Could not load fines.');
+      setFines([]);
+    } finally {
+      setLoadingFines(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFines();
+  }, [loadFines]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -165,6 +187,13 @@ const CloserDashboard = () => {
   const dayLabel = selectedDate
     ? new Date(`${selectedDate}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' })
     : 'Selected day';
+
+  // Approved fines in the selected month are deducted from salary (payroll uses the calendar month, UTC)
+  const selectedMonth = (selectedDate || getCurrentSalesShiftDate()).slice(0, 7);
+  const monthFines = fines.filter((f) => f.date && new Date(f.date).toISOString().slice(0, 7) === selectedMonth);
+  const approvedFinesTotal = monthFines.filter((f) => f.approved).reduce((sum, f) => sum + (f.amount || 0), 0);
+  const pendingFinesCount = monthFines.filter((f) => !f.approved).length;
+  const netThisMonth = typeof stats?.earningsThisMonth === 'number' ? stats.earningsThisMonth - approvedFinesTotal : null;
 
   return (
     <AppShell
@@ -203,7 +232,14 @@ const CloserDashboard = () => {
 
         <StatGroup
           items={[
-            { label: 'Earned this month', value: fmtCurrency(stats?.earningsThisMonth), tone: 'present' },
+            {
+              label: 'Earned this month',
+              value: fmtCurrency(netThisMonth),
+              tone: 'present',
+              hint: approvedFinesTotal > 0
+                ? `${fmtCurrency(stats?.earningsThisMonth)} before ${formatPKR(approvedFinesTotal)} fines`
+                : pendingFinesCount > 0 ? `${pendingFinesCount} ${pendingFinesCount === 1 ? 'fine' : 'fines'} pending review` : undefined,
+            },
             { label: 'Approved this month', value: stats?.approvedThisMonth ?? '—' },
             {
               label: 'Rank',
@@ -274,6 +310,38 @@ const CloserDashboard = () => {
             total={pagination.total}
             noun="closes"
             onPageChange={setPage}
+          />
+        </Section>
+
+        <Section
+          title="Fines"
+          actions={<Button variant="ghost" size="icon" icon={RefreshCw} onClick={() => loadFines(true)} disabled={loadingFines} aria-label="Refresh fines" />}
+        >
+          <DataTable
+            loading={loadingFines}
+            error={finesError}
+            onRetry={() => loadFines(true)}
+            empty="No fines. Keep it that way."
+            rows={fines.slice(0, 10)}
+            columns={[
+              { key: 'date', header: 'Date', render: (f) => (f.date ? new Date(f.date).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }) : '—') },
+              {
+                key: 'type',
+                header: 'Reason',
+                render: (f) => (
+                  <span className="block max-w-[360px] truncate" title={f.description || f.type}>
+                    {f.type}
+                    {f.description && <span className="text-muted"> — {f.description}</span>}
+                  </span>
+                ),
+              },
+              { key: 'amount', header: 'Amount', align: 'right', render: (f) => formatPKR(f.amount) },
+              {
+                key: 'status',
+                header: 'Status',
+                render: (f) => <Badge tone={f.approved ? 'absent' : 'late'}>{f.approved ? 'Approved' : 'Pending'}</Badge>,
+              },
+            ]}
           />
         </Section>
       </div>

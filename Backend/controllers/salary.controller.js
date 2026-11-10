@@ -71,6 +71,15 @@ export const generateMonthlySalary = async (req, res, next) => {
       });
     }
 
+    // Query approved fines for the month and sum amounts (applies to closers and regular employees)
+    const finesData = await Fine.find({
+      employee: employeeId,
+      date: { $gte: monthStart, $lte: monthEnd },
+      approved: true
+    }).select('amount');
+
+    const totalFines = finesData.reduce((sum, fine) => sum + (fine.amount || 0), 0);
+
     // ── Closer (Verifier) salary path ──────────────────────────────────────
     if (employee.isCloser) {
       const approvedCloses = await SalesTarget.countDocuments({
@@ -113,12 +122,13 @@ export const generateMonthlySalary = async (req, res, next) => {
       let closerNotes = `Verifier/Closer Pay: ${totalCloserPay} RS (${approvedCloses} approved closes × ${CLOSER_RATE_PER_CLOSE} RS)`;
       if (verifierDailyBonus > 0) closerNotes += ` | Verifier Daily Bonus: ${verifierDailyBonus} RS (${verifierBonusDays} qualifying days)`;
       if (manualBonus.count > 0) closerNotes += ` | Bonuses: ${manualBonus.total} RS (${manualBonus.count})`;
+      if (totalFines > 0) closerNotes += ` | Fines: ${totalFines} RS (${finesData.length})`;
       const salary = await Salary.create({
         employee: employeeId,
         month: monthStart,
         baseSalary: 0,
         bonuses: closerTotal,
-        deductions: 0,
+        deductions: totalFines,
         notes: closerNotes
       });
 
@@ -135,7 +145,8 @@ export const generateMonthlySalary = async (req, res, next) => {
             totalCloserPay,
             verifierDailyBonus,
             manualBonuses: manualBonus.total,
-            netPay: closerTotal
+            fines: totalFines,
+            netPay: closerTotal - totalFines
           }
         }
       });
@@ -143,16 +154,6 @@ export const generateMonthlySalary = async (req, res, next) => {
     // ── End closer salary path ─────────────────────────────────────────────
 
     const baseSalary = employee.baseSalary || 0;
-
-    // Calculate date range for the target month
-    // Query fines for the month and sum amounts
-    const finesData = await Fine.find({
-      employee: employeeId,
-      date: { $gte: monthStart, $lte: monthEnd },
-      approved: true
-    }).select('amount');
-
-    const totalFines = finesData.reduce((sum, fine) => sum + (fine.amount || 0), 0);
 
     // Query attendance for the month - count absent days (official off days are not deducted)
     const attendanceData = await Attendance.find({

@@ -240,7 +240,16 @@ const CloserDashboard = () => {
                 ? `${fmtCurrency(stats?.earningsThisMonth)} before ${formatPKR(approvedFinesTotal)} fines`
                 : pendingFinesCount > 0 ? `${pendingFinesCount} ${pendingFinesCount === 1 ? 'fine' : 'fines'} pending review` : undefined,
             },
-            { label: 'Approved this month', value: stats?.approvedThisMonth ?? '—' },
+            {
+              label: 'Approved this month',
+              value: stats?.approvedThisMonth ?? '—',
+              hint: `${fmtCurrency(stats?.earningsThisMonth)} earned`,
+            },
+            {
+              label: 'Total this month',
+              value: stats?.totalThisMonth ?? '—',
+              hint: `${fmtCurrency(stats?.totalAmountThisMonth)}, ${stats?.pendingThisMonth ?? 0} pending`,
+            },
             {
               label: 'Rank',
               value: stats?.rank ? `#${stats.rank}` : '—',
@@ -250,6 +259,11 @@ const CloserDashboard = () => {
               label: `Approved on ${dayLabel}`,
               value: stats?.approvedThisDay ?? '—',
               hint: `${fmtCurrency(stats?.earningsThisDay)} earned`,
+            },
+            {
+              label: `Total on ${dayLabel}`,
+              value: stats?.totalThisDay ?? '—',
+              hint: `${fmtCurrency(stats?.totalAmountThisDay)}, ${stats?.pendingThisDay ?? 0} pending`,
             },
           ]}
         />

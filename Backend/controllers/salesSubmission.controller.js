@@ -1128,12 +1128,19 @@ async function getMyClosesStats(req, res, next) {
       }
     }
 
-    const [allTimeCount, monthCount, dayCount] = await Promise.all([
-      SalesTarget.countDocuments({ closerRef: empId, status: { $in: COUNTED_CLOSE_STATUSES } }),
-      SalesTarget.countDocuments({ closerRef: empId, status: { $in: COUNTED_CLOSE_STATUSES }, createdAt: { $gte: monthRange.start, $lt: monthRange.end } }),
-      dayRange
-        ? SalesTarget.countDocuments({ closerRef: empId, status: { $in: COUNTED_CLOSE_STATUSES }, createdAt: { $gte: dayRange.start, $lt: dayRange.end } })
-        : Promise.resolve(0)
+    // Approved = QA-approved only (paid). Total = approved + pending/under_review.
+    const countFor = (statuses, range) => SalesTarget.countDocuments({
+      closerRef: empId,
+      status: { $in: statuses },
+      ...(range ? { createdAt: { $gte: range.start, $lt: range.end } } : {})
+    });
+    const [allTimeCount, monthCount, dayCount, allTimeTotal, monthTotal, dayTotal] = await Promise.all([
+      countFor(['approved']),
+      countFor(['approved'], monthRange),
+      dayRange ? countFor(['approved'], dayRange) : Promise.resolve(0),
+      countFor(COUNTED_CLOSE_STATUSES),
+      countFor(COUNTED_CLOSE_STATUSES, monthRange),
+      dayRange ? countFor(COUNTED_CLOSE_STATUSES, dayRange) : Promise.resolve(0)
     ]);
 
     // Compute rank: count how many closers have more counted closes than me this month
@@ -1153,6 +1160,13 @@ async function getMyClosesStats(req, res, next) {
         earningsThisMonth: monthCount * CLOSER_RATE_PER_CLOSE,
         earningsThisDay: dayCount * CLOSER_RATE_PER_CLOSE,
         earningsAllTime: allTimeCount * CLOSER_RATE_PER_CLOSE,
+        totalAllTime: allTimeTotal,
+        totalThisMonth: monthTotal,
+        totalThisDay: dayTotal,
+        pendingThisMonth: monthTotal - monthCount,
+        pendingThisDay: dayTotal - dayCount,
+        totalAmountThisMonth: monthTotal * CLOSER_RATE_PER_CLOSE,
+        totalAmountThisDay: dayTotal * CLOSER_RATE_PER_CLOSE,
         rank: rank || null,
         totalVerifiers: rankAgg.length,
         selectedMonth: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,

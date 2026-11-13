@@ -154,6 +154,13 @@ const makeApiCall = async (endpoint, options = {}, cacheKey) => {
       throw new Error('Server returned an empty response');
     }
 
+    // A successful change makes cached lists stale (an employee edit also changes fines,
+    // attendance and salary rows that show the name), so drop every cached data list.
+    // The login profile and admin list are unaffected and stay cached.
+    if (options.method && options.method !== 'GET') {
+      apiCache.deleteWhere((key) => !key.includes('/auth/me') && !key.includes('/available-admins'));
+    }
+
     // Cache successful GET responses (but not if bypassCache was set to avoid caching stale data)
     if (shouldCache(endpoint, options.method) && cacheKey && !options.bypassCache) {
       // Set cache TTL based on endpoint type

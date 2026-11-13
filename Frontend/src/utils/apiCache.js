@@ -31,6 +31,13 @@ class APICache {
     this.timestamps.delete(key);
   }
 
+  // Clear every key matching predicate(key)
+  deleteWhere(predicate) {
+    for (const key of [...this.cache.keys()]) {
+      if (predicate(key)) this.delete(key);
+    }
+  }
+
   // Clear all cache
   clear() {
     this.cache.clear();

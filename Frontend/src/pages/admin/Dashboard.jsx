@@ -21,6 +21,7 @@ import { Tabs } from '../../components/ui/Tabs';
 import { Field, Input, Select, Textarea } from '../../components/ui/Field';
 import { FINE_TYPES, DEPARTMENTS } from '../../utils/constants';
 import { employeeAPI, fineAPI, salaryAPI } from '../../utils/api';
+import { apiCache } from '../../utils/apiCache';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Pencil, UserX, Paperclip, ReceiptText, Search, Check, Trash2,
@@ -76,9 +77,6 @@ const AdminDashboard = () => {
   const [employees, setEmployees] = useState([]);
   const [fines, setFines] = useState([]);
   const [salaries, setSalaries] = useState([]);
-  // Backend summary still loads, but its totals include inactive employees, so the
-  // figures shown are computed from active employees instead
-  const [, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [salesSubTab, setSalesSubTab] = useState('pending');
 
@@ -145,144 +143,64 @@ const AdminDashboard = () => {
     }
   });
 
-  // Calculate summary from current data
-  const calculateSummary = useCallback((empList, fineList) => {
-    const employeesCount = empList.length;
-    const activeCount = empList.filter(emp => emp.status === 'Active').length;
-    const totalFinesCount = fineList.length;
-    const totalFineAmount = fineList.reduce((sum, fine) => sum + (fine.amount || 0), 0);
-    
-    setSummary({
-      totalEmployees: employeesCount,
-      activeEmployees: activeCount,
-      totalFinesCount,
-      totalFineAmount
-    });
-  }, []);
+  // Hide the signed-in user and admin accounts from the staff list
+  const visibleEmployees = useCallback((list) => (list || []).filter((employee) => (
+    employee.email !== user?.email &&
+    employee.user?._id !== user?._id &&
+    employee.user?.role !== 'admin' &&
+    employee.user?.username !== user?.username
+  )), [user]);
 
-  // Refresh summary stats - no dependencies on employees/fines to avoid loops
-  const refreshSummary = useCallback(async (empList, fineList) => {
-    try {
-      const summaryResponse = await fineAPI.getEmployeeSummary();
-      setSummary(summaryResponse.data || {});
-    } catch (summaryErr) {
-      console.warn('Summary endpoint not available:', summaryErr);
-      // Use provided data or fall back to current state
-      calculateSummary(empList, fineList);
-    }
-  }, [calculateSummary]);
-
-  // Refresh all dashboard data with cache bypass
-  const refreshDashboard = async () => {
+  // Load employees, fines and salaries in parallel. Runs on sign-in and on the Refresh
+  // button only; changes made on this page patch local state instead of reloading.
+  const loadAll = useCallback(async ({ fresh = false } = {}) => {
     try {
       setLoading(true);
       setError('');
-
-      // Get all employees (bypass cache for fresh data)
-      const employeesResponse = await employeeAPI.getAllEmployees({ bypassCache: true });
-      const allEmployees = employeesResponse.data || [];
-      
-      // Filter out the current user
-      const filteredEmployees = allEmployees.filter(employee => {
-        return (
-          employee.email !== user?.email &&
-          employee.user?._id !== user?._id &&
-          employee.user?.role !== 'admin' &&
-          employee.user?.username !== user?.username
-        );
-      });
-      
-      setEmployees(filteredEmployees);
-
-      // Get all fines (bypass cache for fresh data)
-      const finesResponse = await fineAPI.getAllFines({ bypassCache: true });
+      const opts = fresh ? { bypassCache: true } : {};
+      // getAllSalaries takes query params, not options, so drop its cache entry directly
+      if (fresh) apiCache.deleteWhere((key) => key.includes('/salaries'));
+      const [employeesResponse, finesResponse, salariesResponse] = await Promise.all([
+        employeeAPI.getAllEmployees(opts),
+        fineAPI.getAllFines(opts),
+        salaryAPI.getAllSalaries().catch((salaryErr) => {
+          console.warn('Salary data not available:', salaryErr);
+          return { data: [] };
+        })
+      ]);
+      setEmployees(visibleEmployees(employeesResponse.data));
       setFines(finesResponse.data || []);
-
-      // Get summary stats (bypass cache for fresh data)
-      try {
-        const summaryResponse = await fineAPI.getEmployeeSummary({ bypassCache: true });
-        setSummary(summaryResponse.data || {});
-      } catch (err) {
-        calculateSummary(filteredEmployees, finesResponse.data || []);
-      }
-
+      setSalaries(salariesResponse.data || []);
     } catch (err) {
-      console.error("Error refreshing dashboard:", err);
-      if (err.message.includes('401') || err.message.includes('Unauthorized')) {
+      console.error('Error loading dashboard:', err);
+      if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
         localStorage.removeItem('token');
         navigate('/');
       } else {
-        setError('Failed to refresh dashboard data');
+        setError('Could not load the dashboard. Try Refresh.');
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [visibleEmployees, navigate]);
 
-  // Fetch all data on component mount and tab change
+  const refreshDashboard = () => loadAll({ fresh: true });
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        // Get all employees (backend should filter out admins)
-        const employeesResponse = await employeeAPI.getAllEmployees();
-        const allEmployees = employeesResponse.data || [];
-        
-        // Additional frontend filtering to ensure admin doesn't see themselves
-        const filteredEmployees = allEmployees.filter(employee => {
-          return (
-            // Different email
-            employee.email !== user?.email &&
-            // Different user ID if linked
-            employee.user?._id !== user?._id &&
-            // Not admin role if populated
-            employee.user?.role !== 'admin' &&
-            // Different username if available
-            employee.user?.username !== user?.username
-          );
-        });
-        
-        setEmployees(filteredEmployees);
+    if (user) loadAll();
+  }, [user, loadAll]);
 
-        // Get all fines
-        const finesResponse = await fineAPI.getAllFines();
-        const allFines = finesResponse.data || [];
-        setFines(allFines);
-
-        // Get all salaries
-        try {
-          const salariesResponse = await salaryAPI.getAllSalaries();
-          setSalaries(salariesResponse.data || []);
-        } catch (salaryErr) {
-          console.warn('Salary data not available:', salaryErr);
-          setSalaries([]);
-        }
-
-        // Get summary stats with the fetched data
-        try {
-          const summaryResponse = await fineAPI.getEmployeeSummary();
-          setSummary(summaryResponse.data || {});
-        } catch (err) {
-          // Fallback: calculate from fetched data
-          calculateSummary(filteredEmployees, allFines);
-        }
-
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        if (err.message.includes('401') || err.message.includes('Unauthorized')) {
-          localStorage.removeItem('token');
-          navigate('/');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    if (user) {
-      fetchData();
-    }
-  }, [activeTab, user, navigate, calculateSummary]);
+  // Merge a server-returned employee into local state (keeps populated user fields the
+  // response may lack) and update the name shown on that employee's fines.
+  const patchEmployee = (updated) => {
+    if (!updated?._id) return;
+    setEmployees((prev) => prev.map((e) => (e._id === updated._id
+      ? { ...e, ...updated, user: updated.user && typeof updated.user === 'object' ? { ...e.user, ...updated.user } : e.user }
+      : e)));
+    setFines((prev) => prev.map((f) => (f.employee?._id === updated._id
+      ? { ...f, employee: { ...f.employee, firstName: updated.firstName, lastName: updated.lastName, employeeId: updated.employeeId, department: updated.department } }
+      : f)));
+  };
 
   // View Employee Details
   const viewEmployeeDetails = async (employee) => {
@@ -371,15 +289,9 @@ const AdminDashboard = () => {
       });
 
       if (response.success) {
-        // Refresh all relevant data
-        const [employeesRes, finesRes] = await Promise.all([
-          employeeAPI.getAllEmployees(),
-          fineAPI.getAllFines()
-        ]);
-        
-        setEmployees(employeesRes.data);
-        setFines(finesRes.data);
-        refreshSummary(); // Refresh summary stats
+        // The response has the employee as an id; attach the details the table shows
+        const { _id, firstName, lastName, employeeId, department } = selectedEmployee;
+        setFines((prev) => [{ ...response.data, employee: { _id, firstName, lastName, employeeId, department } }, ...prev]);
         closeFineModal();
       }
     } catch (err) {
@@ -430,10 +342,7 @@ const AdminDashboard = () => {
       const response = await employeeAPI.updateEmployee(employeeToEdit._id, employeeForm);
 
       if (response.success) {
-        // Refresh employees list
-        const employeesResponse = await employeeAPI.getAllEmployees();
-        setEmployees(employeesResponse.data);
-        refreshSummary(); // Refresh summary stats
+        patchEmployee(response.data);
         closeEditModal();
       }
     } catch (err) {
@@ -456,9 +365,7 @@ const AdminDashboard = () => {
         : await employeeAPI.activateEmployee(employee._id);
 
       if (response.success) {
-        const employeesResponse = await employeeAPI.getAllEmployees();
-        setEmployees(employeesResponse.data);
-        refreshSummary(); // Refresh summary stats
+        patchEmployee(response.data || { ...employee, status: deactivating ? 'Inactive' : 'Active' });
       }
     } catch (err) {
       setError(err.message || `Failed to ${deactivating ? 'deactivate' : 'reactivate'} employee`);
@@ -471,10 +378,10 @@ const AdminDashboard = () => {
       const response = await fineAPI.approveFine(fineId);
 
       if (response.success) {
-        // Refresh fines data
-        const finesResponse = await fineAPI.getAllFines();
-        setFines(finesResponse.data);
-        refreshSummary(); // Refresh summary stats
+        const { approved, approvedAt, approvedBy } = response.data || {};
+        setFines((prev) => prev.map((f) => (f._id === fineId
+          ? { ...f, approved: approved ?? true, approvedAt, approvedBy: approvedBy ?? f.approvedBy }
+          : f)));
       }
     } catch (err) {
       setError(err.message || 'Failed to approve fine');
@@ -486,10 +393,7 @@ const AdminDashboard = () => {
       const response = await fineAPI.deleteFine(fineId);
 
       if (response.success) {
-        // Refresh fines data
-        const finesResponse = await fineAPI.getAllFines();
-        setFines(finesResponse.data);
-        refreshSummary(); // Refresh summary stats
+        setFines((prev) => prev.filter((f) => f._id !== fineId));
       }
     } catch (err) {
       setError(err.message || 'Failed to delete fine');
@@ -502,10 +406,8 @@ const AdminDashboard = () => {
       const response = await fineAPI.applyBulkFine(bulkFineData);
 
       if (response.success) {
-        // Refresh fines data
-        const finesResponse = await fineAPI.getAllFines();
-        setFines(finesResponse.data);
-        refreshSummary();
+        // The response holds the new fines, already populated with employee details
+        setFines((prev) => [...(response.data || []), ...prev]);
         setShowBulkFineModal(false);
         alert(`Successfully applied fine to ${bulkFineData.employeeIds.length} employees`);
       }

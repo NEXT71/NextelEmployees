@@ -113,9 +113,10 @@ const AdminAttendance = () => {
   const [editTarget, setEditTarget] = useState(null); // { record, field: 'clockIn' | 'clockOut' }
 
   // Core fetch attendance function
-  const fetchAttendanceData = async () => {
+  // silent: refresh in the background without swapping the table for a loading state
+  const fetchAttendanceData = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const token = localStorage.getItem('token');
 
       const params = new URLSearchParams();
@@ -192,12 +193,17 @@ const AdminAttendance = () => {
       );
 
       if (response.data.success) {
-        // Update local state
-        setAttendance(prev => prev.map(record =>
-          record._id === id ? { ...record, ...updates } : record
-        ));
-        // Refresh data
-        fetchAttendanceData();
+        // Use the server's record (it recalculates status from the times); fall back to the sent fields
+        const saved = response.data.data;
+        const merge = (record) => (record._id === id
+          ? { ...record, ...updates, ...(saved && typeof saved === 'object' ? saved : {}), employee: saved?.employee?.firstName ? saved.employee : record.employee }
+          : record);
+        // Date-range views hold groups of records; daily view is a flat list
+        setAttendance((prev) => prev.map((item) => (Array.isArray(item.records)
+          ? { ...item, records: item.records.map(merge) }
+          : merge(item))));
+        // Summary counts may have changed: refresh quietly in the background
+        fetchAttendanceData({ silent: true });
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Could not update the record. Try again.');

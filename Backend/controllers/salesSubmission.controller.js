@@ -1075,11 +1075,17 @@ async function getMyCloses(req, res, next) {
     const emp = await Employee.findOne({ user: userId }).select('_id');
     if (!emp) return res.status(404).json({ success: false, message: 'Employee not found' });
 
-    const { status, limit = 100, page = 1, date } = req.query;
+    const { status, limit = 100, page = 1, date, month } = req.query;
     const filter = { closerRef: emp._id };
     if (status && status !== 'all') filter.status = status;
 
-    if (date) {
+    // month=YYYY-MM lists the whole sales-shift month; takes precedence over date
+    const monthMatch = typeof month === 'string' && month.match(/^(\d{4})-(\d{2})$/);
+    if (monthMatch) {
+      const monthRange = getSalesShiftMonthRange(Number(monthMatch[1]), Number(monthMatch[2]));
+      if (!monthRange) return res.status(400).json({ success: false, message: 'Invalid month' });
+      filter.createdAt = { $gte: monthRange.start, $lt: monthRange.end };
+    } else if (date) {
       const shiftRange = getSalesShiftRange(date);
       if (shiftRange) {
         filter.createdAt = { $gte: shiftRange.start, $lt: shiftRange.end };

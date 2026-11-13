@@ -23,6 +23,9 @@ const COMMISSION = 200; // PKR per approved close
 
 const fmtCurrency = (n) => (typeof n === 'number' ? formatPKR(n) : '—');
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const YEARS = [2026, 2025];
+
 const statusBadge = {
   approved: <Badge tone="present">Approved</Badge>,
   pending: <Badge tone="late">Pending</Badge>,
@@ -41,6 +44,8 @@ const CloserDashboard = () => {
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDate, setSelectedDate] = useState(getCurrentSalesShiftDate);
+  // 'day' lists closes for selectedDate; 'month' lists the whole month of selectedDate
+  const [viewMode, setViewMode] = useState('day');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10 });
   const [fines, setFines] = useState([]);
@@ -132,7 +137,11 @@ const CloserDashboard = () => {
           year: selectedDate ? Number(selectedDate.slice(0, 4)) : undefined,
           day: selectedDate ? Number(selectedDate.slice(8, 10)) : undefined
         }),
-        salesTargetAPI.getMyCloses({ status: statusFilter, date: selectedDate, page, limit: 10 })
+        salesTargetAPI.getMyCloses(
+          viewMode === 'month'
+            ? { status: statusFilter, month: selectedDate.slice(0, 7), page, limit: 10 }
+            : { status: statusFilter, date: selectedDate, page, limit: 10 }
+        )
       ]);
       if (statsRes?.data) {
         setStats(statsRes.data);
@@ -148,7 +157,7 @@ const CloserDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, selectedDate, page]);
+  }, [statusFilter, selectedDate, viewMode, page]);
 
   useEffect(() => {
     loadData();
@@ -180,7 +189,18 @@ const CloserDashboard = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, selectedDate]);
+  }, [statusFilter, selectedDate, viewMode]);
+
+  // Month/year pickers keep the day where possible (clamped to the month's length)
+  const changeMonth = (year, month) => {
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const day = Math.min(Number(selectedDate.slice(8, 10)) || 1, lastDay);
+    setSelectedDate(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+  };
+  const selYear = Number(selectedDate.slice(0, 4));
+  const selMonthNum = Number(selectedDate.slice(5, 7));
+  const monthLabel = `${MONTH_NAMES[selMonthNum - 1] || ''} ${selYear}`;
+  const periodLabel = viewMode === 'month' ? monthLabel : null;
 
   const name = profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : user?.username;
 
@@ -232,61 +252,92 @@ const CloserDashboard = () => {
       <div className="space-y-8">
         {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
-        <StatGroup
-          items={[
-            {
-              label: 'Earned this month',
-              value: fmtCurrency(netThisMonth),
-              tone: 'present',
-              hint: approvedFinesTotal > 0
-                ? `${fmtCurrency(stats?.earningsThisMonth)} before ${formatPKR(approvedFinesTotal)} fines`
-                : pendingFinesCount > 0 ? `${pendingFinesCount} ${pendingFinesCount === 1 ? 'fine' : 'fines'} pending review` : undefined,
-            },
-            {
-              label: 'Projected this month',
-              value: fmtCurrency(projectedThisMonth),
-              tone: 'late',
-              hint: `If ${stats?.pendingThisMonth ?? 0} pending ${stats?.pendingThisMonth === 1 ? 'close is' : 'closes are'} approved`,
-            },
-            {
-              label: 'Approved this month',
-              value: stats?.approvedThisMonth ?? '—',
-              hint: `${fmtCurrency(stats?.earningsThisMonth)} earned`,
-            },
-            {
-              label: 'Total this month',
-              value: stats?.totalThisMonth ?? '—',
-              hint: `${fmtCurrency(stats?.totalAmountThisMonth)}, ${stats?.pendingThisMonth ?? 0} pending`,
-            },
-            {
-              label: 'Rank',
-              value: stats?.rank ? `#${stats.rank}` : '—',
-              hint: stats?.totalVerifiers ? `of ${stats.totalVerifiers} verifiers` : undefined,
-            },
-            {
-              label: `Approved on ${dayLabel}`,
-              value: stats?.approvedThisDay ?? '—',
-              hint: `${fmtCurrency(stats?.earningsThisDay)} earned`,
-            },
-            {
-              label: `Total on ${dayLabel}`,
-              value: stats?.totalThisDay ?? '—',
-              hint: `${fmtCurrency(stats?.totalAmountThisDay)}, ${stats?.pendingThisDay ?? 0} pending`,
-            },
-          ]}
-        />
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-muted">{monthLabel}</h2>
+          <StatGroup
+            wrap
+            items={[
+              {
+                label: 'Earned',
+                value: fmtCurrency(netThisMonth),
+                tone: 'present',
+                hint: approvedFinesTotal > 0
+                  ? `${fmtCurrency(stats?.earningsThisMonth)} from approved closes, minus ${formatPKR(approvedFinesTotal)} fines`
+                  : pendingFinesCount > 0
+                    ? `From approved closes. ${pendingFinesCount} ${pendingFinesCount === 1 ? 'fine' : 'fines'} pending review`
+                    : 'From approved closes',
+              },
+              {
+                label: 'Projected',
+                value: fmtCurrency(projectedThisMonth),
+                tone: 'late',
+                hint: `If all ${stats?.pendingThisMonth ?? 0} pending ${stats?.pendingThisMonth === 1 ? 'close is' : 'closes are'} approved${approvedFinesTotal > 0 ? `, after ${formatPKR(approvedFinesTotal)} fines` : ''}`,
+              },
+              {
+                label: 'Approved closes',
+                value: stats?.approvedThisMonth ?? '—',
+                tone: 'present',
+                hint: `${fmtCurrency(stats?.earningsThisMonth)} at ${formatPKR(COMMISSION)} each`,
+              },
+              {
+                label: 'Total closes',
+                value: stats?.totalThisMonth ?? '—',
+                hint: `${stats?.approvedThisMonth ?? 0} approved, ${stats?.pendingThisMonth ?? 0} pending. Worth ${fmtCurrency(stats?.totalAmountThisMonth)}`,
+              },
+              {
+                label: 'Rank',
+                value: stats?.rank ? `#${stats.rank}` : '—',
+                hint: stats?.totalVerifiers ? `of ${stats.totalVerifiers} verifiers` : undefined,
+              },
+            ]}
+          />
+        </section>
+
+        {viewMode === 'day' && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-medium text-muted">{dayLabel}</h2>
+            <StatGroup
+              wrap
+              items={[
+                {
+                  label: 'Approved closes',
+                  value: stats?.approvedThisDay ?? '—',
+                  tone: 'present',
+                  hint: `${fmtCurrency(stats?.earningsThisDay)} earned`,
+                },
+                {
+                  label: 'Total closes',
+                  value: stats?.totalThisDay ?? '—',
+                  hint: `${stats?.approvedThisDay ?? 0} approved, ${stats?.pendingThisDay ?? 0} pending. Worth ${fmtCurrency(stats?.totalAmountThisDay)}`,
+                },
+              ]}
+            />
+          </section>
+        )}
 
         <Section
           title="Closes"
           actions={
             <>
-              <Input
-                type="date"
-                aria-label="Sale date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-40"
-              />
+              <Select aria-label="View" value={viewMode} onChange={(e) => setViewMode(e.target.value)} className="w-32">
+                <option value="day">By day</option>
+                <option value="month">Whole month</option>
+              </Select>
+              <Select aria-label="Month" value={selMonthNum} onChange={(e) => changeMonth(selYear, Number(e.target.value))} className="w-36">
+                {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+              </Select>
+              <Select aria-label="Year" value={selYear} onChange={(e) => changeMonth(Number(e.target.value), selMonthNum)} className="w-24">
+                {(YEARS.includes(selYear) ? YEARS : [selYear, ...YEARS]).map((y) => <option key={y} value={y}>{y}</option>)}
+              </Select>
+              {viewMode === 'day' && (
+                <Input
+                  type="date"
+                  aria-label="Sale date"
+                  value={selectedDate}
+                  onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                  className="w-40"
+                />
+              )}
               <Select aria-label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-36">
                 <option value="all">All statuses</option>
                 <option value="approved">Approved</option>
@@ -302,8 +353,10 @@ const CloserDashboard = () => {
             loading={loading}
             empty={
               statusFilter !== 'all'
-                ? `No ${statusFilter === 'disapproved' ? 'rejected' : statusFilter.replace('_', '-')} closes on ${dayLabel}.`
-                : `No closes on ${dayLabel}. Pick another date to see earlier closes.`
+                ? `No ${statusFilter === 'disapproved' ? 'rejected' : statusFilter.replace('_', '-')} closes ${periodLabel ? `in ${periodLabel}` : `on ${dayLabel}`}.`
+                : periodLabel
+                  ? `No closes in ${periodLabel}.`
+                  : `No closes on ${dayLabel}. Pick another date to see earlier closes.`
             }
             rows={closes}
             columns={[

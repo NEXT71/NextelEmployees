@@ -1,6 +1,7 @@
 import Attendance from '../models/Attendance.js';
 import Employee from '../models/Employee.js';
 import User from '../models/User.js';
+import { isAttendanceExempt } from '../utils/attendanceScope.js';
 import mongoose from 'mongoose';
 import { 
   isWithinAttendanceWindow, 
@@ -432,14 +433,14 @@ export const getAdminAttendance = async (req, res) => {
     }
 
     const employees = await Employee.find(employeeFilter)
-      .select('_id user')
+      .select('_id user department')
       .populate('user', 'role')
       .lean();
 
     console.log('🔍 Active employees found:', employees.length);
 
-    // Filter out admin users
-    const nonAdminEmployees = employees.filter(emp => emp.user?.role !== 'admin');
+    // Filter out admin users and QA staff (no clock-in, so attendance doesn't apply)
+    const nonAdminEmployees = employees.filter(emp => emp.user?.role !== 'admin' && !isAttendanceExempt(emp));
     console.log('✅ Active non-admin employees:', nonAdminEmployees.length);
 
     const nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);
@@ -722,9 +723,9 @@ export const getAdminAttendanceSummary = async (req, res) => {
     const employees = await Employee.find(employeeFilter)
       .populate('user', 'role');
     
-    // Filter out employees who have admin role
-    const nonAdminEmployees = employees.filter(emp => 
-      !emp.user || emp.user.role !== 'admin'
+    // Filter out employees who have admin role, and QA staff (no clock-in)
+    const nonAdminEmployees = employees.filter(emp =>
+      (!emp.user || emp.user.role !== 'admin') && !isAttendanceExempt(emp)
     );
     
     const nonAdminEmployeeIds = nonAdminEmployees.map(e => e._id);

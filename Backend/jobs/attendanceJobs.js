@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import Employee from '../models/Employee.js';
 import Attendance from '../models/Attendance.js';
 import { isOffDay } from '../utils/holidays.js';
+import { isAttendanceExempt } from '../utils/attendanceScope.js';
 
 /**
  * Mark all active employees as absent shortly before the attendance window opens (5:45 PM PKT)
@@ -44,7 +45,8 @@ export const markAbsentEmployees = async () => {
         console.warn(`⚠️ Employee ${emp.employeeId} (${emp.firstName} ${emp.lastName}) has no linked user account - excluding from attendance`);
         return false; // Exclude employees without user accounts
       }
-      return emp.user.role !== 'admin';
+      // QA staff have no clock-in, so they are never marked absent
+      return emp.user.role !== 'admin' && !isAttendanceExempt(emp);
     });
     
     console.log(`👤 Filtered to ${nonAdminEmployees.length} non-admin employees`);

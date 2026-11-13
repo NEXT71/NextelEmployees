@@ -9,6 +9,7 @@ import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, c
 import { getSalesShiftDate, getSalesShiftMonthRange, getSalesWeekStart } from '../utils/salesShift.js';
 import { hasCplDid, hasVerifierBonusDid } from '../utils/didCategories.js';
 import { OFF_DAY_DATES } from '../utils/holidays.js';
+import { isAttendanceExempt } from '../utils/attendanceScope.js';
 
 // Helper: calculate daily tier bonus from sales count
 const calcDailyTierBonus = calcTierBonus;
@@ -53,7 +54,9 @@ export const generateMonthlySalary = async (req, res, next) => {
     }
 
     // Fetch employee
-    const employee = await Employee.findById(employeeId).select('baseSalary isCloser');
+    const employee = await Employee.findById(employeeId)
+      .select('baseSalary isCloser department user')
+      .populate('user', 'role');
     if (!employee) {
       return res.status(404).json({
         success: false,
@@ -156,7 +159,8 @@ export const generateMonthlySalary = async (req, res, next) => {
     const baseSalary = employee.baseSalary || 0;
 
     // Query attendance for the month - count absent days (official off days are not deducted)
-    const attendanceData = await Attendance.find({
+    // QA staff have no clock-in, so old auto-marked absences must not be deducted
+    const attendanceData = isAttendanceExempt(employee) ? [] : await Attendance.find({
       employee: employeeId,
       date: { $gte: monthStart, $lte: monthEnd, $nin: OFF_DAY_DATES },
       status: 'Absent'

@@ -194,6 +194,8 @@ const CloserDashboard = () => {
   const approvedFinesTotal = monthFines.filter((f) => f.approved).reduce((sum, f) => sum + (f.amount || 0), 0);
   const pendingFinesCount = monthFines.filter((f) => !f.approved).length;
   const netThisMonth = typeof stats?.earningsThisMonth === 'number' ? stats.earningsThisMonth - approvedFinesTotal : null;
+  // If every pending / under-review close this month gets approved
+  const projectedThisMonth = typeof stats?.totalAmountThisMonth === 'number' ? stats.totalAmountThisMonth - approvedFinesTotal : null;
 
   return (
     <AppShell
@@ -239,6 +241,12 @@ const CloserDashboard = () => {
               hint: approvedFinesTotal > 0
                 ? `${fmtCurrency(stats?.earningsThisMonth)} before ${formatPKR(approvedFinesTotal)} fines`
                 : pendingFinesCount > 0 ? `${pendingFinesCount} ${pendingFinesCount === 1 ? 'fine' : 'fines'} pending review` : undefined,
+            },
+            {
+              label: 'Projected this month',
+              value: fmtCurrency(projectedThisMonth),
+              tone: 'late',
+              hint: `If ${stats?.pendingThisMonth ?? 0} pending ${stats?.pendingThisMonth === 1 ? 'close is' : 'closes are'} approved`,
             },
             {
               label: 'Approved this month',

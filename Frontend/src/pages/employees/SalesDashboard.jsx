@@ -267,10 +267,19 @@ const CSRSalesDashboard = () => {
                   </dl>
                 </div>
                 <dl className="grid grid-cols-2 gap-x-8 gap-y-4 content-start lg:border-l lg:border-line lg:pl-10">
-                  <Figure label="Approved" value={monthlyData.totalSales ?? 0} tone="text-present" />
+                  <Figure
+                    label="Approved"
+                    value={monthlyData.totalSales ?? 0}
+                    tone="text-present"
+                    hint={`${formatPKR(monthlyData.totalBaseSalary ?? 0)} base`}
+                  />
                   <Figure label="Pending" value={monthlyData.totalPendingSales ?? 0} tone="text-late" />
                   <Figure label="Rejected" value={monthlyData.totalDisapprovedSales ?? 0} tone="text-absent" />
-                  <Figure label="Submitted" value={monthlyData.totalSubmittedSales ?? 0} />
+                  <Figure
+                    label="Total"
+                    value={monthlyData.totalAllSales ?? 0}
+                    hint={`${formatPKR(monthlyData.totalAllAmount ?? 0)} base, ${monthlyData.totalSubmittedSales ?? 0} submitted`}
+                  />
                 </dl>
               </Panel>
 

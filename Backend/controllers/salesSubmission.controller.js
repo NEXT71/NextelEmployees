@@ -911,7 +911,8 @@ const getMyMonthlyEarnings = async (req, res, next) => {
       SalesTarget.find({ ...agentFilter, status: 'approved', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
         .populate('approvedBy', 'username')
         .sort({ createdAt: 1 }),
-      SalesTarget.find({ ...agentFilter, status: 'pending', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
+      // under_review (CSR name mismatch) is still awaiting QA, so it counts as pending
+      SalesTarget.find({ ...agentFilter, status: { $in: ['pending', 'under_review'] }, createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
         .sort({ createdAt: -1 }),
       SalesTarget.find({ ...agentFilter, status: 'disapproved', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
         .populate('disapprovedBy', 'username')
@@ -989,6 +990,9 @@ const getMyMonthlyEarnings = async (req, res, next) => {
           totalEarnings,
           totalPendingSales: pendingSales.length,
           totalDisapprovedSales: disapprovedSales.length,
+          // Total = approved + pending (rejected excluded); amount is base pay only
+          totalAllSales: totalApproved + pendingSales.length,
+          totalAllAmount: (totalApproved + pendingSales.length) * BASE_PER_SALE,
           approvalRate: totalApproved + disapprovedSales.length > 0
             ? Math.round((totalApproved / (totalApproved + disapprovedSales.length)) * 100)
             : 0,

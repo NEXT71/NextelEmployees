@@ -453,7 +453,7 @@ export const getSalesLeaderboard = async (req, res, next) => {
 
     // Also fetch pending count per agent
     const pendingAgg = await SalesTarget.aggregate([
-      { $match: { status: 'pending' } },
+      { $match: { ...matchFilter, status: { $in: ['pending', 'under_review'] } } },
       { $group: { _id: { $ifNull: ['$agent', '$agentName'] }, pending: { $sum: 1 } } }
     ]);
     const pendingMap = {};

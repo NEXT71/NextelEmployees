@@ -253,7 +253,18 @@ const CloserDashboard = () => {
         {error && <Alert onDismiss={() => setError('')}>{error}</Alert>}
 
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-muted">{monthLabel}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-medium text-muted">{monthLabel}</h2>
+            {(stats?.pendingThisMonth ?? 0) > 0 && !(viewMode === 'month' && statusFilter === 'pending') && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => { setViewMode('month'); setStatusFilter('pending'); }}
+              >
+                View {stats.pendingThisMonth} pending {stats.pendingThisMonth === 1 ? 'close' : 'closes'}
+              </Button>
+            )}
+          </div>
           <StatGroup
             wrap
             items={[
@@ -317,38 +328,50 @@ const CloserDashboard = () => {
 
         <Section
           title="Closes"
-          actions={
-            <>
-              <Select aria-label="View" value={viewMode} onChange={(e) => setViewMode(e.target.value)} className="w-32">
+          actions={<Button variant="ghost" size="icon" icon={RefreshCw} onClick={loadData} disabled={loading} aria-label="Refresh" />}
+        >
+          {/* Fixed-width wrappers: the controls are w-full, so they size to these boxes */}
+          <div className="flex flex-wrap items-end gap-3 mb-3">
+            <label className="w-36">
+              <span className="block text-xs text-muted mb-1">View</span>
+              <Select value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
                 <option value="day">By day</option>
                 <option value="month">Whole month</option>
               </Select>
-              <Select aria-label="Month" value={selMonthNum} onChange={(e) => changeMonth(selYear, Number(e.target.value))} className="w-36">
+            </label>
+            <label className="w-36">
+              <span className="block text-xs text-muted mb-1">Month</span>
+              <Select value={selMonthNum} onChange={(e) => changeMonth(selYear, Number(e.target.value))}>
                 {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
               </Select>
-              <Select aria-label="Year" value={selYear} onChange={(e) => changeMonth(Number(e.target.value), selMonthNum)} className="w-24">
+            </label>
+            <label className="w-24">
+              <span className="block text-xs text-muted mb-1">Year</span>
+              <Select value={selYear} onChange={(e) => changeMonth(Number(e.target.value), selMonthNum)}>
                 {(YEARS.includes(selYear) ? YEARS : [selYear, ...YEARS]).map((y) => <option key={y} value={y}>{y}</option>)}
               </Select>
-              {viewMode === 'day' && (
+            </label>
+            {viewMode === 'day' && (
+              <label className="w-40">
+                <span className="block text-xs text-muted mb-1">Day</span>
                 <Input
                   type="date"
-                  aria-label="Sale date"
                   value={selectedDate}
                   onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
-                  className="w-40"
                 />
-              )}
-              <Select aria-label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-36">
+              </label>
+            )}
+            <label className="w-52">
+              <span className="block text-xs text-muted mb-1">Status</span>
+              <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="all">All statuses</option>
                 <option value="approved">Approved</option>
-                <option value="pending">Pending</option>
+                <option value="pending">Pending (all awaiting QA)</option>
                 <option value="under_review">Under review</option>
                 <option value="disapproved">Rejected</option>
               </Select>
-              <Button variant="ghost" size="icon" icon={RefreshCw} onClick={loadData} disabled={loading} aria-label="Refresh" />
-            </>
-          }
-        >
+            </label>
+          </div>
           <DataTable
             loading={loading}
             empty={

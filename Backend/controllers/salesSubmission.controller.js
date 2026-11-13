@@ -1077,7 +1077,9 @@ async function getMyCloses(req, res, next) {
 
     const { status, limit = 100, page = 1, date, month } = req.query;
     const filter = { closerRef: emp._id };
-    if (status && status !== 'all') filter.status = status;
+    // 'pending' covers under_review too (both still awaiting QA), matching the dashboard counts
+    if (status === 'pending') filter.status = { $in: ['pending', 'under_review'] };
+    else if (status && status !== 'all') filter.status = status;
 
     // month=YYYY-MM lists the whole sales-shift month; takes precedence over date
     const monthMatch = typeof month === 'string' && month.match(/^(\d{4})-(\d{2})$/);

@@ -9,8 +9,8 @@ import AuditLog from '../models/AuditLog.js';
 import { logAudit, logAuditDelete } from '../utils/audit.js';
 import { findLinkedUser, deleteEmployeeCascade } from '../utils/employeeDeletion.js';
 import { getSalesShiftDate, getSalesShiftRange, getSalesWeekStart } from '../utils/salesShift.js';
-import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcDailyEarning, getDailyTier } from '../utils/payRules.js';
-import { hasCplDid } from '../utils/didCategories.js';
+import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcDailyEarning, getDailyTier, groupCsrSalesByDay } from '../utils/payRules.js';
+import { hasCplDid, hasCsrBonusDid } from '../utils/didCategories.js';
 
 const recalculateSaleBonuses = async (agentId, saleDate) => {
   if (!agentId || !saleDate) return;
@@ -19,16 +19,21 @@ const recalculateSaleBonuses = async (agentId, saleDate) => {
   const shiftRange = getSalesShiftRange(shiftDate);
   if (!shiftRange) return;
 
-  const dailySalesCount = await SalesTarget.countDocuments({
+  const daySales = await SalesTarget.find({
     agent: agentId,
     status: 'approved',
     createdAt: {
       $gte: shiftRange.start,
       $lt: shiftRange.end
     }
-  });
+  }).select('dids').lean();
+  const day = {
+    shiftDate,
+    total: daySales.length,
+    lineSales: daySales.filter((s) => hasCsrBonusDid(s.dids)).length
+  };
 
-  const { tier: achievedTier, bonus: tierBonus } = getDailyTier(dailySalesCount);
+  const { tier: achievedTier, bonus: tierBonus } = getDailyTier(day);
 
   await SalesTarget.updateMany(
     {
@@ -42,7 +47,7 @@ const recalculateSaleBonuses = async (agentId, saleDate) => {
     {
       achievedTier,
       tierBonus,
-      totalEarning: Math.round(calcDailyEarning(dailySalesCount))
+      totalEarning: Math.round(calcDailyEarning(day))
     }
   );
 };
@@ -188,16 +193,8 @@ export const getEmployeeFullHistory = async (req, res, next) => {
     // Add daily tier and weekly sales bonuses to each month's earnings
     Object.values(salesByMonth).forEach(monthData => {
       const approvedSales = monthData.sales.filter(s => s.status === 'approved');
-      const byDay = {};
-      approvedSales.forEach(sale => {
-        const day = getSalesShiftDate(sale.createdAt || sale.saleDate);
-        if (!day) return;
-        byDay[day] = (byDay[day] || 0) + 1;
-      });
-      let tierBonus = 0;
-      Object.values(byDay).forEach(count => {
-        tierBonus += calcTierBonus(count);
-      });
+      const tierBonus = Object.values(groupCsrSalesByDay(approvedSales))
+        .reduce((total, day) => total + calcTierBonus(day), 0);
       monthData.tierBonus = tierBonus;
       monthData.weeklyBonus = monthData.weeklyBonus || 0;
       monthData.totalEarnings = monthData.earnings + tierBonus + monthData.weeklyBonus;

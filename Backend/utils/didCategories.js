@@ -6,6 +6,9 @@ const CPL_DIDS = new Set([
 // Lines that count toward the verifier daily bonus
 const VERIFIER_BONUS_DIDS = new Set(['D1', 'D3', 'D4', 'D6', 'D12', 'D36', 'D38']);
 
+// Lines that count toward the CSR daily bonus (from CSR_LINE_BONUS_START_SHIFT_DATE)
+const CSR_BONUS_DIDS = new Set(['D1', 'D3', 'D4', 'D6', 'D12', 'D36', 'D39']);
+
 const matchesDidSet = (dids, set) => {
   const matches = String(dids).match(/(?:^|[^A-Z0-9])(D7SD|D\d+)(?=$|[^A-Z0-9])/gi) || [];
   return matches.some((match) => set.has(match.trim().toUpperCase().replace(/^[^A-Z0-9]/, '')));
@@ -14,3 +17,5 @@ const matchesDidSet = (dids, set) => {
 export const hasCplDid = (dids = '') => matchesDidSet(dids, CPL_DIDS);
 
 export const hasVerifierBonusDid = (dids = '') => matchesDidSet(dids, VERIFIER_BONUS_DIDS);
+
+export const hasCsrBonusDid = (dids = '') => matchesDidSet(dids, CSR_BONUS_DIDS);

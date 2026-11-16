@@ -549,15 +549,9 @@ export const submitGoogleFormData = async (req, res, next) => {
 };
 
 // Helper functions
+// Sales ranges differ before/after CSR_LINE_BONUS_START_SHIFT_DATE (see payRules), so name only
 function getTierName(tier) {
-  switch(tier) {
-    case 1: return 'Tier 1 (3-4 sales)';
-    case 2: return 'Tier 2 (5-7 sales)';
-    case 3: return 'Tier 3 (8-9 sales)';
-    case 4: return 'Tier 4 (10-14 sales)';
-    case 5: return 'Tier 5 (15+ sales)';
-    default: return 'No Tier (Below 3 sales)';
-  }
+  return tier >= 1 && tier <= 5 ? `Tier ${tier}` : 'No Tier (Below 3 sales)';
 }
 
 function getTierDescription(tier, record) {

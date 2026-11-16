@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { getSalesShiftDate, getSalesShiftRange } from '../utils/salesShift.js';
 import { BASE_PER_SALE, getDailyTier } from '../utils/payRules.js';
+import { hasCsrBonusDid } from '../utils/didCategories.js';
 const salesTargetSchema = new mongoose.Schema({
   // Agent who made the sale
   agent: {
@@ -108,7 +109,7 @@ const salesTargetSchema = new mongoose.Schema({
   // Tier and bonus calculated at daily aggregation level
   achievedTier: {
     type: Number,
-    default: 0  // Calculated from daily total (3, 5, 8, 10, 15 sales)
+    default: 0  // Daily tier from utils/payRules.js (bonus-line sales from 2026-11-01)
   },
   tierBonus: {
     type: Number,
@@ -150,22 +151,27 @@ salesTargetSchema.post('save', async function(doc) {
     const shiftRange = getSalesShiftRange(shiftDate);
     if (!shiftRange) return;
     
-    // Count ONLY APPROVED sales for this agent on this day
-    const dailySalesCount = await this.constructor.countDocuments({
+    // ONLY APPROVED sales for this agent on this day
+    const daySales = await this.constructor.find({
       agent: doc.agent,
       status: 'approved',  // Only count approved sales
       createdAt: {
         $gte: shiftRange.start,
         $lt: shiftRange.end
       }
-    });
-    
+    }).select('dids').lean();
+    const day = {
+      shiftDate,
+      total: daySales.length,
+      lineSales: daySales.filter((s) => hasCsrBonusDid(s.dids)).length
+    };
+
     // Tier rules live in utils/payRules.js
-    const { tier: achievedTier, bonus: tierBonus } = getDailyTier(dailySalesCount);
+    const { tier: achievedTier, bonus: tierBonus } = getDailyTier(day);
 
     // Calculate total earning: (daily sales count × base salary) + flat daily bonus
     const baseSalary = doc.baseSalary;
-    const totalEarning = (dailySalesCount * baseSalary) + tierBonus;
+    const totalEarning = (day.total * baseSalary) + tierBonus;
     
     // Update ONLY APPROVED records for the day with calculated bonus
     await this.constructor.updateMany(

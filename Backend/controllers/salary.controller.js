@@ -5,14 +5,11 @@ import Bonus from '../models/Bonus.js';
 import Attendance from '../models/Attendance.js';
 import SalesTarget from '../models/SalesTarget.js';
 import { logAudit, logAuditDelete } from '../utils/audit.js';
-import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcCloserPay, calcVerifierDailyBonus, VERIFIER_BONUS_START_SHIFT_DATE } from '../utils/payRules.js';
+import { BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcWeeklyBonus, calcCloserPay, calcVerifierDailyBonus, VERIFIER_BONUS_START_SHIFT_DATE, groupCsrSalesByDay } from '../utils/payRules.js';
 import { getSalesShiftDate, getSalesShiftMonthRange, getSalesWeekStart } from '../utils/salesShift.js';
 import { hasCplDid, hasVerifierBonusDid } from '../utils/didCategories.js';
 import { OFF_DAY_DATES } from '../utils/holidays.js';
 import { isAttendanceExempt } from '../utils/attendanceScope.js';
-
-// Helper: calculate daily tier bonus from sales count
-const calcDailyTierBonus = calcTierBonus;
 
 // Manual bonuses (Bonus collection) dated inside the salary month
 const sumManualBonuses = async (employeeId, monthStart, monthEnd) => {
@@ -179,7 +176,7 @@ export const generateMonthlySalary = async (req, res, next) => {
       agent: employeeId,
       status: 'approved',
       createdAt: { $gte: salesMonthRange.start, $lt: salesMonthRange.end }
-    }).select('createdAt saleDate pricePerSale');
+    }).select('createdAt saleDate pricePerSale dids');
 
     const salesWeekRange = {
       start: new Date(salesMonthRange.start),
@@ -193,18 +190,9 @@ export const generateMonthlySalary = async (req, res, next) => {
       createdAt: { $gte: salesWeekRange.start, $lt: salesWeekRange.end }
     }).select('createdAt saleDate dids');
 
-    // Group by day to calculate tier bonuses
-    const salesByDay = {};
-    approvedSales.forEach(sale => {
-      const dayKey = getSalesShiftDate(sale.createdAt || sale.saleDate);
-      if (!dayKey) return;
-      salesByDay[dayKey] = (salesByDay[dayKey] || 0) + 1;
-    });
-
-    let totalTierBonus = 0;
-    Object.values(salesByDay).forEach(count => {
-      totalTierBonus += calcDailyTierBonus(count);
-    });
+    // Group by day to calculate tier bonuses (bonus-line sales only from CSR_LINE_BONUS_START_SHIFT_DATE)
+    const totalTierBonus = Object.values(groupCsrSalesByDay(approvedSales))
+      .reduce((total, day) => total + calcTierBonus(day), 0);
 
     const salesByWeek = {};
     approvedSalesForWeeks.forEach((sale) => {

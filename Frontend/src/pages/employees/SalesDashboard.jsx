@@ -15,13 +15,30 @@ import { subscribeSocket } from '../../utils/socket';
 import { formatSalesShiftDate, getCurrentSalesShiftDate, getSalesPeriodRange } from '../../utils/salesShift';
 import { getDidCategories } from '../../utils/didCategories';
 
-const TIERS = [
-  { key: 'tier1', label: 'Tier 1', sales: '3–4 sales', bonus: 500 },
-  { key: 'tier2', label: 'Tier 2', sales: '5–7 sales', bonus: 1000 },
-  { key: 'tier3', label: 'Tier 3', sales: '8–9 sales', bonus: 2000 },
-  { key: 'tier4', label: 'Tier 4', sales: '10–14 sales', bonus: 3000 },
-  { key: 'tier5', label: 'Tier 5', sales: '15+ sales', bonus: 5000 },
-];
+// Fallback when the API does not send tierRules (legacy all-sales tiers)
+const LEGACY_TIER_RULES = {
+  basis: 'allSales',
+  tiers: [
+    { name: 'tier5', tier: 5, minSales: 15, bonus: 5000 },
+    { name: 'tier4', tier: 4, minSales: 10, bonus: 3000 },
+    { name: 'tier3', tier: 3, minSales: 8, bonus: 2000 },
+    { name: 'tier2', tier: 2, minSales: 5, bonus: 1000 },
+    { name: 'tier1', tier: 1, minSales: 3, bonus: 500 },
+  ],
+};
+
+const CSR_BONUS_LINES = 'D1, D3, D4, D6, D12, D36, D39';
+
+// Tier rows (lowest first) with sales ranges, from the tier table the API used for the month
+const buildTiers = (tierRules = LEGACY_TIER_RULES) => {
+  const unit = tierRules.basis === 'bonusLines' ? 'bonus-line sales' : 'sales';
+  const asc = [...tierRules.tiers].sort((a, b) => a.minSales - b.minSales);
+  return asc.map((t, i) => {
+    const next = asc[i + 1];
+    const range = next ? (next.minSales - 1 === t.minSales ? `${t.minSales}` : `${t.minSales}–${next.minSales - 1}`) : `${t.minSales}+`;
+    return { key: t.name, label: `Tier ${t.tier}`, sales: `${range} ${unit}`, bonus: t.bonus };
+  });
+};
 
 const PERIODS = [
   { key: 'today', label: 'Today' },
@@ -133,6 +150,8 @@ const CSRSalesDashboard = () => {
   }, [activeTab, loadSubmissions]);
 
   const monthLabel = new Date(activeYear, activeMonth - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const TIERS = buildTiers(monthlyData?.tierRules);
+  const onBonusLines = monthlyData?.tierRules?.basis === 'bonusLines';
   const maxTierDays = monthlyData ? Math.max(1, ...TIERS.map((t) => monthlyData.daysPerTier?.[t.key] || 0)) : 1;
 
   const emptySubmissions =
@@ -252,17 +271,28 @@ const CSRSalesDashboard = () => {
                   <p className="mt-1 text-[40px] leading-none font-semibold text-ink tabular-nums">
                     {formatPKR(monthlyData.totalEarnings)}
                   </p>
+                  {typeof monthlyData.projectedEarnings === 'number' && (
+                    <p className="mt-2 text-sm text-muted">
+                      Projected{' '}
+                      <span className="text-late font-semibold tabular-nums">{formatPKR(monthlyData.projectedEarnings)}</span>{' '}
+                      if all {monthlyData.projectedSales} sales (incl. pending and under review) are approved
+                    </p>
+                  )}
                   <dl className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Figure
                       label="Base salary"
                       value={formatPKR(monthlyData.totalBaseSalary)}
                       hint={`${monthlyData.totalDays} ${monthlyData.totalDays === 1 ? 'day' : 'days'} worked`}
                     />
-                    <Figure label="Tier bonus" value={formatPKR(monthlyData.totalTierBonus)} hint="Daily performance bonus" />
+                    <Figure
+                      label="Tier bonus"
+                      value={formatPKR(monthlyData.totalTierBonus)}
+                      hint={`Projected ${formatPKR(monthlyData.projectedTierBonus ?? monthlyData.totalTierBonus)}${onBonusLines ? `, lines ${CSR_BONUS_LINES}` : ''}`}
+                    />
                     <Figure
                       label="Weekly bonus"
                       value={formatPKR(monthlyData.totalWeeklyBonus || 0)}
-                      hint="PKR 5,000 for 35 approved sales in a week"
+                      hint={`Projected ${formatPKR(monthlyData.projectedWeeklyBonus ?? monthlyData.totalWeeklyBonus ?? 0)}, PKR 5,000 for 35 in a week`}
                     />
                   </dl>
                 </div>
@@ -276,9 +306,9 @@ const CSRSalesDashboard = () => {
                   <Figure label="Pending" value={monthlyData.totalPendingSales ?? 0} tone="text-late" />
                   <Figure label="Rejected" value={monthlyData.totalDisapprovedSales ?? 0} tone="text-absent" />
                   <Figure
-                    label="Total"
-                    value={monthlyData.totalAllSales ?? 0}
-                    hint={`${formatPKR(monthlyData.totalAllAmount ?? 0)} base, ${monthlyData.totalSubmittedSales ?? 0} submitted`}
+                    label="Projected sales"
+                    value={monthlyData.projectedSales ?? monthlyData.totalAllSales ?? 0}
+                    hint={`Approved + pending, ${formatPKR(monthlyData.projectedEarnings ?? monthlyData.totalAllAmount ?? 0)} total${onBonusLines ? `, ${monthlyData.projectedLineSales ?? 0} on bonus lines` : ''}`}
                   />
                 </dl>
               </Panel>
@@ -326,7 +356,9 @@ const CSRSalesDashboard = () => {
                   rowKey={(r, i) => `${r.date}-${i}`}
                   columns={[
                     { key: 'date', header: 'Date', render: (r) => formatDay(r.date) },
-                    { key: 'sales', header: 'Sales', align: 'right', render: (r) => r.sales },
+                    { key: 'sales', header: 'Approved', align: 'right', render: (r) => r.sales },
+                    ...(onBonusLines ? [{ key: 'lines', header: 'On bonus lines', align: 'right', render: (r) => r.lineSales ?? '—' }] : []),
+                    { key: 'pending', header: 'Pending', align: 'right', render: (r) => (r.pendingSales ? <span className="text-late">{r.pendingSales}</span> : <span className="text-muted">—</span>) },
                     { key: 'base', header: 'Base', align: 'right', render: (r) => formatPKR(r.baseSalary) },
                     {
                       key: 'bonus',
@@ -334,7 +366,19 @@ const CSRSalesDashboard = () => {
                       align: 'right',
                       render: (r) => (r.tierBonus > 0 ? <span className="text-present">+ {formatPKR(r.tierBonus)}</span> : <span className="text-muted">—</span>),
                     },
+                    {
+                      key: 'projectedBonus',
+                      header: 'Projected bonus',
+                      align: 'right',
+                      render: (r) => (r.projectedTierBonus > 0 ? <span className="text-late">{formatPKR(r.projectedTierBonus)}</span> : <span className="text-muted">—</span>),
+                    },
                     { key: 'total', header: 'Total', align: 'right', render: (r) => <span className="font-medium">{formatPKR(r.totalEarning)}</span> },
+                    {
+                      key: 'projectedTotal',
+                      header: 'Projected total',
+                      align: 'right',
+                      render: (r) => <span className="text-late">{formatPKR(r.projectedEarning ?? r.totalEarning)}</span>,
+                    },
                     {
                       key: 'tier',
                       header: 'Tier',

@@ -5,6 +5,7 @@ import { normalizeName, resolveEmployeeByName } from '../utils/employeeMatch.js'
 import { logAudit } from '../utils/audit.js';
 import {
   BASE_PER_SALE, CLOSER_RATE_PER_CLOSE, calcTierBonus, calcDailyEarning, calcWeeklyBonus, getTierName,
+  groupCsrSalesByDay, usesCsrLineTiers, CSR_LINE_DAILY_TIERS, DAILY_TIERS,
   calcVerifierDailyBonus, VERIFIER_BONUS_START_SHIFT_DATE
 } from '../utils/payRules.js';
 import { emitSalesSubmissionUpdate } from '../utils/socket.js';
@@ -917,11 +918,12 @@ const getMyMonthlyEarnings = async (req, res, next) => {
       SalesTarget.find({ ...agentFilter, status: 'disapproved', createdAt: { $gte: monthRange.start, $lt: monthRange.end } })
         .populate('disapprovedBy', 'username')
         .sort({ createdAt: -1 }),
+      // Approved + still-awaiting-QA sales around the month, for actual and projected weekly bonus
       SalesTarget.find({
         ...agentFilter,
-        status: 'approved',
+        status: { $in: ['approved', 'pending', 'under_review'] },
         createdAt: { $gte: weeklySalesRange.start, $lt: weeklySalesRange.end }
-      }).select('createdAt saleDate dids')
+      }).select('createdAt saleDate dids status')
     ]);
 
     const inSalesShiftMonth = (sale) => {
@@ -933,46 +935,66 @@ const getMyMonthlyEarnings = async (req, res, next) => {
     const pendingSales = pendingSalesForMonth.filter(inSalesShiftMonth);
     const disapprovedSales = disapprovedSalesForMonth.filter(inSalesShiftMonth);
 
-    const salesByWeek = {};
-    approvedSalesForWeeks.forEach((sale) => {
-      if (!hasCplDid(sale.dids)) return;
-      const shiftDate = getSalesShiftDate(sale.createdAt || sale.saleDate);
-      const weekStart = shiftDate && getSalesWeekStart(shiftDate);
-      if (!weekStart || weekStart.slice(0, 7) !== `${yearNum}-${String(monthNum).padStart(2, '0')}`) return;
-      salesByWeek[weekStart] = (salesByWeek[weekStart] || 0) + 1;
-    });
+    const monthKey = `${yearNum}-${String(monthNum).padStart(2, '0')}`;
+    const weeklyBonusFor = (sales) => {
+      const salesByWeek = {};
+      sales.forEach((sale) => {
+        if (!hasCplDid(sale.dids)) return;
+        const shiftDate = getSalesShiftDate(sale.createdAt || sale.saleDate);
+        const weekStart = shiftDate && getSalesWeekStart(shiftDate);
+        if (!weekStart || weekStart.slice(0, 7) !== monthKey) return;
+        salesByWeek[weekStart] = (salesByWeek[weekStart] || 0) + 1;
+      });
+      return Object.values(salesByWeek).reduce((total, count) => total + calcWeeklyBonus(count), 0);
+    };
 
-    const salesByDay = {};
-    approvedSales.forEach(sale => {
-      const dayKey = getSalesShiftDate(sale.createdAt || sale.saleDate);
-      if (!dayKey) return;
-      salesByDay[dayKey] = (salesByDay[dayKey] || 0) + 1;
-    });
+    // Tier bonus counts bonus-line sales only from CSR_LINE_BONUS_START_SHIFT_DATE (see payRules)
+    const salesByDay = groupCsrSalesByDay(approvedSales);
 
     let totalTierBonus = 0;
     const daysPerTier = { tier1: 0, tier2: 0, tier3: 0, tier4: 0, tier5: 0, noTier: 0 };
-    Object.values(salesByDay).forEach(count => {
-      totalTierBonus += calcTierBonus(count);
-      const tierKey = getTierNameFromCount(count);
-      daysPerTier[tierKey]++;
+    Object.values(salesByDay).forEach((day) => {
+      totalTierBonus += calcTierBonus(day);
+      daysPerTier[getTierNameFromCount(day)]++;
     });
 
-    const totalWeeklyBonus = Object.values(salesByWeek)
-      .reduce((total, count) => total + calcWeeklyBonus(count), 0);
+    const totalWeeklyBonus = weeklyBonusFor(approvedSalesForWeeks.filter((s) => s.status === 'approved'));
     const totalApproved = approvedSales.length;
     const totalBaseSalary = totalApproved * BASE_PER_SALE;
     const totalEarnings = totalBaseSalary + totalTierBonus + totalWeeklyBonus;
     const totalDays = Object.keys(salesByDay).length;
 
-    // Build daily breakdown for the dashboard table
-    const dailyBreakdown = Object.entries(salesByDay).map(([date, count]) => ({
-      date,
-      sales: count,
-      tier: getTierNameFromCount(count),
-      baseSalary: count * BASE_PER_SALE,
-      tierBonus: calcTierBonus(count),
-      totalEarning: calcDailyEarning(count)
-    }));
+    // Projection: what the month pays if every pending / under-review sale is approved
+    const projectedSalesByDay = groupCsrSalesByDay([...approvedSales, ...pendingSales]);
+    const projectedSales = totalApproved + pendingSales.length;
+    const projectedLineSales = Object.values(projectedSalesByDay).reduce((total, day) => total + day.lineSales, 0);
+    const projectedTierBonus = Object.values(projectedSalesByDay)
+      .reduce((total, day) => total + calcTierBonus(day), 0);
+    const projectedWeeklyBonus = weeklyBonusFor(approvedSalesForWeeks);
+    const projectedBaseSalary = projectedSales * BASE_PER_SALE;
+    const projectedEarnings = projectedBaseSalary + projectedTierBonus + projectedWeeklyBonus;
+
+    // Build daily breakdown for the dashboard table (days with approved or pending sales)
+    const dailyBreakdown = Object.values(projectedSalesByDay)
+      .sort((a, b) => a.shiftDate.localeCompare(b.shiftDate))
+      .map((projectedDay) => {
+        const day = salesByDay[projectedDay.shiftDate] || { shiftDate: projectedDay.shiftDate, total: 0, lineSales: 0 };
+        return {
+          date: day.shiftDate,
+          sales: day.total,
+          lineSales: day.lineSales,
+          pendingSales: projectedDay.total - day.total,
+          tier: getTierNameFromCount(day),
+          baseSalary: day.total * BASE_PER_SALE,
+          tierBonus: calcTierBonus(day),
+          totalEarning: calcDailyEarning(day),
+          projectedTierBonus: calcTierBonus(projectedDay),
+          projectedEarning: calcDailyEarning(projectedDay)
+        };
+      });
+    const tierRules = usesCsrLineTiers(`${monthKey}-01`)
+      ? { basis: 'bonusLines', tiers: CSR_LINE_DAILY_TIERS }
+      : { basis: 'allSales', tiers: DAILY_TIERS };
 
     res.status(200).json({
       success: true,
@@ -996,7 +1018,15 @@ const getMyMonthlyEarnings = async (req, res, next) => {
           approvalRate: totalApproved + disapprovedSales.length > 0
             ? Math.round((totalApproved / (totalApproved + disapprovedSales.length)) * 100)
             : 0,
-          daysPerTier
+          daysPerTier,
+          tierRules,
+          // Projected = approved + pending + under review, as if all get approved
+          projectedSales,
+          projectedLineSales,
+          projectedBaseSalary,
+          projectedTierBonus,
+          projectedWeeklyBonus,
+          projectedEarnings
         },
         dailyBreakdown,
         pendingBreakdown: pendingSales,
@@ -1215,13 +1245,14 @@ async function getMyBonusLineCloses(req, res, next) {
     if (!range) return res.status(400).json({ success: false, message: 'Invalid date' });
 
     const filter = { closerRef: emp._id, createdAt: { $gte: range.start, $lt: range.end } };
-    if (status !== 'all') filter.status = status;
 
+    // Bonus and projected bonus always use every status; the status filter only narrows the list
     const all = await SalesTarget.find(filter).sort({ createdAt: -1 }).limit(5000).lean();
-    const closes = all.filter((c) => hasVerifierBonusDid(c.dids));
+    const allBonusCloses = all.filter((c) => hasVerifierBonusDid(c.dids));
+    const closes = status === 'all' ? allBonusCloses : allBonusCloses.filter((c) => c.status === status);
 
     const byDay = {};
-    closes.forEach((c) => {
+    allBonusCloses.forEach((c) => {
       if (!COUNTED_CLOSE_STATUSES.includes(c.status)) return;
       const day = getSalesShiftDate(c.createdAt || c.saleDate);
       if (!day) return;
@@ -1243,8 +1274,8 @@ async function getMyBonusLineCloses(req, res, next) {
       data: {
         period,
         total: closes.length,
-        approved: closes.filter((c) => c.status === 'approved').length,
-        pending: closes.filter((c) => ['pending', 'under_review'].includes(c.status)).length,
+        approved: allBonusCloses.filter((c) => c.status === 'approved').length,
+        pending: allBonusCloses.filter((c) => ['pending', 'under_review'].includes(c.status)).length,
         totalBonus: daily.reduce((sum, d) => sum + d.bonus, 0),
         totalProjectedBonus: daily.reduce((sum, d) => sum + d.projectedBonus, 0),
         daily,
